@@ -384,6 +384,67 @@
           }
         }
       }
+    },
+
+    "SpaceCapabilityReport": {
+      "description": "What one connection to a ChatGPT space can do, as probed. Each capability rests on its own evidence: reading proves nothing about writing, and a file download proves nothing about editing a native page. A gate passes only on verified evidence; without it the space stays blocked.",
+      "type": "object",
+      "required": ["connectionRef", "observedAt", "authMethod", "authStatus", "scope", "capabilities", "stableIds", "gates", "sourceDocumentation", "probeEvidence", "blockers"],
+      "additionalProperties": false,
+      "properties": {
+        "connectionRef": { "oneOf": [{ "$ref": "#/$defs/OpaqueId" }, { "type": "null" }] },
+        "observedAt": { "type": "string", "minLength": 1 },
+        "authMethod": { "enum": ["none", "official-api", "host-bridge", "source-connector"] },
+        "authStatus": { "enum": ["none", "authorized", "unauthorized", "expired", "share-link-only"] },
+        "scope": {
+          "type": "object",
+          "required": ["accountScope", "spaceId"],
+          "additionalProperties": false,
+          "properties": {
+            "accountScope": { "type": ["string", "null"] },
+            "spaceId": { "type": ["string", "null"] }
+          }
+        },
+        "capabilities": { "$ref": "#/$defs/SourceCapabilities" },
+        "stableIds": { "$ref": "#/$defs/Capability" },
+        "gates": {
+          "type": "object",
+          "required": ["read", "write"],
+          "additionalProperties": false,
+          "properties": {
+            "read": { "enum": ["passed", "blocked"] },
+            "write": { "enum": ["passed", "blocked"] }
+          }
+        },
+        "sourceDocumentation": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["title", "url", "checkedAt"],
+            "additionalProperties": false,
+            "properties": {
+              "title": { "type": "string", "minLength": 1 },
+              "url": { "type": "string", "minLength": 1 },
+              "checkedAt": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "probeEvidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["operation", "outcome", "at"],
+            "additionalProperties": false,
+            "properties": {
+              "operation": { "type": "string", "minLength": 1 },
+              "outcome": { "enum": ["verified", "failed", "untested"] },
+              "at": { "type": "string", "minLength": 1 },
+              "note": { "type": "string" }
+            }
+          }
+        },
+        "blockers": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
     }
   }
 }

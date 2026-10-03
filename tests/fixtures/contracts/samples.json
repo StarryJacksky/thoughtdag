@@ -197,6 +197,15 @@
       "value": { "action": "fresh" } },
 
     { "name": "unknown run state", "kind": "RunState", "valid": true, "value": "unknown" },
-    { "name": "a run state nobody defined", "kind": "RunState", "valid": false, "error": { "path": "", "keyword": "enum" }, "value": "retrying" }
+    { "name": "a run state nobody defined", "kind": "RunState", "valid": false, "error": { "path": "", "keyword": "enum" }, "value": "retrying" },
+
+    { "name": "blocked space, no interface", "kind": "SpaceCapabilityReport", "valid": true,
+      "value": { "connectionRef": null, "observedAt": "2026-10-03T00:00:00Z", "authMethod": "none", "authStatus": "none", "scope": { "accountScope": null, "spaceId": null }, "capabilities": { "list": "unknown", "read": "unknown", "create": "unknown", "update": "unknown", "move": "unknown", "trash": "unknown", "conditionalWrite": "unknown", "pagePatch": "unknown", "changes": "unknown", "uploadCustomType": "unknown" }, "stableIds": "unknown", "gates": { "read": "blocked", "write": "blocked" }, "sourceDocumentation": [{ "title": "Getting started with Space in ChatGPT", "url": "https://help.openai.com/en/articles/20001549-getting-started-with-space-in-chatgpt", "checkedAt": "2026-10-03" }], "probeEvidence": [], "blockers": ["no interface is documented"] } },
+    { "name": "space report carrying a token", "kind": "SpaceCapabilityReport", "valid": false,
+      "error": { "path": "/accessToken", "keyword": "additionalProperties" },
+      "value": { "connectionRef": "conn_1", "observedAt": "2026-10-03T00:00:00Z", "authMethod": "official-api", "authStatus": "authorized", "scope": { "accountScope": "acct_1", "spaceId": "space_1" }, "capabilities": { "list": "unknown", "read": "unknown", "create": "unknown", "update": "unknown", "move": "unknown", "trash": "unknown", "conditionalWrite": "unknown", "pagePatch": "unknown", "changes": "unknown", "uploadCustomType": "unknown" }, "stableIds": "unknown", "gates": { "read": "blocked", "write": "blocked" }, "sourceDocumentation": [], "probeEvidence": [], "blockers": [], "accessToken": "SYNTHETIC_TOKEN_X9" } },
+    { "name": "space report with a gate half open", "kind": "SpaceCapabilityReport", "valid": false,
+      "error": { "path": "/gates/read", "keyword": "enum" },
+      "value": { "connectionRef": "conn_1", "observedAt": "2026-10-03T00:00:00Z", "authMethod": "official-api", "authStatus": "authorized", "scope": { "accountScope": "acct_1", "spaceId": "space_1" }, "capabilities": { "list": "unknown", "read": "unknown", "create": "unknown", "update": "unknown", "move": "unknown", "trash": "unknown", "conditionalWrite": "unknown", "pagePatch": "unknown", "changes": "unknown", "uploadCustomType": "unknown" }, "stableIds": "unknown", "gates": { "read": "probably", "write": "blocked" }, "sourceDocumentation": [], "probeEvidence": [], "blockers": [] } }
   ]
 }

@@ -147,6 +147,25 @@ export type SourceWriteResult =
   | { status: 'conflict'; currentRevision: string }
   | { status: 'readonly' | 'unsupported' | 'unknown-ack'; reason: string };
 
+/** What one connection to a ChatGPT space can do, as probed. Each capability
+ *  rests on its own evidence: reading proves nothing about writing, and a file
+ *  download proves nothing about editing a native page. A gate passes only on
+ *  verified evidence; without it the space stays blocked. */
+export interface SpaceCapabilityReport {
+  connectionRef: string | null;
+  observedAt: string;
+  authMethod: 'none' | 'official-api' | 'host-bridge' | 'source-connector';
+  authStatus: 'none' | 'authorized' | 'unauthorized' | 'expired' | 'share-link-only';
+  scope: { accountScope: string | null; spaceId: string | null };
+  capabilities: SourceCapabilities;
+  /** whether objects keep one id across renames and moves */
+  stableIds: Capability;
+  gates: { read: 'passed' | 'blocked'; write: 'passed' | 'blocked' };
+  sourceDocumentation: { title: string; url: string; checkedAt: string }[];
+  probeEvidence: { operation: string; outcome: 'verified' | 'failed' | 'untested'; at: string; note?: string }[];
+  blockers: string[];
+}
+
 /** The narrow door the renderer has into files. It never passes a path. */
 export interface WorkspaceAPI {
   chooseRoot(): Promise<WorkspaceRecord>;
@@ -215,6 +234,7 @@ export interface WorkspaceDTOs {
   SourceWrite: SourceWrite;
   SourceWriteResult: SourceWriteResult;
   SurfaceState: SurfaceState;
+  SpaceCapabilityReport: SpaceCapabilityReport;
 }
 
 const validator = createValidator([workspaceSchema, runEnvelopeSchema]);

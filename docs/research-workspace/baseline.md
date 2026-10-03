@@ -50,10 +50,10 @@ T01 改动之后，上面除最后一项外全部重跑，结果不变。
 
 | 命令 | 运行器 | 范围 |
 | --- | --- | --- |
-| `npm run test:unit` | Vitest（jsdom，fake-indexeddb） | `tests/unit`、`tests/integration`、`tests/contracts` |
+| `npm run test:unit` | Vitest（jsdom，fake-indexeddb） | `tests/unit`、`tests/integration` |
 | `npm run test:host` | `node --test` | `tests/host/**/*.test.cjs`；带参数时只跑指定文件 |
 | `npm run test:e2e` | Playwright，驱动本机 Chrome | `tests/e2e`；自动起 dev server，已有则复用 |
-| `npm run test:contracts` | Vitest | `tests/contracts`；目前为空，T02 填充 |
+| `npm run test:contracts` | Vitest 加 `node --test` | 契约测试，界面一侧和主进程一侧各跑一遍；T01 时为空，T02 填充，见 [contracts.md](contracts.md) |
 
 新增的开发依赖：`vitest`、`jsdom`、`fake-indexeddb`、`@playwright/test`。安装时锁文件里的 `playwright-core` 从 1.61 升到 1.63（仍在原声明范围内），升级后冒烟测试照常通过。
 

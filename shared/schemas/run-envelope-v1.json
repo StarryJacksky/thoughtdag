@@ -1,0 +1,329 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:thoughtdag:schemas:run-envelope-v1",
+  "title": "ThoughtDAG run contracts",
+  "description": "One run on one AI target: the frozen input, the policy it runs under, the runtime it was sent to, and how the run relates to a runtime's native session. The preview, the request and the files materialized for an agent are all read from one envelope. It builds on the context compiler's output (protocol/context-bundle): messages keep their per-item source, and hashes use the same sha256 form.",
+  "$defs": {
+    "RunSchemaVersion": { "const": "1.1" },
+
+    "AgentRuntime": { "enum": ["codex", "claude-code", "pi"] },
+
+    "MessageSource": {
+      "description": "Where one message came from, as the context compiler reports it. `inputId` ties a rendered material to its frozen input.",
+      "type": "object",
+      "required": ["layer"],
+      "additionalProperties": false,
+      "properties": {
+        "layer": { "enum": ["system", "material", "reference", "chain", "branch"] },
+        "part": { "enum": ["role", "attachment", "question", "response", "reference", "passage"] },
+        "nodeId": { "type": "string", "minLength": 1 },
+        "attachmentId": { "type": "string", "minLength": 1 },
+        "refSourceId": { "type": "string", "minLength": 1 },
+        "inputId": { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "EnvelopeMessage": {
+      "type": "object",
+      "required": ["role", "content", "source"],
+      "additionalProperties": false,
+      "properties": {
+        "role": { "enum": ["system", "user", "assistant"] },
+        "content": { "type": "string" },
+        "source": { "$ref": "#/$defs/MessageSource" }
+      }
+    },
+
+    "InputSource": {
+      "description": "What a frozen input was taken from: a workspace resource, an attachment held on a node, or an explicit recall.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "ref"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "resource" },
+            "ref": { "$ref": "urn:thoughtdag:schemas:workspace-v1#/$defs/ResourceRef" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "nodeId", "attachmentId"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "attachment" },
+            "nodeId": { "type": "string", "minLength": 1 },
+            "attachmentId": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "recallId"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "recall" },
+            "recallId": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    },
+
+    "ResolvedInput": {
+      "description": "One input, frozen. The snapshot is the evidence; the content hash is over the exact bytes the run was given.",
+      "type": "object",
+      "required": ["inputId", "source", "snapshotId", "contentHash", "payload", "displayName", "size", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "inputId": { "type": "string", "minLength": 1 },
+        "source": { "$ref": "#/$defs/InputSource" },
+        "snapshotId": { "type": "string", "minLength": 1 },
+        "contentHash": { "$ref": "urn:thoughtdag:schemas:workspace-v1#/$defs/ContentHash" },
+        "payload": { "enum": ["text", "image", "metadata"] },
+        "displayName": { "type": "string", "minLength": 1 },
+        "size": {
+          "type": "object",
+          "required": ["bytes"],
+          "additionalProperties": false,
+          "properties": {
+            "bytes": { "type": "integer", "minimum": 0 },
+            "textChars": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "ExclusionRecord": {
+      "description": "Something wired in that this run leaves out, and why. It names the thing; it never carries its content.",
+      "type": "object",
+      "required": ["source", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "$ref": "#/$defs/InputSource" },
+        "reason": { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "Budget": {
+      "description": "Limits the application enforces around a run. They are run guards, not estimates of how long work takes.",
+      "type": "object",
+      "required": ["maxInputTokens", "reservedOutputTokens", "maxToolCalls", "maxWallTimeSeconds"],
+      "additionalProperties": false,
+      "properties": {
+        "maxInputTokens": { "type": "integer", "minimum": 1 },
+        "reservedOutputTokens": { "type": "integer", "minimum": 0 },
+        "maxToolCalls": { "type": "integer", "minimum": 0 },
+        "maxWallTimeSeconds": { "type": "integer", "minimum": 1 },
+        "maxCostUsd": { "type": "number", "minimum": 0 }
+      }
+    },
+
+    "ExecutionPolicy": {
+      "type": "object",
+      "required": ["read", "write", "tools", "network", "recall", "budget"],
+      "additionalProperties": false,
+      "properties": {
+        "read": {
+          "description": "inputs-only: the run may read the listed inputs and nothing else. workspace: its tools may also read the workspace it runs in.",
+          "type": "object",
+          "required": ["scope", "inputIds"],
+          "additionalProperties": false,
+          "properties": {
+            "scope": { "enum": ["inputs-only", "workspace"] },
+            "inputIds": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+          }
+        },
+        "write": {
+          "type": "object",
+          "required": ["scope"],
+          "additionalProperties": false,
+          "properties": {
+            "scope": { "enum": ["none", "isolated-copy", "workspace"] }
+          }
+        },
+        "tools": {
+          "type": "object",
+          "required": ["allow", "mcpServers"],
+          "additionalProperties": false,
+          "properties": {
+            "allow": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+            "mcpServers": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+          }
+        },
+        "network": { "enum": ["off", "on"] },
+        "recall": { "enum": ["off", "explicit-only", "auto"] },
+        "budget": { "$ref": "#/$defs/Budget" }
+      }
+    },
+
+    "RuntimeSelection": {
+      "description": "What the run asked for. The model that actually answered is recorded after the run, beside this, never over it.",
+      "type": "object",
+      "required": ["kind", "runtime", "connectionRef", "model", "effort", "capabilityVersion"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "enum": ["provider", "agent"] },
+        "runtime": { "oneOf": [{ "$ref": "#/$defs/AgentRuntime" }, { "type": "null" }] },
+        "connectionRef": { "type": "string", "minLength": 1 },
+        "model": { "type": "string", "minLength": 1 },
+        "effort": { "type": ["string", "null"] },
+        "capabilityVersion": { "type": ["string", "null"] }
+      }
+    },
+
+    "RunEnvelope": {
+      "type": "object",
+      "required": ["schemaVersion", "runId", "targetId", "targetRevision", "taskNodeId", "graphId", "graphRevision", "mode", "messages", "inputs", "excluded", "policy", "runtime", "inputDigest", "executionDigest"],
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": { "$ref": "#/$defs/RunSchemaVersion" },
+        "runId": { "type": "string", "minLength": 1 },
+        "targetId": { "type": "string", "minLength": 1 },
+        "targetRevision": { "type": "string", "minLength": 1 },
+        "taskNodeId": { "type": "string", "minLength": 1 },
+        "graphId": { "type": "string", "minLength": 1 },
+        "graphRevision": { "$ref": "urn:thoughtdag:schemas:workspace-v1#/$defs/ContentHash" },
+        "mode": { "enum": ["research", "workspace"] },
+        "messages": { "type": "array", "items": { "$ref": "#/$defs/EnvelopeMessage" } },
+        "inputs": { "type": "array", "items": { "$ref": "#/$defs/ResolvedInput" } },
+        "excluded": { "type": "array", "items": { "$ref": "#/$defs/ExclusionRecord" } },
+        "policy": { "$ref": "#/$defs/ExecutionPolicy" },
+        "runtime": { "$ref": "#/$defs/RuntimeSelection" },
+        "inputDigest": { "$ref": "urn:thoughtdag:schemas:workspace-v1#/$defs/ContentHash" },
+        "executionDigest": { "$ref": "urn:thoughtdag:schemas:workspace-v1#/$defs/ContentHash" }
+      }
+    },
+
+    "ExecutionTarget": {
+      "description": "One AI a task node is bound to, with everything it runs under. Created from the global defaults once; changing the defaults later changes no existing target.",
+      "type": "object",
+      "required": ["targetId", "revision", "label", "kind", "runtime", "connectionRef", "model", "effort", "roleRef", "memoryPolicyId", "policyId", "workspaceId", "budgetId"],
+      "additionalProperties": false,
+      "properties": {
+        "targetId": { "type": "string", "minLength": 1 },
+        "revision": { "type": "string", "minLength": 1 },
+        "label": { "type": "string" },
+        "kind": { "enum": ["provider", "agent"] },
+        "runtime": { "oneOf": [{ "$ref": "#/$defs/AgentRuntime" }, { "type": "null" }] },
+        "connectionRef": { "type": "string", "minLength": 1 },
+        "model": { "type": "string", "minLength": 1 },
+        "effort": { "type": ["string", "null"] },
+        "roleRef": { "type": ["string", "null"] },
+        "memoryPolicyId": { "type": "string", "minLength": 1 },
+        "policyId": { "type": "string", "minLength": 1 },
+        "workspaceId": { "type": "string", "minLength": 1 },
+        "budgetId": { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "TargetBinding": {
+      "type": "object",
+      "required": ["graphId", "taskNodeId", "targetId"],
+      "additionalProperties": false,
+      "properties": {
+        "graphId": { "type": "string", "minLength": 1 },
+        "taskNodeId": { "type": "string", "minLength": 1 },
+        "targetId": { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "RuntimeBinding": {
+      "description": "How a target relates to a runtime's own session. The thread id is what a write is addressed to; a session id is never assumed to be the same thing.",
+      "type": "object",
+      "required": ["bindingId", "targetId", "connectionRef", "runtime", "threadId", "sessionId", "sessionPath", "lastCompletedTurnId", "nativeState", "prefixDigest", "configDigest", "ownership"],
+      "additionalProperties": false,
+      "properties": {
+        "bindingId": { "type": "string", "minLength": 1 },
+        "targetId": { "type": "string", "minLength": 1 },
+        "connectionRef": { "type": "string", "minLength": 1 },
+        "runtime": { "$ref": "#/$defs/AgentRuntime" },
+        "threadId": { "type": ["string", "null"] },
+        "sessionId": { "type": ["string", "null"] },
+        "sessionPath": { "type": ["string", "null"] },
+        "lastCompletedTurnId": { "type": ["string", "null"] },
+        "nativeState": {
+          "description": "What was last seen of the native session, and how it was seen.",
+          "type": "object",
+          "required": ["status", "observedAt", "evidence"],
+          "additionalProperties": false,
+          "properties": {
+            "status": { "enum": ["idle", "busy", "locked", "unknown"] },
+            "observedAt": { "type": ["string", "null"] },
+            "evidence": { "enum": ["app-server", "session-file", "none"] }
+          }
+        },
+        "prefixDigest": { "oneOf": [{ "$ref": "urn:thoughtdag:schemas:workspace-v1#/$defs/ContentHash" }, { "type": "null" }] },
+        "configDigest": { "oneOf": [{ "$ref": "urn:thoughtdag:schemas:workspace-v1#/$defs/ContentHash" }, { "type": "null" }] },
+        "ownership": { "enum": ["owned", "external", "unknown"] }
+      }
+    },
+
+    "CapabilityReport": {
+      "description": "What one installed runtime can do, as probed. Recorded again after an upgrade or a change of executable.",
+      "type": "object",
+      "required": ["runtime", "binaryVersion", "probedAt", "capabilities"],
+      "additionalProperties": false,
+      "properties": {
+        "runtime": { "$ref": "#/$defs/AgentRuntime" },
+        "binaryVersion": { "type": ["string", "null"] },
+        "probedAt": { "type": "string", "minLength": 1 },
+        "capabilities": {
+          "type": "object",
+          "required": ["fresh", "resume", "forkAtCompletedTurn", "observeState", "cancel", "approvals", "readOnlyRoots", "networkRestriction", "autoContextControl"],
+          "additionalProperties": false,
+          "properties": {
+            "fresh": { "$ref": "urn:thoughtdag:schemas:workspace-v1#/$defs/Capability" },
+            "resume": { "$ref": "urn:thoughtdag:schemas:workspace-v1#/$defs/Capability" },
+            "forkAtCompletedTurn": { "$ref": "urn:thoughtdag:schemas:workspace-v1#/$defs/Capability" },
+            "observeState": { "$ref": "urn:thoughtdag:schemas:workspace-v1#/$defs/Capability" },
+            "cancel": { "$ref": "urn:thoughtdag:schemas:workspace-v1#/$defs/Capability" },
+            "approvals": { "$ref": "urn:thoughtdag:schemas:workspace-v1#/$defs/Capability" },
+            "readOnlyRoots": { "$ref": "urn:thoughtdag:schemas:workspace-v1#/$defs/Capability" },
+            "networkRestriction": { "$ref": "urn:thoughtdag:schemas:workspace-v1#/$defs/Capability" },
+            "autoContextControl": { "$ref": "urn:thoughtdag:schemas:workspace-v1#/$defs/Capability" }
+          }
+        }
+      }
+    },
+
+    "RouteDecision": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["action", "reason"],
+          "additionalProperties": false,
+          "properties": {
+            "action": { "enum": ["fresh", "blocked"] },
+            "reason": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["action", "bindingId", "reason"],
+          "additionalProperties": false,
+          "properties": {
+            "action": { "const": "resume" },
+            "bindingId": { "type": "string", "minLength": 1 },
+            "reason": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["action", "bindingId", "lastCompletedTurnId", "reason"],
+          "additionalProperties": false,
+          "properties": {
+            "action": { "const": "fork-prefix" },
+            "bindingId": { "type": "string", "minLength": 1 },
+            "lastCompletedTurnId": { "type": "string", "minLength": 1 },
+            "reason": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    },
+
+    "RunState": {
+      "description": "unknown is a state of its own: a run whose submission could not be confirmed is looked up, never resent.",
+      "enum": ["prepared", "starting", "running", "awaiting-approval", "cancelling", "completed", "failed", "cancelled", "unknown"]
+    }
+  }
+}

@@ -25,5 +25,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["tests/unit", "tests/integration", "tests/contracts", "tests/fixtures", "tests/helpers", "tests/setup", "src/**/*.d.ts"]
+  "include": ["tests/unit", "tests/integration", "tests/fixtures", "tests/helpers", "tests/setup", "src/**/*.d.ts"]
 }

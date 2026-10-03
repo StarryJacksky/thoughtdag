@@ -1,0 +1,389 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:thoughtdag:schemas:workspace-v1",
+  "title": "ThoughtDAG workspace contracts",
+  "description": "What crosses between the renderer and the host about workspace sources, files and editing surfaces. Every id is an opaque string: nothing may parse one or assume two kinds of id are interchangeable. A capability is supported, unsupported or unknown; unknown is never treated as supported.",
+  "$defs": {
+    "SchemaVersion": {
+      "description": "The version stored documents of these contracts carry. A newer minor or major is read-only to this build; an older major needs a migration.",
+      "const": "1.1"
+    },
+    "OpaqueId": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "ContentHash": {
+      "description": "SHA-256 of content bytes, lowercase hex. A remote source's own version marker is never stored here.",
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "Capability": { "enum": ["supported", "unsupported", "unknown"] },
+
+    "ResourceLocator": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind", "rootGrantId", "relativePath"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "local" },
+            "rootGrantId": { "$ref": "#/$defs/OpaqueId" },
+            "relativePath": { "type": "string" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "connectionRef", "accountScope", "spaceId", "objectId", "objectKind"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "chatgpt-space" },
+            "connectionRef": { "$ref": "#/$defs/OpaqueId" },
+            "accountScope": { "$ref": "#/$defs/OpaqueId" },
+            "spaceId": { "$ref": "#/$defs/OpaqueId" },
+            "objectId": { "$ref": "#/$defs/OpaqueId" },
+            "objectKind": { "enum": ["page", "file", "folder", "external-link"] }
+          }
+        }
+      ]
+    },
+
+    "WorkspaceRecord": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["workspaceId", "displayName", "readOnly", "kind", "rootGrantId"],
+          "additionalProperties": false,
+          "properties": {
+            "workspaceId": { "$ref": "#/$defs/OpaqueId" },
+            "displayName": { "type": "string" },
+            "readOnly": { "type": "boolean" },
+            "kind": { "const": "local" },
+            "rootGrantId": { "$ref": "#/$defs/OpaqueId" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["workspaceId", "displayName", "readOnly", "kind", "connectionRef", "accountScope", "spaceId", "rootObjectId"],
+          "additionalProperties": false,
+          "properties": {
+            "workspaceId": { "$ref": "#/$defs/OpaqueId" },
+            "displayName": { "type": "string" },
+            "readOnly": { "type": "boolean" },
+            "kind": { "const": "chatgpt-space" },
+            "connectionRef": { "$ref": "#/$defs/OpaqueId" },
+            "accountScope": { "$ref": "#/$defs/OpaqueId" },
+            "spaceId": { "$ref": "#/$defs/OpaqueId" },
+            "rootObjectId": { "$ref": "#/$defs/OpaqueId" }
+          }
+        }
+      ]
+    },
+
+    "ResourceRecord": {
+      "type": "object",
+      "required": ["fileId", "workspaceId", "locator", "sourceRevision", "mediaType", "origin", "status", "revision"],
+      "additionalProperties": false,
+      "properties": {
+        "fileId": { "$ref": "#/$defs/OpaqueId" },
+        "workspaceId": { "$ref": "#/$defs/OpaqueId" },
+        "relativePath": { "description": "Local files only: where the file is now. A hint for display, never the identity.", "type": "string" },
+        "locator": { "$ref": "#/$defs/ResourceLocator" },
+        "sourceRevision": { "description": "A remote source's opaque version; null for local files.", "type": ["string", "null"] },
+        "mediaType": { "type": "string", "minLength": 1 },
+        "origin": { "enum": ["workspace", "graph", "import"] },
+        "status": { "enum": ["ready", "missing", "ambiguous", "readonly"] },
+        "revision": {
+          "description": "The content hash once the content has been read; null for an entry known by metadata only.",
+          "oneOf": [{ "$ref": "#/$defs/ContentHash" }, { "type": "null" }]
+        }
+      }
+    },
+
+    "ResourceSelector": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind"],
+          "additionalProperties": false,
+          "properties": { "kind": { "const": "document" } }
+        },
+        {
+          "description": "A passage, anchored by its own text and the text around it. Line numbers help a reader find it; they never decide what is quoted.",
+          "type": "object",
+          "required": ["kind", "quote", "prefix", "suffix"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "text" },
+            "quote": { "type": "string", "minLength": 1 },
+            "prefix": { "type": "string" },
+            "suffix": { "type": "string" },
+            "baseRevision": { "$ref": "#/$defs/ContentHash" },
+            "lines": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "integer", "minimum": 1 } }
+          }
+        },
+        {
+          "description": "Pages count from 1. A region is [x0, y0, x1, y1] in page-normalized coordinates.",
+          "type": "object",
+          "required": ["kind", "pages"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "pdf" },
+            "pages": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "integer", "minimum": 1 } },
+            "rect": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "number", "minimum": 0, "maximum": 1 } }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "nodeIds", "descendants"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "mindmap" },
+            "nodeIds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/OpaqueId" } },
+            "descendants": { "type": "boolean" }
+          }
+        }
+      ]
+    },
+
+    "ResourceVersion": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["kind"],
+          "additionalProperties": false,
+          "properties": { "kind": { "const": "live" } }
+        },
+        {
+          "type": "object",
+          "required": ["kind", "snapshotId"],
+          "additionalProperties": false,
+          "properties": { "kind": { "const": "snapshot" }, "snapshotId": { "$ref": "#/$defs/OpaqueId" } }
+        }
+      ]
+    },
+
+    "ResourceRef": {
+      "type": "object",
+      "required": ["fileId", "selector", "version", "payload"],
+      "additionalProperties": false,
+      "properties": {
+        "fileId": { "$ref": "#/$defs/OpaqueId" },
+        "selector": { "$ref": "#/$defs/ResourceSelector" },
+        "version": { "$ref": "#/$defs/ResourceVersion" },
+        "payload": { "enum": ["text", "image", "metadata"] }
+      }
+    },
+
+    "CreateFileRequest": {
+      "description": "The renderer names a workspace and a parent entry, never a path. Where a graph-origin file lands is the host's decision.",
+      "type": "object",
+      "required": ["workspaceId", "extension", "origin", "idempotencyKey"],
+      "additionalProperties": false,
+      "properties": {
+        "workspaceId": { "$ref": "#/$defs/OpaqueId" },
+        "parentId": { "$ref": "#/$defs/OpaqueId" },
+        "extension": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$" },
+        "origin": { "enum": ["workspace", "graph"] },
+        "idempotencyKey": { "$ref": "#/$defs/OpaqueId" }
+      }
+    },
+
+    "SourceCapabilities": {
+      "type": "object",
+      "required": ["list", "read", "create", "update", "move", "trash", "conditionalWrite", "pagePatch", "changes", "uploadCustomType"],
+      "additionalProperties": false,
+      "properties": {
+        "list": { "$ref": "#/$defs/Capability" },
+        "read": { "$ref": "#/$defs/Capability" },
+        "create": { "$ref": "#/$defs/Capability" },
+        "update": { "$ref": "#/$defs/Capability" },
+        "move": { "$ref": "#/$defs/Capability" },
+        "trash": { "$ref": "#/$defs/Capability" },
+        "conditionalWrite": { "$ref": "#/$defs/Capability" },
+        "pagePatch": { "$ref": "#/$defs/Capability" },
+        "changes": { "$ref": "#/$defs/Capability" },
+        "uploadCustomType": { "$ref": "#/$defs/Capability" }
+      }
+    },
+
+    "FileEntry": {
+      "type": "object",
+      "required": ["entryId", "parentId", "name", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "entryId": { "$ref": "#/$defs/OpaqueId" },
+        "parentId": { "oneOf": [{ "$ref": "#/$defs/OpaqueId" }, { "type": "null" }] },
+        "name": { "type": "string", "minLength": 1 },
+        "kind": { "enum": ["file", "folder", "page", "external-link", "unknown"] },
+        "fileId": { "$ref": "#/$defs/OpaqueId" },
+        "locator": { "$ref": "#/$defs/ResourceLocator" },
+        "sourceRevision": { "type": ["string", "null"] },
+        "capabilities": { "$ref": "#/$defs/SourceCapabilities" }
+      }
+    },
+
+    "ResourcePage": {
+      "description": "One page of a listing. A partial page is not an empty source.",
+      "type": "object",
+      "required": ["entries", "nextCursor", "completeness"],
+      "additionalProperties": false,
+      "properties": {
+        "entries": { "type": "array", "items": { "$ref": "#/$defs/FileEntry" } },
+        "nextCursor": { "type": ["string", "null"] },
+        "completeness": { "enum": ["complete", "partial"] }
+      }
+    },
+
+    "TextRevision": {
+      "type": "object",
+      "required": ["text", "revision", "encoding", "newline"],
+      "additionalProperties": false,
+      "properties": {
+        "text": { "type": "string" },
+        "revision": { "$ref": "#/$defs/ContentHash" },
+        "encoding": { "type": "string", "minLength": 1 },
+        "newline": { "enum": ["lf", "crlf", "mixed"] }
+      }
+    },
+
+    "SaveResult": {
+      "description": "Saved only on a confirmed write. A draft waiting to sync and a write whose acknowledgement was lost are their own states, never reported as saved.",
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["status", "revision", "sourceRevision"],
+          "additionalProperties": false,
+          "properties": {
+            "status": { "const": "saved" },
+            "revision": { "$ref": "#/$defs/ContentHash" },
+            "sourceRevision": { "type": ["string", "null"] }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["status", "currentRevision"],
+          "additionalProperties": false,
+          "properties": {
+            "status": { "const": "conflict" },
+            "currentRevision": { "oneOf": [{ "$ref": "#/$defs/ContentHash" }, { "type": "null" }] },
+            "currentSourceRevision": { "type": ["string", "null"] }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["status", "reason"],
+          "additionalProperties": false,
+          "properties": {
+            "status": { "enum": ["readonly", "error", "pending-sync"] },
+            "reason": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["status", "reason", "opId"],
+          "additionalProperties": false,
+          "properties": {
+            "status": { "const": "unknown-ack" },
+            "reason": { "type": "string", "minLength": 1 },
+            "opId": { "$ref": "#/$defs/OpaqueId" }
+          }
+        }
+      ]
+    },
+
+    "TrashReceipt": {
+      "type": "object",
+      "required": ["receiptId", "fileId", "opId", "location", "restorable"],
+      "additionalProperties": false,
+      "properties": {
+        "receiptId": { "$ref": "#/$defs/OpaqueId" },
+        "fileId": { "$ref": "#/$defs/OpaqueId" },
+        "opId": { "$ref": "#/$defs/OpaqueId" },
+        "location": { "enum": ["system-trash", "project-recovery", "remote-trash"] },
+        "restorable": { "type": "boolean" }
+      }
+    },
+
+    "SourceRead": {
+      "description": "Content as a source returned it. `derived` content (a page rendered to text) is for reading; it is never written back as the original.",
+      "type": "object",
+      "required": ["fileId", "sourceRevision", "contentHash", "representation", "payload", "fidelity"],
+      "additionalProperties": false,
+      "properties": {
+        "fileId": { "$ref": "#/$defs/OpaqueId" },
+        "sourceRevision": { "type": ["string", "null"] },
+        "contentHash": { "$ref": "#/$defs/ContentHash" },
+        "representation": { "enum": ["bytes", "text", "blocks"] },
+        "payload": true,
+        "fidelity": { "enum": ["original", "derived"] }
+      }
+    },
+
+    "SourceWrite": {
+      "type": "object",
+      "required": ["fileId", "baseSourceRevision", "representation", "payload", "opId"],
+      "additionalProperties": false,
+      "properties": {
+        "fileId": { "$ref": "#/$defs/OpaqueId" },
+        "baseSourceRevision": { "type": "string", "minLength": 1 },
+        "representation": { "enum": ["bytes", "text", "blocks"] },
+        "payload": true,
+        "opId": { "$ref": "#/$defs/OpaqueId" }
+      }
+    },
+
+    "SourceWriteResult": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["status", "sourceRevision", "contentHash"],
+          "additionalProperties": false,
+          "properties": {
+            "status": { "const": "saved" },
+            "sourceRevision": { "type": "string", "minLength": 1 },
+            "contentHash": { "$ref": "#/$defs/ContentHash" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["status", "currentRevision"],
+          "additionalProperties": false,
+          "properties": {
+            "status": { "const": "conflict" },
+            "currentRevision": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["status", "reason"],
+          "additionalProperties": false,
+          "properties": {
+            "status": { "enum": ["readonly", "unsupported", "unknown-ack"] },
+            "reason": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    },
+
+    "SurfaceState": {
+      "description": "Where a surface sits. It holds no document text: closing or losing it loses no content.",
+      "type": "object",
+      "required": ["surfaceId", "documentId", "kind", "placement", "rect"],
+      "additionalProperties": false,
+      "properties": {
+        "surfaceId": { "$ref": "#/$defs/OpaqueId" },
+        "documentId": { "$ref": "#/$defs/OpaqueId" },
+        "kind": { "enum": ["text", "markdown", "pdf", "image", "html", "mindmap"] },
+        "placement": { "enum": ["floating", "left", "right", "maximized", "minimized"] },
+        "rect": {
+          "type": "object",
+          "required": ["x", "y", "width", "height"],
+          "additionalProperties": false,
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" },
+            "width": { "type": "number", "exclusiveMinimum": 0 },
+            "height": { "type": "number", "exclusiveMinimum": 0 }
+          }
+        }
+      }
+    }
+  }
+}

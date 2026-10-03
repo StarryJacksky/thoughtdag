@@ -60,6 +60,8 @@ execSync('npm run desktop:why', { cwd: root, stdio: 'inherit' });
 cpSync(path.join(desktop, 'why.mjs'), path.join(payload, 'why.mjs'));
 // the shared agent runtime (Pi today), used by the shell's main process
 cpSync(path.join(root, 'runtime'), path.join(payload, 'runtime'), { recursive: true });
+// the contracts and their validator, loaded by runtime/workspace as ../../shared
+cpSync(path.join(root, 'shared'), path.join(payload, 'shared'), { recursive: true });
 // the one-command handoff files the app can install into agents
 mkdirSync(path.join(payload, 'commands'), { recursive: true });
 cpSync(path.join(root, 'protocol', 'adapters', 'claude-code', 'thoughtdag.md'), path.join(payload, 'commands', 'claude-code-thoughtdag.md'));

@@ -57,6 +57,16 @@ contextBridge.exposeInMainWorld('desktopAgents', {
   onEvent: (cb) => { ipcRenderer.on('agents:event', (_e, payload) => cb(payload)); },
 });
 
+// The person's real project folders (main.js setupWorkspace). The page names
+// a workspace and an entry by the ids it was given; it never sends a path.
+contextBridge.exposeInMainWorld('desktopWorkspace', {
+  chooseRoot: () => ipcRenderer.invoke('workspace:choose-root'),
+  listWorkspaces: () => ipcRenderer.invoke('workspace:list-workspaces'),
+  close: (workspaceId) => ipcRenderer.invoke('workspace:close', workspaceId),
+  listChildren: (workspaceId, parentId) => ipcRenderer.invoke('workspace:list-children', workspaceId, parentId),
+  registerEntry: (workspaceId, entryId) => ipcRenderer.invoke('workspace:register-entry', workspaceId, entryId),
+});
+
 // The why layer: search across every local agent's sessions and the
 // memories Claude Code and Codex keep, recall one turn or entry in full.
 contextBridge.exposeInMainWorld('desktopWhy', {

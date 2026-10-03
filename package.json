@@ -24,6 +24,7 @@
     "test:unit": "vitest run",
     "test:host": "node scripts/test-host.mjs",
     "test:e2e": "playwright test",
+    "test:e2e:desktop": "playwright test -c playwright.desktop.config.ts",
     "test:contracts": "vitest run tests/unit/contracts.test.ts && node scripts/test-host.mjs tests/host/contracts.test.cjs",
     "desktop:why": "esbuild cli/src/lib.ts --bundle --platform=node --format=esm --target=node20 --define:import.meta.env={} --outfile=desktop/why.mjs --log-level=warning"
   },

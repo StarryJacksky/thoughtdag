@@ -218,6 +218,19 @@ interface WhyTopics { topics: (WhyTopic & { count: number })[]; labeled: number;
 interface WhyJudgeCall { url: string; headers: Record<string, string>; model?: string; wrap?: 'cloudflare' }
 interface WhySuggestions { term: string; known: number; suggestions: { term: string; count: number; distance: number }[] }
 
+/** The person's real project folders, through the shell. Every argument is
+ *  an id the shell handed out; a path is never passed. */
+interface DesktopWorkspaceBridge {
+  /** the system folder picker; null when the person cancels */
+  chooseRoot(): Promise<import('./lib/workspace/contracts').WorkspaceRecord | null>;
+  listWorkspaces(): Promise<import('./lib/workspace/contracts').WorkspaceRecord[]>;
+  /** forget the grant; nothing in the folder is touched */
+  close(workspaceId: string): Promise<boolean>;
+  listChildren(workspaceId: string, parentId?: string): Promise<import('./lib/workspace/contracts').FileEntry[]>;
+  /** give a file its identity, or return the one it has */
+  registerEntry(workspaceId: string, entryId: string): Promise<import('./lib/workspace/contracts').ResourceRecord>;
+}
+
 interface Window {
   desktop?: DesktopBridge;
   desktopWhy?: DesktopWhyBridge;
@@ -225,4 +238,5 @@ interface Window {
   desktopLocal?: DesktopLocalBridge;
   desktopCanvas?: DesktopCanvasBridge;
   desktopAgents?: DesktopAgentsBridge;
+  desktopWorkspace?: DesktopWorkspaceBridge;
 }

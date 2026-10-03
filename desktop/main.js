@@ -66,6 +66,7 @@ async function waitReady(port, tries = 120) {
 
 async function boot() {
   const port = await freePort();
+  appOrigin = `http://127.0.0.1:${port}`;
   serverProc = utilityProcess.fork(path.join(ROOT, 'server.mjs'), [], {
     cwd: ROOT, // .env resolves from the project root, same as `npm run server`
     // HOST is forced to loopback AFTER the spread: the desktop shell only ever
@@ -842,6 +843,36 @@ function setupAgents() {
   ipcMain.handle('why:dossier-new', async (_e, id, opts) => (await whyLib()).dossierNewTurns(String(id), opts && typeof opts === 'object' ? opts : {}));
 }
 
+// ─── Workspace: the person's real project folders ──────────────────────
+// One narrow door (runtime/workspace). A folder joins only through the
+// native picker; the page then names it by an opaque id and never sends a
+// path. Every call is accepted from the app's own top frame alone.
+const { createWorkspaceService } = require(path.join(RUNTIME_DIR, 'workspace', 'index.cjs'));
+const { checkSender, senderOf } = require(path.join(RUNTIME_DIR, 'workspace', 'ipc-guard.cjs'));
+let appOrigin = null; // set by boot() once the bundled server has its port
+function setupWorkspace() {
+  const service = createWorkspaceService({
+    stateDir: app.getPath('userData'),
+    pickDirectory: async () => {
+      const r = await dialog.showOpenDialog(win ?? undefined, { properties: ['openDirectory', 'createDirectory'] });
+      return r.canceled ? null : (r.filePaths[0] ?? null);
+    },
+  });
+  const door = (channel, fn) => ipcMain.handle(channel, async (event, ...args) => {
+    const verdict = checkSender(senderOf(event), { origin: appOrigin, webContentsId: win?.webContents.id ?? null });
+    if (!verdict.trusted) throw new Error('refused: ' + verdict.reason);
+    try { return await fn(...args); } catch (e) {
+      // the page gets the reason's code and its words, never a stack or a path
+      throw new Error(e && typeof e.code === 'string' ? `${e.code}: ${e.message}` : 'failed: the workspace call failed');
+    }
+  });
+  door('workspace:choose-root', () => service.chooseRoot());
+  door('workspace:list-workspaces', () => service.listWorkspaces());
+  door('workspace:close', (workspaceId) => service.closeWorkspace(String(workspaceId)));
+  door('workspace:list-children', (workspaceId, parentId) => service.listChildren(String(workspaceId), parentId == null ? undefined : String(parentId)));
+  door('workspace:register-entry', (workspaceId, entryId) => service.registerEntry(String(workspaceId), String(entryId)));
+}
+
 function codexAppServer() {
   if (codexRpc === 'dead') return null;
   if (codexRpc) return codexRpc;
@@ -934,6 +965,7 @@ if (!lock) {
     void boot();
     setupSessionAtlas();
     setupAgents();
+    setupWorkspace();
     if (app.isPackaged) {
       setupAutoUpdate();
     } else {

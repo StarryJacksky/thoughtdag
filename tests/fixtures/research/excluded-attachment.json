@@ -1,0 +1,38 @@
+{
+  "description": "A root turn carries two text attachments. The follow-up keeps the material node in its path but excludes one of the two attachments. The excluded one must reach the agent neither through the prompt nor through the files written for it to read.",
+  "graph": {
+    "nodes": [
+      {
+        "id": "n1",
+        "question": "Summarize the attached notes.",
+        "response": "The notes describe the sampling plan.",
+        "attachments": [
+          { "id": "att-keep", "name": "sampling-plan.md", "content": "KEEP_VISIBLE_P2: sample 40 sites, stratified by region.", "origin": "papers/sampling-plan.md" },
+          { "id": "att-secret", "name": "reviewer-notes.md", "content": "EXCLUDED_SECRET_K7: reviewer two doubts the stratification.", "origin": "private/reviewer-notes.md" }
+        ]
+      },
+      {
+        "id": "n2",
+        "question": "Draft the methods paragraph from the plan.",
+        "excludedAttachmentIds": ["att-secret"]
+      }
+    ],
+    "edges": [
+      { "source": "n1", "target": "n2" }
+    ]
+  },
+  "files": {
+    "papers/sampling-plan.md": "KEEP_VISIBLE_P2: sample 40 sites, stratified by region.",
+    "private/reviewer-notes.md": "EXCLUDED_SECRET_K7: reviewer two doubts the stratification."
+  },
+  "nativeHistory": null,
+  "policy": { "mode": "research", "model": "codex/gpt-synthetic", "cwd": "/synthetic/project" },
+  "expected": {
+    "targetNodeId": "n2",
+    "route": "fresh",
+    "promptContains": ["KEEP_VISIBLE_P2"],
+    "promptExcludes": ["EXCLUDED_SECRET_K7"],
+    "readableContains": ["KEEP_VISIBLE_P2"],
+    "readableExcludes": ["EXCLUDED_SECRET_K7"]
+  }
+}

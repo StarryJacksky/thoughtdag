@@ -163,6 +163,8 @@ const zhTheme = {
 export default defineConfig({
   title: 'ThoughtDAG Docs',
   description: 'Install, use, and understand ThoughtDAG.',
+  // engineering records of the research-workspace work: kept in the repo, not on the docs site
+  srcExclude: ['research-workspace/**'],
   rewrites: {
     'features_ZH.md': 'zh/features.md',
     'setup_ZH.md': 'zh/setup.md',

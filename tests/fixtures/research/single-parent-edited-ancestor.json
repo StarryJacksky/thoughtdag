@@ -1,0 +1,48 @@
+{
+  "description": "A canvas mirrors a two-turn agent session and a new question hangs off the session's tail by one edge. The only change between the two states is the first turn's answer, rewritten on the canvas. The native session still holds the original wording.",
+  "graph": {
+    "nodes": [
+      {
+        "id": "n1",
+        "question": "Which estimator does the draft use?",
+        "response": "ORIGINAL_UPSTREAM_A1: the draft uses the plain mean.",
+        "importSource": { "runner": "codex", "sessionId": "sess-synthetic-1", "itemIds": ["item-1"], "cwd": "/synthetic/project" },
+        "source": { "question": "Which estimator does the draft use?", "response": "ORIGINAL_UPSTREAM_A1: the draft uses the plain mean." }
+      },
+      {
+        "id": "n2",
+        "question": "Is that estimator robust to outliers?",
+        "response": "With the plain mean, no.",
+        "importSource": { "runner": "codex", "sessionId": "sess-synthetic-1", "itemIds": ["item-2"], "cwd": "/synthetic/project" },
+        "agentSession": { "runtime": "codex", "sessionId": "sess-synthetic-1", "sessionFile": "/synthetic/sessions/rollout-sess-synthetic-1.jsonl", "cwd": "/synthetic/project" },
+        "source": { "question": "Is that estimator robust to outliers?", "response": "With the plain mean, no." }
+      },
+      {
+        "id": "n3",
+        "question": "Given the estimator above, what should the robustness section say?"
+      }
+    ],
+    "edges": [
+      { "source": "n1", "target": "n2" },
+      { "source": "n2", "target": "n3" }
+    ]
+  },
+  "edits": [
+    { "nodeId": "n1", "field": "response", "value": "EDITED_UPSTREAM_M3: the draft uses the trimmed mean." }
+  ],
+  "nativeHistory": {
+    "runner": "codex",
+    "sessionId": "sess-synthetic-1",
+    "sessionFile": "/synthetic/sessions/rollout-sess-synthetic-1.jsonl",
+    "cwd": "/synthetic/project",
+    "tailNodeId": "n2",
+    "importedCount": 2
+  },
+  "policy": { "mode": "workspace", "model": "codex/gpt-synthetic", "cwd": "/synthetic/project" },
+  "expected": {
+    "targetNodeId": "n3",
+    "route": "fresh",
+    "promptContains": ["EDITED_UPSTREAM_M3"],
+    "promptExcludes": ["ORIGINAL_UPSTREAM_A1"]
+  }
+}

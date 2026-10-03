@@ -1,0 +1,43 @@
+{
+  "description": "Two different files share one name: notes.md from papers/ on the first turn, notes.md from drafts/ on the second. Both are wired into the question and both must reach the agent.",
+  "graph": {
+    "nodes": [
+      {
+        "id": "n1",
+        "question": "What do the paper notes say?",
+        "response": "They list the open questions.",
+        "attachments": [
+          { "id": "att-a", "name": "notes.md", "content": "DIR_A_NOTES_R4: open question, does the effect survive resampling?", "origin": "papers/notes.md" }
+        ]
+      },
+      {
+        "id": "n2",
+        "question": "And the draft notes?",
+        "response": "They propose a resampling check.",
+        "attachments": [
+          { "id": "att-b", "name": "notes.md", "content": "DIR_B_NOTES_T8: proposal, rerun with 2,000 bootstrap draws and report the interval.", "origin": "drafts/notes.md" }
+        ]
+      },
+      {
+        "id": "n3",
+        "question": "Reconcile the two sets of notes."
+      }
+    ],
+    "edges": [
+      { "source": "n1", "target": "n2" },
+      { "source": "n2", "target": "n3" }
+    ]
+  },
+  "files": {
+    "papers/notes.md": "DIR_A_NOTES_R4: open question, does the effect survive resampling?",
+    "drafts/notes.md": "DIR_B_NOTES_T8: proposal, rerun with 2,000 bootstrap draws and report the interval."
+  },
+  "nativeHistory": null,
+  "policy": { "mode": "workspace", "model": "codex/gpt-synthetic", "cwd": "/synthetic/project" },
+  "expected": {
+    "targetNodeId": "n3",
+    "route": "fresh",
+    "promptContains": ["DIR_A_NOTES_R4", "DIR_B_NOTES_T8"],
+    "readableContains": ["DIR_A_NOTES_R4", "DIR_B_NOTES_T8"]
+  }
+}

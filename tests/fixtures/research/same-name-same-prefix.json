@@ -1,0 +1,42 @@
+{
+  "description": "Two different files share a name, a length and their first hundred characters (a common header); they differ only in the last line. Both are wired into the question and both must reach the prompt.",
+  "graph": {
+    "nodes": [
+      {
+        "id": "n1",
+        "question": "What is in the first export?",
+        "response": "One summary row.",
+        "attachments": [
+          { "id": "att-one", "name": "export.csv", "type": "text/csv", "content": "site,region,stratum,visits,first_visit,last_visit,mean_count,sd_count,notes,reviewer,batch,checked,flag\nTAIL_ONE_V5,north,a,12", "origin": "run-1/export.csv" }
+        ]
+      },
+      {
+        "id": "n2",
+        "question": "And the second export?",
+        "response": "One summary row.",
+        "attachments": [
+          { "id": "att-two", "name": "export.csv", "type": "text/csv", "content": "site,region,stratum,visits,first_visit,last_visit,mean_count,sd_count,notes,reviewer,batch,checked,flag\nTAIL_TWO_W6,south,b,19", "origin": "run-2/export.csv" }
+        ]
+      },
+      {
+        "id": "n3",
+        "question": "Compare the two exports."
+      }
+    ],
+    "edges": [
+      { "source": "n1", "target": "n2" },
+      { "source": "n2", "target": "n3" }
+    ]
+  },
+  "files": {
+    "run-1/export.csv": "site,region,stratum,visits,first_visit,last_visit,mean_count,sd_count,notes,reviewer,batch,checked,flag\nTAIL_ONE_V5,north,a,12",
+    "run-2/export.csv": "site,region,stratum,visits,first_visit,last_visit,mean_count,sd_count,notes,reviewer,batch,checked,flag\nTAIL_TWO_W6,south,b,19"
+  },
+  "nativeHistory": null,
+  "policy": { "mode": "workspace", "model": "codex/gpt-synthetic", "cwd": "/synthetic/project" },
+  "expected": {
+    "targetNodeId": "n3",
+    "route": "fresh",
+    "promptContains": ["TAIL_ONE_V5", "TAIL_TWO_W6"]
+  }
+}

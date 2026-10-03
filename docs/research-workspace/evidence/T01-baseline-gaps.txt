@@ -1,0 +1,135 @@
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/agent-context-baseline.test.ts (10 tests | 5 failed) 21ms
+   ❯ a question off the tail of a mirrored session (4)
+     × [T14] opens a fresh session when an ancestor answer was edited on the canvas 3ms
+     × [T14] hands the agent the edited ancestor text, not only the question 1ms
+   ❯ an attachment excluded on the asking node (3)
+     × [T12] stays out of the files written for the agent to read 2ms
+   ❯ two different files with one name (3)
+     × [T12] both are written for the agent to read 2ms
+     × [T11] both reach the prompt when they share a size and their first hundred characters 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/agent-context-baseline.test.ts > a question off the tail of a mirrored session > [T14] opens a fresh session when an ancestor answer was edited on the canvas
+AssertionError: expected true to be falsy
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/unit/agent-context-baseline.test.ts:78:36
+     76|   gap('[T14] opens a fresh session when an ancestor answer was edited …
+     77|     const handed = await generate(f, f.edited);
+     78|     expect(handed.route?.continue).toBeFalsy();
+       |                                    ^
+     79|   });
+     80|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/5]⎯
+
+ FAIL  tests/unit/agent-context-baseline.test.ts > a question off the tail of a mirrored session > [T14] hands the agent the edited ancestor text, not only the question
+AssertionError: expected 'Given the estimator above, what shoul…' to contain 'EDITED_UPSTREAM_M3'
+
+Expected: "EDITED_UPSTREAM_M3"
+Received: "Given the estimator above, what should the robustness section say?"
+
+ ❯ tests/unit/agent-context-baseline.test.ts:83:81
+     81|   gap('[T14] hands the agent the edited ancestor text, not only the qu…
+     82|     const handed = await generate(f, f.edited);
+     83|     for (const marker of f.expected.promptContains ?? []) expect(hande…
+       |                                                                                 ^
+     84|   });
+     85| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  tests/unit/agent-context-baseline.test.ts > an attachment excluded on the asking node > [T12] stays out of the files written for the agent to read
+AssertionError: expected 'KEEP_VISIBLE_P2: sample 40 sites, str…' not to contain 'EXCLUDED_SECRET_K7'
+
+- Expected
++ Received
+
+- EXCLUDED_SECRET_K7
++ KEEP_VISIBLE_P2: sample 40 sites, stratified by region.
++ EXCLUDED_SECRET_K7: reviewer two doubts the stratification.
+
+ ❯ tests/unit/agent-context-baseline.test.ts:104:89
+    102|   gap('[T12] stays out of the files written for the agent to read', as…
+    103|     const handed = await generate(f);
+    104|     for (const marker of f.expected.readableExcludes ?? []) expect(han…
+       |                                                                                         ^
+    105|   });
+    106| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  tests/unit/agent-context-baseline.test.ts > two different files with one name > [T12] both are written for the agent to read
+AssertionError: expected 'DIR_A_NOTES_R4: open question, does t…' to contain 'DIR_B_NOTES_T8'
+
+Expected: "DIR_B_NOTES_T8"
+Received: "DIR_A_NOTES_R4: open question, does the effect survive resampling?"
+
+ ❯ tests/unit/agent-context-baseline.test.ts:118:85
+    116|     const f = fixture('same-name-different-dirs');
+    117|     const handed = await generate(f);
+    118|     for (const marker of f.expected.readableContains ?? []) expect(han…
+       |                                                                                     ^
+    119|   });
+    120|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  tests/unit/agent-context-baseline.test.ts > two different files with one name > [T11] both reach the prompt when they share a size and their first hundred characters
+AssertionError: expected '[ThoughtDAG canvas context] The quest…' to contain 'TAIL_TWO_W6'
+
+- Expected
++ Received
+
+- TAIL_TWO_W6
++ [ThoughtDAG canvas context] The question that follows was asked from a ThoughtDAG canvas. Treat the material below as the conversation so far; answer the question at the end.
++
++ The conversation the canvas wired into this question, oldest first:
++
++ [user]
++ [File: export.csv]
++ site,region,stratum,visits,first_visit,last_visit,mean_count,sd_count,notes,reviewer,batch,checked,flag
++ TAIL_ONE_V5,north,a,12
++
++ [user]
++ What is in the first export?
++
++ [assistant]
++ One summary row.
++
++ [user]
++ And the second export?
++
++ [assistant]
++ One summary row.
++
++ The canvas's materials are also on disk, readable with your tools, under /synthetic/project/.thoughtdag/materials:
++ - export.csv
++
++ ---
++
++ Compare the two exports.
+
+ ❯ tests/unit/agent-context-baseline.test.ts:124:81
+    122|     const f = fixture('same-name-same-prefix');
+    123|     const handed = await generate(f);
+    124|     for (const marker of f.expected.promptContains ?? []) expect(hande…
+       |                                                                                 ^
+    125|   });
+    126| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  5 failed | 13 passed (18)
+

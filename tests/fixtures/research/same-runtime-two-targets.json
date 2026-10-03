@@ -1,0 +1,37 @@
+{
+  "description": "One canvas, two unrelated lines on the same runtime, and a third on another. On the first line the person once allowed a command for the rest of that conversation. Nothing wires the lines together.",
+  "graph": {
+    "nodes": [
+      {
+        "id": "x1",
+        "question": "Run the test suite.",
+        "response": "All tests pass.",
+        "model": "codex/gpt-synthetic",
+        "approvals": [
+          { "id": "ap-1", "outcome": "allowed-session", "rule": "codex:cmd:npm test" }
+        ]
+      },
+      {
+        "id": "y1",
+        "question": "Outline the cleanup script.",
+        "response": "Three steps: list, confirm, remove.",
+        "model": "codex/gpt-synthetic"
+      },
+      {
+        "id": "z1",
+        "question": "Summarize the changelog.",
+        "response": "Two fixes and one feature.",
+        "model": "claude/claude-code/sonnet"
+      }
+    ],
+    "edges": []
+  },
+  "nativeHistory": null,
+  "policy": { "mode": "workspace", "model": "codex/gpt-synthetic", "cwd": "/synthetic/project" },
+  "expected": { "targetNodeId": "x1" },
+  "tasks": [
+    { "name": "X", "parentNodeId": "x1", "question": "X_TASK: run the tests again." },
+    { "name": "Y", "parentNodeId": "y1", "question": "Y_TASK: write the cleanup script." },
+    { "name": "Z", "parentNodeId": "z1", "question": "Z_TASK: draft the release note." }
+  ]
+}

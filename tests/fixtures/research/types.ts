@@ -1,4 +1,4 @@
-import type { AgentRuntime, ThoughtEdge, ThoughtNode } from '../../../src/types';
+import type { AgentRuntime, ApprovalOutcome, ThoughtEdge, ThoughtNode } from '../../../src/types';
 
 // Research fixtures are small synthetic canvases. Every text marker in them
 // is made up (EXCLUDED_SECRET_K7 and the like); nothing comes from a real
@@ -25,6 +25,10 @@ export interface FixtureNode {
   includedAttachmentIds?: string[];
   archived?: boolean;
   rolePrompt?: string;
+  /** the model this node's line is pinned to (a picker id); children asked from it inherit the pin */
+  model?: string;
+  /** approvals decided on this node's turn; `rule` names what a standing allowance covers */
+  approvals?: { id: string; outcome: ApprovalOutcome; rule: string }[];
   importSource?: { runner: string; sessionId: string; itemIds: string[]; cwd?: string };
   agentSession?: { runtime: AgentRuntime; sessionId: string | null; sessionFile: string | null; cwd: string };
   source?: { question: string; response: string };
@@ -58,13 +62,27 @@ export interface FixtureNativeHistory {
 
 export interface FixturePolicy {
   mode: 'research' | 'workspace';
-  /** a picker id, e.g. codex/<model> */
+  /** a picker id, e.g. codex/<model>; for multi-task fixtures, the toolbar's pick when the scenario starts */
   model: string;
   cwd: string;
+  /** the global agent effort when the scenario starts */
+  effort?: string;
+}
+
+/** One question a scenario asks, and what its run must and must not be handed. */
+export interface FixtureTask {
+  name: string;
+  /** the node the question is asked from */
+  parentNodeId: string;
+  question: string;
+  promptContains?: string[];
+  promptExcludes?: string[];
+  readableContains?: string[];
+  readableExcludes?: string[];
 }
 
 export interface FixtureExpectation {
-  /** the node about to generate */
+  /** the node about to generate; in a multi-task fixture, the node the first task asks from */
   targetNodeId: string;
   route?: 'fresh' | 'resume';
   promptContains?: string[];
@@ -83,6 +101,8 @@ export interface ResearchFixtureFile {
   nativeHistory?: FixtureNativeHistory | null;
   policy: FixturePolicy;
   expected: FixtureExpectation;
+  /** several questions asked on one canvas (the multi-target scenarios) */
+  tasks?: FixtureTask[];
   // Routing fixtures (T14) and mind-map fixtures (T18) add these; their
   // types arrive with the contracts those tasks define.
   envelope?: unknown;

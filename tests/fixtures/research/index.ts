@@ -1,4 +1,4 @@
-import type { Attachment, ThoughtEdge, ThoughtNode } from '../../../src/types';
+import type { ApprovalRecord, Attachment, ThoughtEdge, ThoughtNode } from '../../../src/types';
 import type { FixtureAttachment, FixtureEdge, FixtureGraph, FixtureNode, ResearchFixture, ResearchFixtureFile } from './types';
 
 export type * from './types';
@@ -12,6 +12,14 @@ function expandAttachment(att: FixtureAttachment): Attachment {
     type: att.type ?? 'text/markdown',
     size: att.content.length,
     content: att.content,
+  };
+}
+
+function expandApproval(a: NonNullable<FixtureNode['approvals']>[number]): ApprovalRecord {
+  return {
+    id: a.id, kind: 'confirm', toolName: a.rule.split(':')[0], callId: null, reason: null,
+    name: 'synthetic approval', query: a.rule, arguments: null, options: [],
+    rule: a.rule, outcome: a.outcome, askedAt: '2026-01-01T00:00:00Z', decidedAt: '2026-01-01T00:00:00Z',
   };
 }
 
@@ -42,6 +50,8 @@ function expandNode(node: FixtureNode, index: number, edges: FixtureEdge[]): Tho
       ...(node.stepKind ? { stepKind: node.stepKind } : {}),
       ...(node.archived ? { archived: true } : {}),
       ...(node.rolePrompt ? { rolePrompt: node.rolePrompt } : {}),
+      ...(node.model ? { model: node.model } : {}),
+      ...(node.approvals ? { approvals: node.approvals.map(expandApproval) } : {}),
       ...(node.importSource ? { importSource: node.importSource } : {}),
       ...(node.agentSession ? { agentSession: node.agentSession } : {}),
       ...(node.source ? { source: node.source } : {}),

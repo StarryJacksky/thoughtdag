@@ -1,0 +1,57 @@
+{
+  "description": "One canvas, two lines pinned to two runtimes. Material A is wired only to the Codex line, material B only to the Claude Code line, and material C to both. The toolbar's own pick is a third model that neither line uses.",
+  "graph": {
+    "nodes": [
+      {
+        "id": "c",
+        "stepKind": "note",
+        "question": "SHARED_C_L5: both analyses use the 2024 survey wave."
+      },
+      {
+        "id": "a1",
+        "question": "What does the estimator memo say?",
+        "response": "It recommends the trimmed mean.",
+        "model": "codex/gpt-synthetic",
+        "attachments": [
+          { "id": "att-a", "name": "a-notes.md", "content": "A_ONLY_K7: estimator memo, trimmed mean at five percent.", "origin": "codex-line/a-notes.md" }
+        ]
+      },
+      {
+        "id": "b1",
+        "question": "What does the reviewer letter say?",
+        "response": "It asks for a robustness section.",
+        "model": "claude/claude-code/sonnet",
+        "attachments": [
+          { "id": "att-b", "name": "b-notes.md", "content": "B_ONLY_Q9: reviewer letter, asks for a robustness section.", "origin": "claude-line/b-notes.md" }
+        ]
+      }
+    ],
+    "edges": [
+      { "source": "c", "target": "a1" },
+      { "source": "c", "target": "b1" }
+    ]
+  },
+  "nativeHistory": null,
+  "policy": { "mode": "workspace", "model": "synthetic-provider/api-model", "cwd": "/synthetic/project" },
+  "expected": { "targetNodeId": "a1" },
+  "tasks": [
+    {
+      "name": "X",
+      "parentNodeId": "a1",
+      "question": "X_TASK: write the estimator paragraph.",
+      "promptContains": ["A_ONLY_K7", "SHARED_C_L5"],
+      "promptExcludes": ["B_ONLY_Q9"],
+      "readableContains": ["A_ONLY_K7"],
+      "readableExcludes": ["B_ONLY_Q9"]
+    },
+    {
+      "name": "Y",
+      "parentNodeId": "b1",
+      "question": "Y_TASK: draft the reply to the reviewer.",
+      "promptContains": ["B_ONLY_Q9", "SHARED_C_L5"],
+      "promptExcludes": ["A_ONLY_K7"],
+      "readableContains": ["B_ONLY_Q9"],
+      "readableExcludes": ["A_ONLY_K7"]
+    }
+  ]
+}

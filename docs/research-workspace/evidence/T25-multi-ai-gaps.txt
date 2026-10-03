@@ -1,0 +1,99 @@
+# npm run test:unit -- tests/unit/multi-ai-baseline.test.ts  (VITE_TDAG_SHOW_GAPS=1)
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/multi-ai-baseline.test.ts (17 tests | 3 failed) 165ms
+   ❯ two unrelated lines on one runtime (4)
+     × [T28] a task does not inherit a standing approval given on an unrelated line 5ms
+   ❯ the global defaults change between two runs of a task (4)
+     × [T27] a task keeps the effort it ran with when the global effort changes 3ms
+     × [T26] a task on an unpinned line keeps the model it was created with when the toolbar's pick changes 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/multi-ai-baseline.test.ts > two unrelated lines on one runtime > [T28] a task does not inherit a standing approval given on an unrelated line
+AssertionError: expected [ 'codex:cmd:npm test' ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "codex:cmd:npm test",
++ ]
+
+ ❯ tests/unit/multi-ai-baseline.test.ts:156:40
+    154|     load(f);
+    155|     const y = await ask(task(f, 'Y'));
+    156|     expect(y.request.allowRules ?? []).toEqual([]);
+       |                                        ^
+    157|   });
+    158| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/unit/multi-ai-baseline.test.ts > the global defaults change between two runs of a task > [T27] a task keeps the effort it ran with when the global effort changes
+AssertionError: expected 'low' to be 'high' // Object.is equality
+
+Expected: "high"
+Received: "low"
+
+ ❯ tests/unit/multi-ai-baseline.test.ts:182:26
+    180|     useUiStore.getState().setAgentEffort('low');
+    181|     const again = await rerun(pinned);
+    182|     expect(again.effort).toBe('high');
+       |                          ^
+    183|   });
+    184|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/unit/multi-ai-baseline.test.ts > the global defaults change between two runs of a task > [T26] a task on an unpinned line keeps the model it was created with when the toolbar's pick changes
+AssertionError: expected 'claude-code' to be 'codex' // Object.is equality
+
+Expected: "codex"
+Received: "claude-code"
+
+ ❯ tests/unit/multi-ai-baseline.test.ts:191:27
+    189|     useUiStore.getState().setSelectedModel('claude/claude-code/sonnet'…
+    190|     const again = await rerun(following);
+    191|     expect(again.runtime).toBe('codex');
+       |                           ^
+    192|   });
+    193| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 14 passed (17)
+
+
+# npm run test:host -- tests/host/multi-ai-baseline.test.cjs  (TDAG_SHOW_GAPS=1)
+TAP version 13
+# Subtest: each task can read the material written for it
+ok 1 - each task can read the material written for it
+# Subtest: the first task to run cannot read material written later for the other
+ok 2 - the first task to run cannot read material written later for the other
+# Subtest: [T27] a task cannot read material that was written for another task in the same directory
+not ok 3 - [T27] a task cannot read material that was written for another task in the same directory
+  location: '<repo>/tests/helpers/gap.cjs:16:3'
+  failureType: 'testCodeFailure'
+  error: 'task Y can read A_ONLY_K7, which was wired only to task X'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    <repo>/tests/host/multi-ai-baseline.test.cjs:52:10
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+1..3
+# tests 3
+# suites 0
+# pass 2
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0

@@ -1,0 +1,26 @@
+{
+  "description": "Two lines: one pinned to a model, one that follows the toolbar. A task runs on each; then the toolbar's model and the global effort change; then each task is run again.",
+  "graph": {
+    "nodes": [
+      {
+        "id": "p1",
+        "question": "List the open items.",
+        "response": "Three items are open.",
+        "model": "codex/gpt-synthetic"
+      },
+      {
+        "id": "u1",
+        "question": "List the closed items.",
+        "response": "Five items are closed."
+      }
+    ],
+    "edges": []
+  },
+  "nativeHistory": null,
+  "policy": { "mode": "workspace", "model": "codex/gpt-synthetic", "cwd": "/synthetic/project", "effort": "high" },
+  "expected": { "targetNodeId": "p1" },
+  "tasks": [
+    { "name": "pinned", "parentNodeId": "p1", "question": "PINNED_TASK: prioritize the open items." },
+    { "name": "following", "parentNodeId": "u1", "question": "FOLLOWING_TASK: archive the closed items." }
+  ]
+}

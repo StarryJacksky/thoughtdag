@@ -85,3 +85,97 @@ describe('refusals from the shell', () => {
     expect(error.message).not.toContain('/synthetic');
   });
 });
+
+// ── file operations and change events ──────────────────────────────────
+
+import { createFile, importText, newOperationId, readText, rescanWorkspace, saveText, trashFile } from '../../src/lib/workspace/client';
+import { subscribeWorkspace } from '../../src/lib/workspace/events';
+import type { WorkspaceEvent } from '../../src/lib/workspace/contracts';
+
+const HASH = 'sha256:' + 'a'.repeat(64);
+
+describe('file operations through the door', () => {
+  it('pass a valid request on and check what comes back', async () => {
+    const seen: unknown[] = [];
+    shell({
+      createFile: async (r: unknown) => { seen.push(r); return resource; },
+      readText: async () => ({ text: 'x', revision: HASH, encoding: 'utf-8', newline: 'lf' }),
+      saveText: async () => ({ status: 'conflict', currentRevision: HASH }),
+      trashFile: async () => ({ receiptId: 'trash_1', fileId: 'file_1', opId: 'op-1', location: 'system-trash', restorable: true }),
+      rescan: async () => [resource],
+    });
+    const request = { workspaceId: 'ws_1', extension: 'md', origin: 'graph' as const, idempotencyKey: newOperationId() };
+    expect(await createFile(request)).toEqual(resource);
+    expect(seen).toEqual([request]);
+    expect((await readText('file_1')).revision).toBe(HASH);
+    // a conflict is an answer, not an exception
+    expect(await saveText('file_1', HASH, 'y', 'op-1')).toEqual({ status: 'conflict', currentRevision: HASH });
+    expect((await trashFile('file_1', 'op-1')).location).toBe('system-trash');
+    expect(await rescanWorkspace('ws_1')).toEqual([resource]);
+  });
+
+  it('refuse to send a request that is not one, before the shell sees it', async () => {
+    let asked = 0;
+    shell({ createFile: async () => { asked++; return resource; }, importText: async () => { asked++; return resource; } });
+    const bad = { workspaceId: 'ws_1', extension: '../sh', origin: 'graph', idempotencyKey: 'op-1' } as const;
+    await expect(createFile(bad)).rejects.toMatchObject({ code: 'invalid-request' });
+    await expect(importText({ ...bad, extension: 'md', path: '/synthetic' } as never, { text: 'x', provenance: { source: 'chatgpt-space' } })).rejects.toMatchObject({ code: 'invalid-request' });
+    expect(asked).toBe(0);
+  });
+
+  it('refuse a save result that claims saved with nothing to show for it', async () => {
+    shell({ saveText: async () => ({ status: 'saved' }) });
+    await expect(saveText('file_1', HASH, 'y', 'op-1')).rejects.toMatchObject({ code: 'contract' });
+  });
+
+  it('give every operation an id of its own', () => {
+    expect(newOperationId()).toMatch(/^op_[0-9a-f-]{36}$/);
+    expect(newOperationId()).not.toBe(newOperationId());
+  });
+});
+
+describe('change events', () => {
+  // the module listens to the shell once per page: every test here shares that one line in
+  let push: (e: unknown) => void = () => {};
+  const event = (workspaceId: string, change: WorkspaceEvent['change'] = 'content'): WorkspaceEvent => ({ workspaceId, fileId: 'file_1', change, observedRevision: HASH, opId: null, record: { ...resource, workspaceId, revision: HASH } });
+
+  it('reach the listeners of their workspace only, and the shell is asked to watch once per workspace', async () => {
+    const calls: string[] = [];
+    shell({
+      onEvent: (cb: (e: unknown) => void) => { push = cb; },
+      subscribe: async (id: string) => { calls.push(`subscribe ${id}`); return true; },
+      unsubscribe: async (id: string) => { calls.push(`unsubscribe ${id}`); return true; },
+    });
+    const heardA: WorkspaceEvent[] = [];
+    const alsoA: WorkspaceEvent[] = [];
+    const heardB: WorkspaceEvent[] = [];
+    const stopA = await subscribeWorkspace('ws_a', (e) => heardA.push(e));
+    const stopAlsoA = await subscribeWorkspace('ws_a', (e) => alsoA.push(e));
+    const stopB = await subscribeWorkspace('ws_b', (e) => heardB.push(e));
+    push(event('ws_a'));
+    push(event('ws_b', 'missing'));
+    expect(heardA.map((e) => e.change)).toEqual(['content']);
+    expect(alsoA.length).toBe(1);
+    expect(heardB.map((e) => e.change)).toEqual(['missing']);
+    stopA();
+    push(event('ws_a', 'moved'));
+    expect(heardA.length).toBe(1);
+    expect(alsoA.map((e) => e.change)).toEqual(['content', 'moved']);
+    stopAlsoA();
+    stopB();
+    expect(calls).toEqual(['subscribe ws_a', 'subscribe ws_b', 'unsubscribe ws_a', 'unsubscribe ws_b']);
+  });
+
+  it('that do not fit the contract are dropped, and a listener that throws stops nobody else', async () => {
+    shell({ onEvent: (cb: (e: unknown) => void) => { push = cb; }, subscribe: async () => true, unsubscribe: async () => true });
+    const heard: WorkspaceEvent[] = [];
+    const stopBad = await subscribeWorkspace('ws_c', () => { throw new Error('listener bug'); });
+    const stop = await subscribeWorkspace('ws_c', (e) => heard.push(e));
+    push({ ...event('ws_c'), change: 'deleted-forever' });
+    push({ workspaceId: 'ws_c' });
+    push(event('ws_c'));
+    expect(heard.length).toBe(1);
+    stopBad();
+    stop();
+  });
+});

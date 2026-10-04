@@ -65,6 +65,20 @@ contextBridge.exposeInMainWorld('desktopWorkspace', {
   close: (workspaceId) => ipcRenderer.invoke('workspace:close', workspaceId),
   listChildren: (workspaceId, parentId) => ipcRenderer.invoke('workspace:list-children', workspaceId, parentId),
   registerEntry: (workspaceId, entryId) => ipcRenderer.invoke('workspace:register-entry', workspaceId, entryId),
+  createFile: (request) => ipcRenderer.invoke('workspace:create-file', request),
+  importText: (request, options) => ipcRenderer.invoke('workspace:import-text', request, options),
+  createFolder: (workspaceId, parentId, name) => ipcRenderer.invoke('workspace:create-folder', workspaceId, parentId, name),
+  readText: (fileId) => ipcRenderer.invoke('workspace:read-text', fileId),
+  saveText: (fileId, baseRevision, text, opId) => ipcRenderer.invoke('workspace:save-text', fileId, baseRevision, text, opId),
+  moveFile: (fileId, targetParentId, newName, opId) => ipcRenderer.invoke('workspace:move-file', fileId, targetParentId, newName, opId),
+  copyFile: (fileId, targetParentId, newName, opId) => ipcRenderer.invoke('workspace:copy-file', fileId, targetParentId, newName, opId),
+  trashFile: (fileId, opId) => ipcRenderer.invoke('workspace:trash-file', fileId, opId),
+  reconcile: (fileId) => ipcRenderer.invoke('workspace:reconcile', fileId),
+  rescan: (workspaceId) => ipcRenderer.invoke('workspace:rescan', workspaceId),
+  relink: (fileId, entryId) => ipcRenderer.invoke('workspace:relink', fileId, entryId),
+  subscribe: (workspaceId) => ipcRenderer.invoke('workspace:subscribe', workspaceId),
+  unsubscribe: (workspaceId) => ipcRenderer.invoke('workspace:unsubscribe', workspaceId),
+  onEvent: (cb) => { ipcRenderer.on('workspace:event', (_e, event) => cb(event)); },
 });
 
 // The why layer: search across every local agent's sessions and the

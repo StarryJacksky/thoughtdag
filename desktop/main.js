@@ -857,6 +857,7 @@ function setupWorkspace() {
       const r = await dialog.showOpenDialog(win ?? undefined, { properties: ['openDirectory', 'createDirectory'] });
       return r.canceled ? null : (r.filePaths[0] ?? null);
     },
+    trash: (absolute) => shell.trashItem(absolute),
   });
   const door = (channel, fn) => ipcMain.handle(channel, async (event, ...args) => {
     const verdict = checkSender(senderOf(event), { origin: appOrigin, webContentsId: win?.webContents.id ?? null });
@@ -871,6 +872,42 @@ function setupWorkspace() {
   door('workspace:close', (workspaceId) => service.closeWorkspace(String(workspaceId)));
   door('workspace:list-children', (workspaceId, parentId) => service.listChildren(String(workspaceId), parentId == null ? undefined : String(parentId)));
   door('workspace:register-entry', (workspaceId, entryId) => service.registerEntry(String(workspaceId), String(entryId)));
+
+  const optional = (id) => (id == null ? undefined : String(id));
+  door('workspace:create-file', (request) => service.createFile(request));
+  door('workspace:import-text', (request, options) => service.importText(request, options && typeof options === 'object' ? options : {}));
+  door('workspace:create-folder', (workspaceId, parentId, name) => service.createFolder(String(workspaceId), optional(parentId), String(name)));
+  door('workspace:read-text', (fileId) => service.readText(String(fileId)));
+  door('workspace:save-text', (fileId, baseRevision, text, opId) => service.saveText(String(fileId), String(baseRevision), text, String(opId)));
+  door('workspace:move-file', (fileId, targetParentId, newName, opId) => service.moveFile(String(fileId), optional(targetParentId), String(newName), String(opId)));
+  door('workspace:copy-file', (fileId, targetParentId, newName, opId) => service.copyFile(String(fileId), optional(targetParentId), String(newName), String(opId)));
+  door('workspace:trash-file', (fileId, opId) => service.trashFile(String(fileId), String(opId)));
+  door('workspace:reconcile', (fileId) => service.reconcile(String(fileId)));
+  door('workspace:rescan', (workspaceId) => service.rescanWorkspace(String(workspaceId)));
+  door('workspace:relink', (fileId, entryId) => service.relink(String(fileId), String(entryId)));
+
+  // Changes to registered files, pushed to the page. They go only to the
+  // app itself: a window that was sent somewhere else is told nothing.
+  const subscriptions = new Map(); // workspaceId → unsubscribe
+  const push = (event) => {
+    if (!win || win.isDestroyed()) return;
+    let showing = null;
+    try { showing = new URL(win.webContents.getURL()).origin; } catch { /* not a URL */ }
+    if (showing === appOrigin) win.webContents.send('workspace:event', event);
+  };
+  door('workspace:subscribe', async (workspaceId) => {
+    const id = String(workspaceId);
+    if (!subscriptions.has(id)) subscriptions.set(id, await service.subscribeWorkspace(id, push));
+    return true;
+  });
+  door('workspace:unsubscribe', (workspaceId) => {
+    const id = String(workspaceId);
+    subscriptions.get(id)?.();
+    subscriptions.delete(id);
+    return true;
+  });
+  // the watcher can miss a change made while the app was in the background
+  app.on('browser-window-focus', () => { for (const id of subscriptions.keys()) void service.rescanWorkspace(id).catch(() => {}); });
 }
 
 function codexAppServer() {

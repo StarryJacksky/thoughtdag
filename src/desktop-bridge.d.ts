@@ -229,6 +229,27 @@ interface DesktopWorkspaceBridge {
   listChildren(workspaceId: string, parentId?: string): Promise<import('./lib/workspace/contracts').FileEntry[]>;
   /** give a file its identity, or return the one it has */
   registerEntry(workspaceId: string, entryId: string): Promise<import('./lib/workspace/contracts').ResourceRecord>;
+  /** the shell picks the name; the same idempotency key returns the same file */
+  createFile(request: import('./lib/workspace/contracts').CreateFileRequest): Promise<import('./lib/workspace/contracts').ResourceRecord>;
+  /** text brought in as a new local file marked as a copy; the shell sets the time */
+  importText(request: import('./lib/workspace/contracts').CreateFileRequest, options: { text: string; name?: string | null; provenance: { source: import('./lib/workspace/contracts').ImportProvenance['source']; note?: string } }): Promise<import('./lib/workspace/contracts').ResourceRecord>;
+  /** resolves with the new folder's entry id */
+  createFolder(workspaceId: string, parentId: string | undefined, name: string): Promise<string>;
+  readText(fileId: string): Promise<import('./lib/workspace/contracts').TextRevision>;
+  saveText(fileId: string, baseRevision: string, text: string, opId: string): Promise<import('./lib/workspace/contracts').SaveResult>;
+  moveFile(fileId: string, targetParentId: string | undefined, newName: string, opId: string): Promise<import('./lib/workspace/contracts').ResourceRecord>;
+  copyFile(fileId: string, targetParentId: string | undefined, newName: string, opId: string): Promise<import('./lib/workspace/contracts').ResourceRecord>;
+  trashFile(fileId: string, opId: string): Promise<import('./lib/workspace/contracts').TrashReceipt>;
+  /** bring one file's record in line with the disk */
+  reconcile(fileId: string): Promise<import('./lib/workspace/contracts').ResourceRecord>;
+  /** reconcile every registered file; resolves with the ones that changed */
+  rescan(workspaceId: string): Promise<import('./lib/workspace/contracts').ResourceRecord[]>;
+  /** the person says a lost file is this entry */
+  relink(fileId: string, entryId: string): Promise<import('./lib/workspace/contracts').ResourceRecord>;
+  subscribe(workspaceId: string): Promise<boolean>;
+  unsubscribe(workspaceId: string): Promise<boolean>;
+  /** every change to a registered file of a subscribed workspace */
+  onEvent(cb: (event: import('./lib/workspace/contracts').WorkspaceEvent) => void): void;
 }
 
 interface Window {

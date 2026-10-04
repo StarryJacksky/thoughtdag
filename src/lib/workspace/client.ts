@@ -4,7 +4,7 @@
 // other code sees it, so a shell and a page of different versions fail
 // loudly here instead of quietly somewhere else.
 
-import { validateDTO, type FileEntry, type ResourceRecord, type WorkspaceDTOs, type WorkspaceRecord } from './contracts';
+import { validateDTO, type ContentHash, type CreateFileRequest, type FileEntry, type ImportProvenance, type ResourceRecord, type SaveResult, type TextRevision, type TrashReceipt, type WorkspaceDTOs, type WorkspaceRecord } from './contracts';
 
 /** A workspace call the shell refused or could not complete. `code` is
  *  stable (traversal, escapes-root, read-only, no-grant, …); the message is
@@ -73,4 +73,81 @@ export async function listChildren(workspaceId: string, parentId?: string): Prom
 /** Give a file its identity, or get the one it has. */
 export async function registerEntry(workspaceId: string, entryId: string): Promise<ResourceRecord> {
   return checked('ResourceRecord', await call((b) => b.registerEntry(workspaceId, entryId)));
+}
+
+/** An id for one operation. Asking again with the same id returns the same
+ *  answer instead of doing the work twice, so a retry after a lost reply is safe. */
+export const newOperationId = (): string => `op_${crypto.randomUUID()}`;
+
+function request(value: CreateFileRequest): CreateFileRequest {
+  const result = validateDTO('CreateFileRequest', value);
+  if (!result.ok) throw new WorkspaceError('invalid-request', 'that is not a request to create a file');
+  return value;
+}
+
+/** Create a file. The shell picks the name; a graph file goes to Graph Files. */
+export async function createFile(req: CreateFileRequest): Promise<ResourceRecord> {
+  const checkedRequest = request(req);
+  return checked('ResourceRecord', await call((b) => b.createFile(checkedRequest)));
+}
+
+/**
+ * Bring text in as a new local file marked as a copy (what was copied out of
+ * a space page, say). It is an ordinary local file from then on: nothing
+ * keeps it in step with where it came from.
+ */
+export async function importText(req: CreateFileRequest, options: { text: string; name?: string | null; provenance: Pick<ImportProvenance, 'source' | 'note'> }): Promise<ResourceRecord> {
+  const checkedRequest = request(req);
+  return checked('ResourceRecord', await call((b) => b.importText(checkedRequest, options)));
+}
+
+/** Create a folder; resolves with its entry id. */
+export function createFolder(workspaceId: string, parentId: string | undefined, name: string): Promise<string> {
+  return call((b) => b.createFolder(workspaceId, parentId, name));
+}
+
+/** A file's text and the revision a later save must name. */
+export async function readText(fileId: string): Promise<TextRevision> {
+  return checked('TextRevision', await call((b) => b.readText(fileId)));
+}
+
+/**
+ * Replace a file's text if it still holds the revision that was read.
+ * Resolves with the outcome: `saved` only when the new text is in place; a
+ * conflict, a read-only file and a failure are results, not exceptions.
+ */
+export async function saveText(fileId: string, baseRevision: ContentHash, text: string, opId: string): Promise<SaveResult> {
+  return checked('SaveResult', await call((b) => b.saveText(fileId, baseRevision, text, opId)));
+}
+
+/** Move or rename a file inside its workspace. It keeps its fileId. */
+export async function moveFile(fileId: string, targetParentId: string | undefined, newName: string, opId: string): Promise<ResourceRecord> {
+  return checked('ResourceRecord', await call((b) => b.moveFile(fileId, targetParentId, newName, opId)));
+}
+
+/** Copy a file inside its workspace. The copy is a new file with a new fileId. */
+export async function copyFile(fileId: string, targetParentId: string | undefined, newName: string, opId: string): Promise<ResourceRecord> {
+  return checked('ResourceRecord', await call((b) => b.copyFile(fileId, targetParentId, newName, opId)));
+}
+
+/** Take a file out of the workspace without destroying it. */
+export async function trashFile(fileId: string, opId: string): Promise<TrashReceipt> {
+  return checked('TrashReceipt', await call((b) => b.trashFile(fileId, opId)));
+}
+
+/** Bring one file's record in line with the disk. */
+export async function reconcileFile(fileId: string): Promise<ResourceRecord> {
+  return checked('ResourceRecord', await call((b) => b.reconcile(fileId)));
+}
+
+/** Reconcile every registered file of a workspace; resolves with the ones that changed. */
+export async function rescanWorkspace(workspaceId: string): Promise<ResourceRecord[]> {
+  const records = await call((b) => b.rescan(workspaceId));
+  if (!Array.isArray(records)) throw new WorkspaceError('contract', 'the shell answered with something that is not a list');
+  return records.map((r) => checked('ResourceRecord', r));
+}
+
+/** The person says a lost file is the entry they picked. */
+export async function relinkFile(fileId: string, entryId: string): Promise<ResourceRecord> {
+  return checked('ResourceRecord', await call((b) => b.relink(fileId, entryId)));
 }

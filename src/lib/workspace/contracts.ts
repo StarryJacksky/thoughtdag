@@ -52,6 +52,20 @@ export interface ResourceRecord {
   importedFrom?: ImportProvenance;
 }
 
+/** One registered file changed on disk: by this application (then `opId`
+ *  names the operation) or by another program (then it is null). `record`
+ *  is the file as it stands after the change. */
+export interface WorkspaceEvent {
+  workspaceId: string;
+  fileId: string;
+  /** content: edited · moved: renamed or moved · missing: gone · ambiguous:
+   *  several files could be it · restored: found again after being lost */
+  change: 'content' | 'moved' | 'missing' | 'ambiguous' | 'restored';
+  observedRevision: ContentHash | null;
+  opId: string | null;
+  record: ResourceRecord;
+}
+
 /** Where a copy was taken from, as the person stated it. The file is an
  *  ordinary local file from then on: nothing keeps it in step with that
  *  place and nothing is written back there. */
@@ -233,6 +247,7 @@ export interface WorkspaceDTOs {
   WorkspaceRecord: WorkspaceRecord;
   ResourceRecord: ResourceRecord;
   ImportProvenance: ImportProvenance;
+  WorkspaceEvent: WorkspaceEvent;
   ResourceSelector: ResourceSelector;
   ResourceVersion: ResourceVersion;
   ResourceRef: ResourceRef;

@@ -96,6 +96,9 @@ function createRegistry({ rootPath, workspaceId, rootGrantId, readOnly = false, 
 
     get: (fileId) => serial(async () => (await load()).resources.get(fileId)?.record ?? null),
 
+    /** The record and what the file system last showed for it (`observed`), or null. */
+    entry: (fileId) => serial(async () => { const e = (await load()).resources.get(fileId); return e ? { record: e.record, observed: e.observed } : null; }),
+
     findByPath: (relativePath) => serial(async () => { await load(); return byPath(relativePath)?.record ?? null; }),
 
     all: () => serial(async () => [...(await load()).resources.values()].map((e) => e.record)),

@@ -84,6 +84,14 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
     return record;
   }
 
+  const isLost = (record) => record.status === 'missing' || record.status === 'ambiguous';
+  /** A lost file's path may now hold some other file: nothing acts on it until it is found again. */
+  async function liveRecordOf(fileId) {
+    const record = await recordOf(fileId);
+    if (isLost(record)) throw new WorkspaceAccessError('lost', 'the file is lost; it has to be found again first');
+    return record;
+  }
+
   /** Read the bytes at a checked location, through a handle that is verified to be a regular file. */
   async function readChecked(absolute, limit = Infinity) {
     const handle = await io.open(absolute, fs.constants.O_RDONLY | NOFOLLOW);
@@ -194,7 +202,7 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
 
     /** The file's text and the revision a later save must name. */
     async readText(fileId) {
-      const record = await recordOf(fileId);
+      const record = await liveRecordOf(fileId);
       const target = await assertAllowedPath(grant, 'read', record.relativePath);
       const { bytes, stat } = await readChecked(target.absolute, MAX_EDITABLE_BYTES);
       const decoded = decodeText(bytes);
@@ -214,6 +222,7 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
       if (grant.readOnly) return { status: 'readonly', reason: 'this workspace is read-only' };
       if (typeof text !== 'string') return { status: 'error', reason: 'the content is not text' };
       const record = await recordOf(fileId);
+      if (isLost(record)) return { status: 'conflict', currentRevision: null };
 
       let target;
       try { target = await assertAllowedPath(grant, 'write', record.relativePath); } catch (e) {
@@ -271,7 +280,7 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
       refuseReadOnly();
       const done = await finished(opId, 'move');
       if (done) return recordOf(fileId);
-      const record = await recordOf(fileId);
+      const record = await liveRecordOf(fileId);
       const source = await assertAllowedPath(grant, 'move-from', record.relativePath);
       const destination = await assertAllowedPath(grant, 'move-to', join(targetParentRelativePath, newName));
       if (destination.exists) {
@@ -295,7 +304,7 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
       refuseReadOnly();
       const done = await finished(opId, 'copy');
       if (done) return recordOf(done.fileId);
-      const record = await recordOf(fileId);
+      const record = await liveRecordOf(fileId);
       const source = await assertAllowedPath(grant, 'read', record.relativePath);
       const destination = await assertAllowedPath(grant, 'create', join(targetParentRelativePath, newName));
       if (destination.exists) throw new WorkspaceAccessError('exists', 'something is already at that name');
@@ -319,7 +328,7 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
       refuseReadOnly();
       const done = await finished(opId, 'trash');
       if (done) return done.receipt;
-      const record = await recordOf(fileId);
+      const record = await liveRecordOf(fileId);
       const source = await assertAllowedPath(grant, 'trash', record.relativePath);
       const receiptId = `trash_${newId()}`;
       await journal.append({ opId, kind: 'trash', phase: 'intent', fileId, relativePath: source.relativePath, receiptId });

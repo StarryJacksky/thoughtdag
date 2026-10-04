@@ -16,6 +16,8 @@ const { createRegistry, writeFileAtomic } = require('./registry.cjs');
 const { mediaTypeOf } = require('./media-types.cjs');
 const { createJournal } = require('./journal.cjs');
 const { createFileOps } = require('./file-ops.cjs');
+const { createReconciler } = require('./reconcile.cjs');
+const { watchWorkspace } = require('./watch.cjs');
 const { loadContracts } = require('../../shared/schemas/host.cjs');
 
 const fsp = fs.promises;
@@ -41,12 +43,15 @@ function relativePathOf(entryId) {
  * `trash(absolutePath)` moves a file to the system trash; without it a
  * trashed file goes to the workspace's own recovery area. `io` replaces
  * the file-system calls of file operations (tests inject faults through it).
+ * `watch` is `{ watchFn, quietMs }` for the folder watcher (see watch.cjs).
  */
-function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, now = () => new Date().toISOString(), newId = () => randomUUID() }) {
+function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, watch = {}, now = () => new Date().toISOString(), newId = () => randomUUID() }) {
   const grantsFile = path.join(stateDir, GRANTS_FILE);
   let grants = null;              // Map<rootGrantId, { rootPath, workspaceId, displayName, readOnly, grantedAt }>
   const registries = new Map();   // workspaceId → registry
   const operations = new Map();   // workspaceId → Promise<file operations>
+  const listeners = new Map();    // workspaceId → Set<listener>
+  const watchers = new Map();     // workspaceId → folder watcher
 
   async function loadGrants() {
     if (grants) return grants;
@@ -101,6 +106,22 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, now
       ready.catch(() => operations.delete(grant.workspaceId));
     }
     return ready;
+  }
+
+  async function reconcilerOf(grant) {
+    return createReconciler({ grant, registry: await registryOf(grant), ...(io ? { io } : {}) });
+  }
+
+  /** Tell the workspace's subscribers that a file changed. A listener that throws stops nobody else. */
+  function emit(workspaceId, record, change, opId = null) {
+    const event = { workspaceId, fileId: record.fileId, change, observedRevision: record.revision, opId, record };
+    for (const listener of listeners.get(workspaceId) ?? []) { try { listener(event); } catch { /* the listener's own problem */ } }
+  }
+
+  async function rescan(grant) {
+    const changes = await (await reconcilerOf(grant)).rescan();
+    for (const { record, change } of changes) emit(grant.workspaceId, record, change);
+    return changes.map(({ record }) => record);
   }
 
   /** The open workspace that knows this file. */
@@ -175,6 +196,9 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, now
       grants.delete(grant.rootGrantId);
       registries.delete(workspaceId);
       operations.delete(workspaceId);
+      watchers.get(workspaceId)?.close();
+      watchers.delete(workspaceId);
+      listeners.delete(workspaceId);
       await saveGrants();
       return true;
     },
@@ -263,11 +287,19 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, now
     },
 
     async saveText(fileId, baseRevision, text, opId) {
-      return (await operationsOf(await grantOfFile(fileId))).saveText(fileId, baseRevision, text, opId);
+      const grant = await grantOfFile(fileId);
+      const before = (await (await registryOf(grant)).get(fileId))?.revision ?? null;
+      const result = await (await operationsOf(grant)).saveText(fileId, baseRevision, text, opId);
+      if (result.status === 'saved' && result.revision !== before) emit(grant.workspaceId, await (await registryOf(grant)).get(fileId), 'content', opId);
+      return result;
     },
 
     async moveFile(fileId, targetParentId, newName, opId) {
-      return (await operationsOf(await grantOfFile(fileId))).moveFile(fileId, parentPathOf(targetParentId), newName, opId);
+      const grant = await grantOfFile(fileId);
+      const before = (await (await registryOf(grant)).get(fileId))?.relativePath;
+      const moved = await (await operationsOf(grant)).moveFile(fileId, parentPathOf(targetParentId), newName, opId);
+      if (moved.relativePath !== before) emit(grant.workspaceId, moved, 'moved', opId);
+      return moved;
     },
 
     async copyFile(fileId, targetParentId, newName, opId) {
@@ -275,7 +307,58 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, now
     },
 
     async trashFile(fileId, opId) {
-      return (await operationsOf(await grantOfFile(fileId))).trashFile(fileId, opId);
+      const grant = await grantOfFile(fileId);
+      const wasThere = (await (await registryOf(grant)).get(fileId))?.status !== 'missing';
+      const receipt = await (await operationsOf(grant)).trashFile(fileId, opId);
+      if (wasThere) emit(grant.workspaceId, await (await registryOf(grant)).get(fileId), 'missing', opId);
+      return receipt;
+    },
+
+    /**
+     * Hear about changes to a workspace's registered files: this
+     * application's own, and other programs'. The first subscriber starts
+     * the folder watcher; the last one leaving stops it. Returns unsubscribe.
+     */
+    async subscribeWorkspace(workspaceId, listener) {
+      const grant = await grantOf(workspaceId);
+      if (!listeners.has(workspaceId)) listeners.set(workspaceId, new Set());
+      listeners.get(workspaceId).add(listener);
+      if (!watchers.has(workspaceId)) {
+        watchers.set(workspaceId, watchWorkspace({ rootPath: grant.rootPath, onSignal: () => { void rescan(grant).catch(() => {}); }, ...watch }));
+      }
+      return () => {
+        const set = listeners.get(workspaceId);
+        if (!set) return;
+        set.delete(listener);
+        if (set.size === 0) {
+          listeners.delete(workspaceId);
+          watchers.get(workspaceId)?.close();
+          watchers.delete(workspaceId);
+        }
+      };
+    },
+
+    /** Bring one file's record in line with the disk. Resolves with the record. */
+    async reconcile(fileId) {
+      const grant = await grantOfFile(fileId);
+      const { record, change } = await (await reconcilerOf(grant)).reconcile(fileId);
+      if (change) emit(grant.workspaceId, record, change);
+      return record;
+    },
+
+    /** Reconcile every registered file of a workspace: what a watcher signal
+     *  does, and what covers the signals that never came (asked for when the
+     *  window comes back to the front). Resolves with the records that changed. */
+    async rescanWorkspace(workspaceId) {
+      return rescan(await grantOf(workspaceId));
+    },
+
+    /** The person says a lost file is the entry they picked. */
+    async relink(fileId, candidateEntryId) {
+      const grant = await grantOfFile(fileId);
+      const { record, change } = await (await reconcilerOf(grant)).relink(fileId, relativePathOf(candidateEntryId));
+      emit(grant.workspaceId, record, change);
+      return record;
     },
   };
 }

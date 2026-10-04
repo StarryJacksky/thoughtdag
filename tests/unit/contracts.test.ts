@@ -57,7 +57,7 @@ describe('the validator against a full JSON Schema implementation', () => {
 describe('the TypeScript types and the schema', () => {
   // every key is checked by the compiler; a kind missing here does not build
   const workspaceKinds: Record<keyof WorkspaceDTOs, true> = {
-    ResourceLocator: true, WorkspaceRecord: true, ResourceRecord: true, ImportProvenance: true, ResourceSelector: true, ResourceVersion: true, ResourceRef: true,
+    ResourceLocator: true, WorkspaceRecord: true, ResourceRecord: true, ImportProvenance: true, WorkspaceEvent: true, ResourceSelector: true, ResourceVersion: true, ResourceRef: true,
     CreateFileRequest: true, SourceCapabilities: true, FileEntry: true, ResourcePage: true, TextRevision: true, SaveResult: true,
     TrashReceipt: true, SourceRead: true, SourceWrite: true, SourceWriteResult: true, SurfaceState: true, SpaceCapabilityReport: true,
   };

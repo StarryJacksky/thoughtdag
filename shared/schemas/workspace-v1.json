@@ -97,6 +97,21 @@
       }
     },
 
+    "WorkspaceEvent": {
+      "description": "One registered file changed on disk, by this application (then `opId` names the operation) or by another program (then it is null). `record` is the file as it stands after the change.",
+      "type": "object",
+      "required": ["workspaceId", "fileId", "change", "observedRevision", "opId", "record"],
+      "additionalProperties": false,
+      "properties": {
+        "workspaceId": { "$ref": "#/$defs/OpaqueId" },
+        "fileId": { "$ref": "#/$defs/OpaqueId" },
+        "change": { "enum": ["content", "moved", "missing", "ambiguous", "restored"] },
+        "observedRevision": { "oneOf": [{ "$ref": "#/$defs/ContentHash" }, { "type": "null" }] },
+        "opId": { "type": ["string", "null"] },
+        "record": { "$ref": "#/$defs/ResourceRecord" }
+      }
+    },
+
     "ImportProvenance": {
       "description": "Where a copy was taken from, as the person stated it. The file is an ordinary local file from then on: nothing keeps it in step with that place and nothing is written back there.",
       "type": "object",

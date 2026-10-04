@@ -48,6 +48,18 @@ export interface ResourceRecord {
   status: 'ready' | 'missing' | 'ambiguous' | 'readonly';
   /** the content hash once the content has been read; null for an entry known by metadata only */
   revision: ContentHash | null;
+  /** set on a copy taken from somewhere else */
+  importedFrom?: ImportProvenance;
+}
+
+/** Where a copy was taken from, as the person stated it. The file is an
+ *  ordinary local file from then on: nothing keeps it in step with that
+ *  place and nothing is written back there. */
+export interface ImportProvenance {
+  source: 'chatgpt-space' | 'other';
+  importedAt: string;
+  /** the person's own words for the place: a page title, a link */
+  note?: string;
 }
 
 export type ResourceSelector =
@@ -220,6 +232,7 @@ export interface WorkspaceDTOs {
   ResourceLocator: ResourceLocator;
   WorkspaceRecord: WorkspaceRecord;
   ResourceRecord: ResourceRecord;
+  ImportProvenance: ImportProvenance;
   ResourceSelector: ResourceSelector;
   ResourceVersion: ResourceVersion;
   ResourceRef: ResourceRef;

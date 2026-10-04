@@ -14,6 +14,8 @@ const { randomUUID } = require('node:crypto');
 const { assertAllowedPath, WorkspaceAccessError, METADATA_DIR } = require('./path-policy.cjs');
 const { createRegistry, writeFileAtomic } = require('./registry.cjs');
 const { mediaTypeOf } = require('./media-types.cjs');
+const { createJournal } = require('./journal.cjs');
+const { createFileOps } = require('./file-ops.cjs');
 const { loadContracts } = require('../../shared/schemas/host.cjs');
 
 const fsp = fs.promises;
@@ -36,11 +38,15 @@ function relativePathOf(entryId) {
  * `stateDir` is where the shell keeps its own records (the app's user-data
  * directory). `pickDirectory()` shows the system folder picker and resolves
  * with an absolute path or null; it is the only way a root is granted.
+ * `trash(absolutePath)` moves a file to the system trash; without it a
+ * trashed file goes to the workspace's own recovery area. `io` replaces
+ * the file-system calls of file operations (tests inject faults through it).
  */
-function createWorkspaceService({ stateDir, pickDirectory, now = () => new Date().toISOString(), newId = () => randomUUID() }) {
+function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, now = () => new Date().toISOString(), newId = () => randomUUID() }) {
   const grantsFile = path.join(stateDir, GRANTS_FILE);
   let grants = null;              // Map<rootGrantId, { rootPath, workspaceId, displayName, readOnly, grantedAt }>
   const registries = new Map();   // workspaceId → registry
+  const operations = new Map();   // workspaceId → Promise<file operations>
 
   async function loadGrants() {
     if (grants) return grants;
@@ -72,6 +78,46 @@ function createWorkspaceService({ stateDir, pickDirectory, now = () => new Date(
       registries.set(grant.workspaceId, registry);
     }
     return registry;
+  }
+
+  /** The file operations of a workspace. The first use settles whatever a
+   *  crash left unfinished there, before anything new is done. */
+  function operationsOf(grant) {
+    let ready = operations.get(grant.workspaceId);
+    if (!ready) {
+      ready = (async () => {
+        const ops = createFileOps({
+          grant,
+          registry: await registryOf(grant),
+          journal: createJournal({ rootPath: grant.rootPath, readOnly: grant.readOnly, now }),
+          trash,
+          ...(io ? { io } : {}),
+          now,
+        });
+        await ops.reconcile();
+        return ops;
+      })();
+      operations.set(grant.workspaceId, ready);
+      ready.catch(() => operations.delete(grant.workspaceId));
+    }
+    return ready;
+  }
+
+  /** The open workspace that knows this file. */
+  async function grantOfFile(fileId) {
+    for (const [rootGrantId, g] of await loadGrants()) {
+      const grant = { rootGrantId, ...g };
+      if (await (await registryOf(grant)).get(fileId)) return grant;
+    }
+    throw new WorkspaceAccessError('unknown-file', 'that file is not known to an open workspace');
+  }
+
+  const parentPathOf = (parentId) => (parentId === undefined || parentId === null ? '' : relativePathOf(parentId));
+
+  async function checkedRequest(kind, value) {
+    const result = (await loadContracts()).validateDTO(kind, value);
+    if (!result.ok) throw new WorkspaceAccessError('invalid-request', `that is not a ${kind}: ` + result.errors.map((e) => `${e.path || '(the request)'} ${e.message}`).join('; '));
+    return value;
   }
 
   /** The id a folder carries in its own records, so the same folder is the
@@ -128,6 +174,7 @@ function createWorkspaceService({ stateDir, pickDirectory, now = () => new Date(
       const grant = await grantOf(workspaceId);
       grants.delete(grant.rootGrantId);
       registries.delete(workspaceId);
+      operations.delete(workspaceId);
       await saveGrants();
       return true;
     },
@@ -180,6 +227,55 @@ function createWorkspaceService({ stateDir, pickDirectory, now = () => new Date(
     async registerEntry(workspaceId, entryId) {
       const grant = await grantOf(workspaceId);
       return this.registerResource(grant.rootGrantId, relativePathOf(entryId));
+    },
+
+    /** Create a file from a CreateFileRequest. The name is chosen here. */
+    async createFile(request) {
+      await checkedRequest('CreateFileRequest', request);
+      const grant = await grantOf(request.workspaceId);
+      return (await operationsOf(grant)).createFile({ extension: request.extension, origin: request.origin, idempotencyKey: request.idempotencyKey, parentRelativePath: parentPathOf(request.parentId) });
+    },
+
+    /**
+     * Bring text in as a new local file marked as a copy: what was copied out
+     * of a space page, or anything else the person has in hand. `provenance`
+     * is `{ source, note? }` in the person's words; the time is set here.
+     * The file is an ordinary local file from then on.
+     */
+    async importText(request, { text, name = null, provenance }) {
+      await checkedRequest('CreateFileRequest', request);
+      if (typeof text !== 'string') throw new WorkspaceAccessError('invalid-request', 'the content to import is not text');
+      const importedFrom = await checkedRequest('ImportProvenance', { source: provenance?.source, importedAt: now(), ...(typeof provenance?.note === 'string' && provenance.note ? { note: provenance.note } : {}) });
+      const grant = await grantOf(request.workspaceId);
+      return (await operationsOf(grant)).createFile(
+        { extension: request.extension, origin: 'workspace', idempotencyKey: request.idempotencyKey, parentRelativePath: parentPathOf(request.parentId) },
+        { content: text, name, importedFrom },
+      );
+    },
+
+    async createFolder(workspaceId, parentId, name) {
+      const grant = await grantOf(workspaceId);
+      return entryIdOf(await (await operationsOf(grant)).createFolder(parentPathOf(parentId), name));
+    },
+
+    async readText(fileId) {
+      return (await operationsOf(await grantOfFile(fileId))).readText(fileId);
+    },
+
+    async saveText(fileId, baseRevision, text, opId) {
+      return (await operationsOf(await grantOfFile(fileId))).saveText(fileId, baseRevision, text, opId);
+    },
+
+    async moveFile(fileId, targetParentId, newName, opId) {
+      return (await operationsOf(await grantOfFile(fileId))).moveFile(fileId, parentPathOf(targetParentId), newName, opId);
+    },
+
+    async copyFile(fileId, targetParentId, newName, opId) {
+      return (await operationsOf(await grantOfFile(fileId))).copyFile(fileId, parentPathOf(targetParentId), newName, opId);
+    },
+
+    async trashFile(fileId, opId) {
+      return (await operationsOf(await grantOfFile(fileId))).trashFile(fileId, opId);
     },
   };
 }

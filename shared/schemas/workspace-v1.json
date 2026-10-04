@@ -92,7 +92,20 @@
         "revision": {
           "description": "The content hash once the content has been read; null for an entry known by metadata only.",
           "oneOf": [{ "$ref": "#/$defs/ContentHash" }, { "type": "null" }]
-        }
+        },
+        "importedFrom": { "$ref": "#/$defs/ImportProvenance" }
+      }
+    },
+
+    "ImportProvenance": {
+      "description": "Where a copy was taken from, as the person stated it. The file is an ordinary local file from then on: nothing keeps it in step with that place and nothing is written back there.",
+      "type": "object",
+      "required": ["source", "importedAt"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "enum": ["chatgpt-space", "other"] },
+        "importedAt": { "type": "string", "minLength": 1 },
+        "note": { "description": "The person's own words for the place: a page title, a link.", "type": "string", "maxLength": 2000 }
       }
     },
 

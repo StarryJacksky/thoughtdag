@@ -106,7 +106,7 @@ function createRegistry({ rootPath, workspaceId, rootGrantId, readOnly = false, 
      * system showed (device, inode, size, mtime), kept beside the record for
      * telling a moved file from a new one later; it is never the identity.
      */
-    register: ({ relativePath, mediaType, origin, observed }) => serial(async () => {
+    register: ({ relativePath, mediaType, origin, observed, revision = null, importedFrom }) => serial(async () => {
       await load();
       const existing = byPath(relativePath);
       if (existing) return existing.record;
@@ -119,7 +119,8 @@ function createRegistry({ rootPath, workspaceId, rootGrantId, readOnly = false, 
         mediaType,
         origin,
         status: state.access === 'read-write' ? 'ready' : 'readonly',
-        revision: null,
+        revision,
+        ...(importedFrom ? { importedFrom } : {}),
       };
       const checked = contracts.validateDTO('ResourceRecord', record);
       if (!checked.ok) throw new RegistryError('invalid-record', 'the new record does not fit the contract: ' + checked.errors.map((e) => `${e.path} ${e.message}`).join('; '));
@@ -127,6 +128,27 @@ function createRegistry({ rootPath, workspaceId, rootGrantId, readOnly = false, 
       // a read-only workspace still gets identities for this session; they are not stored
       if (state.access === 'read-write') {
         try { await save(); } catch (e) { state.resources.delete(record.fileId); throw e; }
+      }
+      return record;
+    }),
+
+    /**
+     * Change a registered file's record: where it is, what its content
+     * hashes to, whether it is still there. The fileId never changes. A new
+     * `relativePath` moves the locator with it. Resolves with the new record.
+     */
+    update: (fileId, patch, observed) => serial(async () => {
+      await load();
+      const entry = state.resources.get(fileId);
+      if (!entry) throw new RegistryError('unknown-file', 'that file is not registered');
+      const record = { ...entry.record, ...patch, fileId };
+      if (typeof patch.relativePath === 'string') record.locator = { ...entry.record.locator, relativePath: patch.relativePath };
+      const checked = contracts.validateDTO('ResourceRecord', record);
+      if (!checked.ok) throw new RegistryError('invalid-record', 'the changed record does not fit the contract: ' + checked.errors.map((e) => `${e.path} ${e.message}`).join('; '));
+      const previous = entry;
+      state.resources.set(fileId, { record, observed: observed === undefined ? entry.observed : observed });
+      if (state.access === 'read-write') {
+        try { await save(); } catch (e) { state.resources.set(fileId, previous); throw e; }
       }
       return record;
     }),

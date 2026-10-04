@@ -98,6 +98,13 @@
       "error": { "path": "", "keyword": "oneOf" },
       "value": { "status": "ok" } },
 
+    { "name": "source write that is known to have failed", "kind": "SourceWriteResult", "valid": true,
+      "value": { "status": "error", "reason": "the disk is full" } },
+    { "name": "source write against a target that is gone", "kind": "SourceWriteResult", "valid": true,
+      "value": { "status": "conflict", "currentRevision": null } },
+    { "name": "source write reported saved with nothing to show for it", "kind": "SourceWriteResult", "valid": false,
+      "error": { "path": "/contentHash", "keyword": "required" },
+      "value": { "status": "saved", "sourceRevision": "r43" } },
     { "name": "nothing known about a source", "kind": "SourceCapabilities", "valid": true,
       "value": { "list": "unknown", "read": "unknown", "create": "unknown", "update": "unknown", "move": "unknown", "trash": "unknown", "conditionalWrite": "unknown", "pagePatch": "unknown", "changes": "unknown", "uploadCustomType": "unknown" } },
     { "name": "a capability given as a boolean", "kind": "SourceCapabilities", "valid": false,

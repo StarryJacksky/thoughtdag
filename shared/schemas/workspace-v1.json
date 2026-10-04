@@ -365,7 +365,7 @@
           "additionalProperties": false,
           "properties": {
             "status": { "const": "saved" },
-            "sourceRevision": { "type": "string", "minLength": 1 },
+            "sourceRevision": { "description": "The source's own version after the write; null for a source that has none (a local file).", "type": ["string", "null"] },
             "contentHash": { "$ref": "#/$defs/ContentHash" }
           }
         },
@@ -375,7 +375,7 @@
           "additionalProperties": false,
           "properties": {
             "status": { "const": "conflict" },
-            "currentRevision": { "type": "string", "minLength": 1 }
+            "currentRevision": { "description": "The source's revision now; null when the target is gone.", "type": ["string", "null"] }
           }
         },
         {
@@ -383,7 +383,7 @@
           "required": ["status", "reason"],
           "additionalProperties": false,
           "properties": {
-            "status": { "enum": ["readonly", "unsupported", "unknown-ack"] },
+            "status": { "enum": ["readonly", "unsupported", "unknown-ack", "error"] },
             "reason": { "type": "string", "minLength": 1 }
           }
         }

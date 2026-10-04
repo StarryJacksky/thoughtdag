@@ -286,6 +286,22 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
       return (await operationsOf(await grantOfFile(fileId))).readText(fileId);
     },
 
+    async readBytes(fileId) {
+      return (await operationsOf(await grantOfFile(fileId))).readBytes(fileId);
+    },
+
+    /** The open workspace with this id, as a record. */
+    async workspaceRecord(workspaceId) {
+      const grant = await grantOf(workspaceId);
+      return recordOf(grant.rootGrantId, grant);
+    },
+
+    /** The record of a registered file, or null. */
+    async resourceRecord(fileId) {
+      const grant = await grantOfFile(fileId).catch(() => null);
+      return grant ? (await registryOf(grant)).get(fileId) : null;
+    },
+
     async saveText(fileId, baseRevision, text, opId) {
       const grant = await grantOfFile(fileId);
       const before = (await (await registryOf(grant)).get(fileId))?.revision ?? null;

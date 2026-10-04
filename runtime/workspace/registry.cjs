@@ -39,6 +39,18 @@ async function writeFileAtomic(file, text) {
 }
 
 /**
+ * A 1.0 record as a 1.1 record. 1.0 knew only local files and named them by
+ * path: the locator and the (absent) source revision are filled in. Nothing
+ * else is touched, and the file is rewritten as 1.1 on its next change.
+ */
+function migrateRecord(record, rootGrantId) {
+  const migrated = { ...record };
+  if (migrated.locator === undefined && typeof migrated.relativePath === 'string') migrated.locator = { kind: 'local', rootGrantId, relativePath: migrated.relativePath };
+  if (migrated.sourceRevision === undefined) migrated.sourceRevision = null;
+  return migrated;
+}
+
+/**
  * The registry of the workspace rooted at `rootPath`.
  * `contracts` is what shared/schemas/host.cjs loads; `newId` makes a fileId.
  */
@@ -63,6 +75,7 @@ function createRegistry({ rootPath, workspaceId, rootGrantId, readOnly = false, 
     const resources = new Map();
     if (access === 'read-write') {
       for (const entry of Array.isArray(doc.resources) ? doc.resources : []) {
+        if (doc.schemaVersion === '1.0' && entry?.record) entry.record = migrateRecord(entry.record, rootGrantId);
         const checked = contracts.validateDTO('ResourceRecord', entry?.record);
         if (!checked.ok) throw new RegistryError('corrupt', 'the resource registry holds a record that does not fit the contract; it was left untouched');
         resources.set(entry.record.fileId, { record: entry.record, observed: entry.observed ?? null });
@@ -158,4 +171,4 @@ function createRegistry({ rootPath, workspaceId, rootGrantId, readOnly = false, 
   };
 }
 
-module.exports = { createRegistry, writeFileAtomic, RegistryError, REGISTRY_FILE };
+module.exports = { createRegistry, migrateRecord, writeFileAtomic, RegistryError, REGISTRY_FILE };

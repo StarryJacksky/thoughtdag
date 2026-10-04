@@ -211,6 +211,16 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
       return { text: decoded.text, revision, encoding: decoded.encoding, newline: decoded.newline };
     },
 
+    /** The file's bytes and their hash, whatever they are. */
+    async readBytes(fileId) {
+      const record = await liveRecordOf(fileId);
+      const target = await assertAllowedPath(grant, 'read', record.relativePath);
+      const { bytes, stat } = await readChecked(target.absolute);
+      const revision = hashOf(bytes);
+      if (record.revision !== revision && !grant.readOnly) await registry.update(fileId, { revision }, observedOf(stat)).catch(() => {});
+      return { bytes, revision };
+    },
+
     /**
      * Replace the file's text, if it still holds what the caller read
      * (`baseRevision`). Resolves with a SaveResult; it does not reject for a

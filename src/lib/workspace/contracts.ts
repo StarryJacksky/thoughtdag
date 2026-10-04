@@ -169,9 +169,12 @@ export interface SourceWrite {
 }
 
 export type SourceWriteResult =
-  | { status: 'saved'; sourceRevision: string; contentHash: ContentHash }
-  | { status: 'conflict'; currentRevision: string }
-  | { status: 'readonly' | 'unsupported' | 'unknown-ack'; reason: string };
+  /** `sourceRevision` is null for a source with no version of its own (a local file) */
+  | { status: 'saved'; sourceRevision: string | null; contentHash: ContentHash }
+  /** the source's revision now; null when the target is gone */
+  | { status: 'conflict'; currentRevision: string | null }
+  /** unknown-ack: the write may or may not have landed. error: it is known not to have. */
+  | { status: 'readonly' | 'unsupported' | 'unknown-ack' | 'error'; reason: string };
 
 /** What one connection to a ChatGPT space can do, as probed. Each capability
  *  rests on its own evidence: reading proves nothing about writing, and a file

@@ -1477,4 +1477,11 @@ export const zh: Record<keyof typeof en, string> = {
   'resource.moveHint': '拖到文件面板里的某个文件夹上，可把文件移到那里',
   'resource.deleteNodeTitle': '移除这个节点。文件留在原处。',
   'resource.relinked': '已找回：{name}',
+  'surface.dockLeft': '停靠到左侧',
+  'surface.dockRight': '停靠到右侧',
+  'surface.minimize': '收起',
+  'surface.maximize': '铺满画布区域',
+  'surface.restore': '回到原来的位置',
+  'surface.close': '关闭这个视图。文件保留。',
+  'surface.open': '打开阅读和输入',
 };

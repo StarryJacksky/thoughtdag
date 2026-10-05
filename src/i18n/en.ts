@@ -1478,4 +1478,11 @@ export const en = {
   'resource.moveHint': 'Drag onto a folder in the file panel to move the file there',
   'resource.deleteNodeTitle': 'Remove this node. The file stays where it is.',
   'resource.relinked': 'Found again: {name}',
+  'surface.dockLeft': 'Dock to the left',
+  'surface.dockRight': 'Dock to the right',
+  'surface.minimize': 'Put away',
+  'surface.maximize': 'Fill the canvas area',
+  'surface.restore': 'Back to where it was',
+  'surface.close': 'Close this view. The file stays.',
+  'surface.open': 'Open to read and type',
 } as const;

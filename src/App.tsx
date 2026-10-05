@@ -37,6 +37,7 @@ import MaterialReader from './components/MaterialReader';
 import ProjectSwitcher from './components/ProjectSwitcher';
 import ResourceNodeView from './components/workspace/ResourceNodeView';
 import WorkspaceLayer from './components/workspace/WorkspaceLayer';
+import SurfaceManager from './components/surfaces/SurfaceManager';
 import NewFileButton from './components/workspace/NewFileButton';
 import { dropOnCanvas } from './components/workspace/actions';
 import { workspaceAvailable } from './lib/workspace/client';
@@ -1533,6 +1534,9 @@ function Canvas() {
 
       {/* Workspace files: the file panel, its toggle, and the type menu for a file created from the graph */}
       <WorkspaceLayer flowPosAt={flowPosAt} />
+
+      {/* Documents open beside the canvas: movable frames that take the pointer only where they are */}
+      {!isViewerMode && <SurfaceManager />}
 
       {/* Content palette — canvas material, both modes. Click drops at the
           viewport center; DRAG drops at the pointer. Paste works anywhere:

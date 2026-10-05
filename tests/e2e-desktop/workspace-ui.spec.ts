@@ -28,6 +28,9 @@ const nodeOf = (name: string): Locator => page.locator('[data-resource-node]', {
 const treeFile = (name: string) => page.locator(`[data-tree-file="${name}"]`);
 const treeFolder = (name: string) => page.locator(`[data-tree-folder="${name}"]`);
 const nodes = () => page.locator('[data-resource-node]');
+/** The surface that shows the file of this name, on a page. */
+const surfaceOn = (on: Page, name: string): Locator => on.locator('[data-surface]', { has: on.locator('[data-surface-title]', { hasText: exact(name) }) });
+const surfaceOf = (name: string): Locator => surfaceOn(page, name);
 
 // This file is compiled without the browser's types (it runs in Node), so
 // the little of the page it touches from inside is described here.
@@ -109,6 +112,17 @@ test.describe.serial('workspace files on the canvas, in the desktop shell', () =
     await expect(treeFile('Untitled-001.tex')).toBeVisible();
     expect(fs.existsSync(onDisk('notes', 'Untitled-001.tex'))).toBe(true);
     await expect(page.locator('.react-flow__node')).toHaveCount(0);
+
+    // it opens to be typed into at once, beside the canvas, and what is typed lands in the file
+    const surface = surfaceOf('Untitled-001.tex');
+    await expect(surface).toBeVisible();
+    await surface.locator('[data-surface-text]').fill('\\section{Typed from the tree}\n');
+    await expect(surface.locator('[data-surface-state]')).toHaveAttribute('data-surface-state', 'clean');
+    expect(read('notes', 'Untitled-001.tex')).toBe('\\section{Typed from the tree}\n');
+    await expect(page.locator('.react-flow__node'), 'the canvas still has no node for it').toHaveCount(0);
+    await surface.locator('[data-surface-close]').click();
+    await expect(surface).toHaveCount(0);
+    expect(read('notes', 'Untitled-001.tex'), 'closing the view leaves the file').toBe('\\section{Typed from the tree}\n');
   });
 
   test('a file added from the tree becomes a node that references it, wired to nothing', async () => {
@@ -139,42 +153,42 @@ test.describe.serial('workspace files on the canvas, in the desktop shell', () =
     await expect(page.locator('.react-flow__edge')).toHaveCount(0);
   });
 
-  test('the new file can be typed into from its node, and what is typed lands on disk', async () => {
+  test('the new file is open to be typed into, its node shows what is typed, and the node\'s pencil leads to the same surface', async () => {
     const node = nodeOf('Untitled-001.md');
-    await node.locator('[data-resource-edit]').click();
-    await node.locator('[data-resource-editor]').fill('TYPED_HERE_W7\n');
-    await node.locator('[data-resource-save]').click();
+    const surface = surfaceOf('Untitled-001.md');
+    await expect(surface, 'it opened when it was made').toBeVisible();
+    await surface.locator('[data-surface-text]').fill('TYPED_HERE_W7\n');
+    await surface.locator('[data-surface-save]').click();
     await expect.poll(() => read('Graph Files', 'Untitled-001.md')).toBe('TYPED_HERE_W7\n');
-    await node.locator('[data-resource-done]').click();
     await expect(node.locator('[data-resource-preview]')).toContainText('TYPED_HERE_W7');
+    await node.locator('[data-resource-edit]').click();
+    await expect(page.locator('[data-surface]'), 'one surface per file').toHaveCount(1);
   });
 
   test('a save does not land on top of another program\'s change until the person says so', async () => {
-    const node = nodeOf('Untitled-001.md');
-    await node.locator('[data-resource-edit]').click();
-    await node.locator('[data-resource-editor]').fill('MINE_Z5\n');
+    const surface = surfaceOf('Untitled-001.md');
+    await surface.locator('[data-surface-text]').fill('MINE_Z5\n');
     fs.writeFileSync(onDisk('Graph Files', 'Untitled-001.md'), 'CHANGED_ELSEWHERE_M2\n');
     // nothing is clicked: the conflict shows by itself, from the folder's news or from the save that would have followed the typing
-    await expect(node.locator('[data-resource-conflict]')).toBeVisible();
-    await expect(node.locator('[data-resource-save]')).toBeDisabled();
+    await expect(surface.locator('[data-surface-conflict]')).toBeVisible();
+    await expect(surface.locator('[data-surface-save]')).toBeDisabled();
     expect(read('Graph Files', 'Untitled-001.md')).toBe('CHANGED_ELSEWHERE_M2\n');
-    await expect(node.locator('[data-resource-editor]')).toHaveValue('MINE_Z5\n');
-    await node.locator('[data-conflict-overwrite]').click();
+    await expect(surface.locator('[data-surface-text]')).toHaveValue('MINE_Z5\n');
+    await surface.locator('[data-conflict-overwrite]').click();
     await expect.poll(() => read('Graph Files', 'Untitled-001.md')).toBe('MINE_Z5\n');
-    await node.locator('[data-resource-done]').click();
   });
 
   test('what is typed saves by itself a moment after the typing stops', async () => {
-    const node = nodeOf('Untitled-001.md');
-    await node.locator('[data-resource-edit]').click();
-    await node.locator('[data-resource-editor]').fill('SAVED_BY_ITSELF_A2\n');
-    await expect(node.locator('[data-resource-save-state]')).toHaveAttribute('data-resource-save-state', 'clean');
+    const surface = surfaceOf('Untitled-001.md');
+    await surface.locator('[data-surface-text]').fill('SAVED_BY_ITSELF_A2\n');
+    await expect(surface.locator('[data-surface-state]')).toHaveAttribute('data-surface-state', 'clean');
     expect(read('Graph Files', 'Untitled-001.md')).toBe('SAVED_BY_ITSELF_A2\n');
     // undo is the document's: the text goes back, and that is saved too
-    await node.locator('[data-resource-editor]').press('ControlOrMeta+z');
-    await expect(node.locator('[data-resource-editor]')).toHaveValue('MINE_Z5\n');
+    await surface.locator('[data-surface-text]').press('ControlOrMeta+z');
+    await expect(surface.locator('[data-surface-text]')).toHaveValue('MINE_Z5\n');
     await expect.poll(() => read('Graph Files', 'Untitled-001.md')).toBe('MINE_Z5\n');
-    await node.locator('[data-resource-done]').click();
+    await expect(nodes(), 'undoing in a document undoes nothing on the canvas').toHaveCount(2);
+    await surface.locator('[data-surface-close]').click();
   });
 
   test('an edit by another program shows up in the node that references the file', async () => {
@@ -245,7 +259,8 @@ test.describe.serial('workspace files on the canvas, in the desktop shell', () =
     await expect(treeFile('space-page.md')).toBeVisible();
     expect(read('notes', 'space-page.md')).toBe('COPIED_FROM_SPACE_H9\n');
 
-    await treeFile('space-page.md').dblclick();
+    await treeFile('space-page.md').hover();
+    await treeFile('space-page.md').locator('[data-tree-add]').click();
     const node = nodeOf('space-page.md');
     await expect(node).toHaveAttribute('data-resource-node', 'ready');
     await expect(node.locator('[data-resource-copy]')).toBeVisible();
@@ -253,23 +268,23 @@ test.describe.serial('workspace files on the canvas, in the desktop shell', () =
   });
 
   test('typing that could not be saved is not lost: it is there again after the page is loaded anew, and is saved once it can be', async () => {
-    const node = nodeOf('space-page.md');
     fs.chmodSync(onDisk('notes'), 0o555); // nothing can be written into the folder
     try {
-      await node.locator('[data-resource-edit]').click();
-      await node.locator('[data-resource-editor]').fill('TYPED_BUT_NOT_SAVED_J7\n');
-      await expect(node.locator('[data-resource-save-state]')).toHaveAttribute('data-resource-save-state', 'readonly');
+      await nodeOf('space-page.md').locator('[data-resource-edit]').click();
+      const surface = surfaceOf('space-page.md');
+      await surface.locator('[data-surface-text]').fill('TYPED_BUT_NOT_SAVED_J7\n');
+      await expect(surface.locator('[data-surface-state]')).toHaveAttribute('data-surface-state', 'readonly');
       expect(read('notes', 'space-page.md')).toBe('COPIED_FROM_SPACE_H9\n');
       await page.waitForTimeout(2500); // the canvas is saved a moment after the last change
       await page.reload();
     } finally {
       fs.chmodSync(onDisk('notes'), 0o755);
     }
-    const again = nodeOf('space-page.md');
-    await again.locator('[data-resource-edit]').click();
-    await expect(again.locator('[data-resource-editor]')).toHaveValue('TYPED_BUT_NOT_SAVED_J7\n');
+    // the surface is where it was, with what was typed, and now that the folder can be written it is saved
+    const again = surfaceOf('space-page.md');
+    await expect(again.locator('[data-surface-text]')).toHaveValue('TYPED_BUT_NOT_SAVED_J7\n');
     await expect.poll(() => read('notes', 'space-page.md')).toBe('TYPED_BUT_NOT_SAVED_J7\n');
-    await again.locator('[data-resource-done]').click();
+    await again.locator('[data-surface-close]').click();
   });
 
   test('after the page is loaded again the canvas still has its folder and its file nodes', async () => {
@@ -291,7 +306,8 @@ test.describe.serial('workspace files on the canvas, in the desktop shell', () =
     await treeFolder('notes').click(); // the tree starts closed after the reload
     await expect(treeFile('blob.bin')).toBeVisible();
     for (const [name, why] of [['huge.csv', 'too-large'], ['blob.bin', 'unreadable']] as const) {
-      await treeFile(name).dblclick();
+      await treeFile(name).hover();
+      await treeFile(name).locator('[data-tree-add]').click();
       const node = nodeOf(name);
       await expect(node.locator('[data-resource-no-copy]')).toHaveAttribute('data-resource-no-copy', why);
       await expect(node.locator('[data-resource-edit]')).toHaveCount(0);
@@ -335,7 +351,8 @@ test.describe.serial('folders in the file panel, in the desktop shell', () => {
     await p.locator('[data-workspace-toggle]').click();
     await p.locator('[data-open-folder]').click();
     await dir('notes').click();
-    await file('a.md').dblclick();
+    await file('a.md').hover();
+    await file('a.md').locator('[data-tree-add]').click();
     await expect(fileNode('a.md')).toHaveAttribute('data-resource-node', 'ready');
   });
 
@@ -417,6 +434,177 @@ test.describe.serial('folders in the file panel, in the desktop shell', () => {
   });
 });
 
+test.describe.serial('documents open beside the canvas, in the desktop shell', () => {
+  let sBase: string;
+  let sProject: string;
+  let sApp: ElectronApplication;
+  let sp: Page;
+  const NAMES = ['one.md', 'two.tex', 'three.py', 'four.txt'];
+  const surface = (name: string) => surfaceOn(sp, name);
+  const boxOf = async (name: string) => (await surface(name).boundingBox())!;
+  /** Bring a frame in front of the others the way a person does: by pressing on whatever part of it shows past them. */
+  const bringForward = async (name: string) => {
+    const id = await surface(name).getAttribute('data-surface');
+    const point = await sp.evaluate((surfaceId) => {
+      type El = { closest(selector: string): { getAttribute(name: string): string | null } | null; getBoundingClientRect(): Box };
+      const dom = globalThis as unknown as { document: { querySelector(selector: string): El | null; elementFromPoint(x: number, y: number): El | null } };
+      const box = dom.document.querySelector(`[data-surface="${surfaceId}"]`)!.getBoundingClientRect();
+      // along the frame's edges first: that is where a covered frame shows
+      for (let y = box.top + 6; y < box.top + box.height; y += 12) {
+        for (let x = box.left + 6; x < box.left + box.width; x += 12) {
+          if (dom.document.elementFromPoint(x, y)?.closest('[data-surface]')?.getAttribute('data-surface') === surfaceId) return { x, y };
+        }
+      }
+      return null;
+    }, id);
+    expect(point, `some part of ${name} shows`).not.toBeNull();
+    await sp.mouse.click(point!.x, point!.y);
+  };
+
+  test.beforeAll(async () => {
+    sBase = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'tdag-desktop-surfaces-')));
+    sProject = path.join(sBase, 'research-project');
+    fs.mkdirSync(sProject, { recursive: true });
+    for (const name of NAMES) fs.writeFileSync(path.join(sProject, name), `content of ${name}\n`);
+    sApp = await electron.launch({
+      executablePath: electronBinary,
+      args: [path.join(REPO, 'desktop'), `--user-data-dir=${path.join(sBase, 'profile')}`],
+      cwd: REPO,
+      env: { ...process.env, TD_SESSION_ROOTS: '{}' },
+    });
+    await sApp.evaluate(({ dialog }, chosen) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [chosen] }); }, sProject);
+    sp = await sApp.firstWindow();
+    await sp.waitForURL(/^http:\/\/127\.0\.0\.1:\d+\//, { timeout: 60_000 });
+    await markLessonSeen(sp);
+    await sp.reload();
+    await sp.locator('[data-workspace-toggle]').click();
+    await sp.locator('[data-open-folder]').click();
+  });
+
+  test.afterAll(async () => {
+    await sApp?.close();
+    if (sBase) fs.rmSync(sBase, { recursive: true, force: true });
+  });
+
+  test('four files open at once, each in its own frame, by a double click in the tree, and the canvas gets no nodes', async () => {
+    for (const name of NAMES) await sp.locator(`[data-tree-file="${name}"]`).dblclick();
+    await expect(sp.locator('[data-surface]')).toHaveCount(4);
+    for (const name of NAMES) await expect(surface(name).locator('[data-surface-text]')).toHaveValue(`content of ${name}\n`);
+    await expect(sp.locator('.react-flow__node')).toHaveCount(0);
+    await sp.locator('[data-tree-close]').click();
+  });
+
+  test('the canvas and its question box stay within reach with the documents open', async () => {
+    // a point on the canvas that no frame covers belongs to the canvas, not to a layer over it
+    const free = await sp.evaluate(() => {
+      const dom = globalThis as unknown as { document: { elementFromPoint(x: number, y: number): { closest(selector: string): unknown } | null } };
+      const el = dom.document.elementFromPoint(120, 560);
+      return { onCanvas: !!el?.closest('.react-flow'), inSurfaceLayer: !!el?.closest('[data-surface]') };
+    });
+    expect(free).toEqual({ onCanvas: true, inSurfaceLayer: false });
+
+    // a double click there asks a question on the canvas, as it does with no documents open
+    await sp.locator('.react-flow__pane').dblclick({ position: { x: 120, y: 560 } });
+    await expect(sp.locator('.react-flow__node')).toHaveCount(1);
+    const question = sp.locator('.react-flow__node textarea').first();
+    await question.click();
+    await question.fill('What do these four files have in common?');
+    await expect(question).toHaveValue('What do these four files have in common?');
+    await expect(sp.locator('[data-surface]')).toHaveCount(4);
+  });
+
+  test('switching quickly between the documents sends each keystroke to the one in front, and none of it to the canvas', async () => {
+    for (const name of ['two.tex', 'four.txt', 'one.md', 'three.py', 'two.tex']) {
+      await bringForward(name);
+      const box = surface(name).locator('[data-surface-text]');
+      await box.click();
+      await box.press('End');
+      await box.pressSequentially(' r ');
+      await box.press('Delete');
+      await box.press('Backspace');
+    }
+    await expect(surface('two.tex').locator('[data-surface-text]')).toHaveValue(/ r r/);
+    for (const name of NAMES) await expect(surface(name).locator('[data-surface-text]')).toHaveValue(new RegExp(`^content of ${name.replace('.', '\\.')}`));
+    // the question on the canvas is still there, untouched: neither deleted nor run again nor collapsed
+    await expect(sp.locator('.react-flow__node')).toHaveCount(1);
+    await expect(sp.locator('.react-flow__node textarea').first()).toHaveValue('What do these four files have in common?');
+  });
+
+  test('a frame is moved by its title bar, resized from its corner, and never smaller than its smallest size', async () => {
+    await bringForward('one.md');
+    const before = await boxOf('one.md');
+    const bar = (await surface('one.md').locator('[data-surface-titlebar]').boundingBox())!;
+    await sp.mouse.move(bar.x + 60, bar.y + bar.height / 2);
+    await sp.mouse.down();
+    await sp.mouse.move(bar.x + 60 - 150, bar.y + bar.height / 2 + 90, { steps: 5 });
+    await sp.mouse.up();
+    const moved = await boxOf('one.md');
+    expect(Math.round(moved.x - before.x)).toBe(-150);
+    expect(Math.round(moved.y - before.y)).toBe(90);
+
+    const grip = (await surface('one.md').locator('[data-surface-resize]').boundingBox())!;
+    await sp.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+    await sp.mouse.down();
+    await sp.mouse.move(grip.x - 2000, grip.y - 2000, { steps: 5 });
+    await sp.mouse.up();
+    const small = await boxOf('one.md');
+    expect([Math.round(small.width), Math.round(small.height)]).toEqual([360, 240]);
+    expect([Math.round(small.x), Math.round(small.y)]).toEqual([Math.round(moved.x), Math.round(moved.y)]);
+  });
+
+  test('a frame fills the canvas area and goes back, docks to a side, and is put away and brought back', async () => {
+    await bringForward('two.tex');
+    const before = await boxOf('two.tex');
+    await surface('two.tex').locator('[data-surface-maximize]').click();
+    const layer = (await sp.locator('[data-surface-layer]').boundingBox())!;
+    const full = await boxOf('two.tex');
+    expect([Math.round(full.width), Math.round(full.height)]).toEqual([Math.round(layer.width), Math.round(layer.height)]);
+    await surface('two.tex').locator('[data-surface-maximize]').click();
+    expect(await boxOf('two.tex')).toEqual(before);
+
+    await bringForward('three.py');
+    await surface('three.py').locator('[data-surface-dock-left]').click();
+    const docked = await boxOf('three.py');
+    expect([Math.round(docked.x - layer.x), Math.round(docked.height)]).toEqual([0, Math.round(layer.height)]);
+
+    await bringForward('four.txt');
+    await surface('four.txt').locator('[data-surface-minimize]').click();
+    await expect(surface('four.txt')).toHaveCount(0);
+    await expect(sp.locator('[data-surface-tray] [data-surface-chip]')).toHaveCount(1);
+    await sp.locator('[data-surface-tray] [data-surface-chip]').click();
+    await expect(surface('four.txt')).toBeVisible();
+    await surface('four.txt').locator('[data-surface-minimize]').click();
+  });
+
+  test('a frame that the window shrinks away from is brought back to where its title bar can be reached', async () => {
+    await sApp.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0].setSize(900, 620); });
+    await expect.poll(async () => (await sp.locator('[data-surface-layer]').boundingBox())!.width).toBeLessThan(950);
+    const layer = (await sp.locator('[data-surface-layer]').boundingBox())!;
+    for (const name of ['one.md', 'two.tex']) {
+      const bar = (await surface(name).locator('[data-surface-titlebar]').boundingBox())!;
+      expect(bar.y, name).toBeGreaterThanOrEqual(layer.y);
+      expect(bar.y + bar.height, name).toBeLessThanOrEqual(layer.y + layer.height);
+      expect(layer.x + layer.width - (await boxOf(name)).x, name).toBeGreaterThanOrEqual(96);
+    }
+    await sApp.evaluate(({ BrowserWindow }) => { BrowserWindow.getAllWindows()[0].setSize(1500, 950); });
+  });
+
+  test('the documents are where they were after the page is loaded again: floating, docked and put away', async () => {
+    await sp.waitForTimeout(600);
+    await sp.reload();
+    await expect(sp.locator('[data-surface]')).toHaveCount(3);
+    await expect(surface('three.py')).toHaveAttribute('data-surface-placement', 'left');
+    await expect(sp.locator('[data-surface-tray] [data-surface-chip]')).toHaveCount(1);
+    await expect(surface('two.tex').locator('[data-surface-text]')).toHaveValue(/^content of two\.tex/);
+  });
+
+  test('closing a document\'s view deletes nothing', async () => {
+    for (const name of ['one.md', 'two.tex', 'three.py']) { await bringForward(name); await surface(name).locator('[data-surface-close]').click(); }
+    await expect(sp.locator('[data-surface]')).toHaveCount(0);
+    expect(fs.readdirSync(sProject).filter((n) => !n.startsWith('.')).sort()).toEqual([...NAMES].sort());
+  });
+});
+
 test.describe.serial('a new canvas that starts from a file', () => {
   let freshBase: string;
   let freshApp: ElectronApplication;
@@ -451,9 +639,10 @@ test.describe.serial('a new canvas that starts from a file', () => {
     await expect(node).toHaveCount(1);
     await expect(node.locator('[data-resource-path]')).toHaveText('Graph Files/Untitled-001.md');
 
-    await node.locator('[data-resource-edit]').click();
-    await node.locator('[data-resource-editor]').fill('FIRST_WORDS_Y3\n');
-    await node.locator('[data-resource-save]').click();
+    // the file opened as it was made: it is typed into right away
+    const surface = surfaceOn(freshPage, 'Untitled-001.md');
+    await surface.locator('[data-surface-text]').fill('FIRST_WORDS_Y3\n');
+    await surface.locator('[data-surface-save]').click();
     const workspaces = path.join(freshBase, 'profile', 'workspaces');
     const where = () => fs.readdirSync(workspaces, { recursive: true, encoding: 'utf8' }).filter((p) => p.endsWith(path.join('Graph Files', 'Untitled-001.md')));
     await expect.poll(() => where().length).toBe(1);

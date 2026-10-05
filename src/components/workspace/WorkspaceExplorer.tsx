@@ -6,7 +6,8 @@ import { copyFile, copyFolder, createFolder, listChildren, moveFile, moveFolder,
 import type { FileEntry, SourceCapabilities } from '../../lib/workspace/contracts';
 import { canDo } from '../../lib/workspace/provider-contracts';
 import { createDocument } from '../../lib/workspace/create-command';
-import { copyNameOf } from '../../lib/workspace/file-types';
+import { copyNameOf, isEditableText } from '../../lib/workspace/file-types';
+import { openFileSurface } from '../../lib/documents/surface-store';
 import { RESOURCE_DRAG_TYPE, applyRecord, attachEntry, copyAcrossWorkspaces, moveReferencedFile, parseDragPayload, relinkNode, type DragPayload } from '../../lib/workspace/graph-resource';
 import { openCanvasFolder, pickWorkspaceFolder, reloadTree, useWorkspacePanel } from '../../lib/workspace/session';
 import { confirmDialog, toast } from '../../lib/ui-store';
@@ -133,6 +134,8 @@ export default function WorkspaceExplorer({ placeAt }: Props) {
     const made = await createDocument({ workspaceId, ...(folder ? { parentId: folder.entryId } : {}), extension, origin: 'workspace' });
     if (folder) setExpanded((prev) => new Set(prev).add(folder.entryId));
     reloadTree();
+    // a new file is made to be typed into: it opens at once, and the canvas gets no node for it
+    await openFileSurface(made.record.fileId);
     toast('success', fmt(t('workspace.created'), { name: made.record.relativePath ?? '' }), 5000, { label: t('workspace.reveal'), run: () => void revealFile(made.record.fileId).catch(() => {}) });
   });
 
@@ -140,6 +143,12 @@ export default function WorkspaceExplorer({ placeAt }: Props) {
     const canvasId = useProjects.getState().activeId;
     if (!workspaceId || !canvasId) return;
     await attachEntry(canvasId, workspaceId, entry.entryId, placeAt());
+  });
+
+  /** Open a file to read and type into, in a surface. The canvas is not touched. */
+  const openFile = (entry: FileEntry) => attempt(async () => {
+    if (!workspaceId) return;
+    await openFileSurface((await registerEntry(workspaceId, entry.entryId)).fileId);
   });
 
   const reveal = (entry: FileEntry) => attempt(async () => {
@@ -314,7 +323,7 @@ export default function WorkspaceExplorer({ placeAt }: Props) {
                   {...dropHandlers(entry)}
                   style={pad}
                   data-tree-folder={entry.name}
-                  className={`group w-full pr-1.5 py-1 flex items-center gap-1.5 text-xs text-ink cursor-pointer transition-colors ${
+                  className={`group relative w-full pr-1.5 py-1 flex items-center gap-1.5 text-xs text-ink cursor-pointer transition-colors ${
                     dropOn === entry.entryId ? 'bg-accent/15' : folder?.entryId === entry.entryId ? 'bg-wash' : 'hover:bg-wash'
                   }`}
                 >
@@ -322,7 +331,7 @@ export default function WorkspaceExplorer({ placeAt }: Props) {
                   <Folder size={14} strokeWidth={1.75} className="text-ink-muted shrink-0" />
                   {nameOf(entry)}
                   {!relinkNodeId && !renaming(entry) && (
-                    <span className="shrink-0 hidden group-hover:flex focus-within:flex items-center gap-0.5">{changes(entry)}</span>
+                    <span className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 px-0.5 rounded bg-wash opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">{changes(entry)}</span>
                   )}
                 </div>
                 {open && rows(entry, depth + 1)}
@@ -336,10 +345,11 @@ export default function WorkspaceExplorer({ placeAt }: Props) {
               draggable={isFile && !renaming(entry)}
               onDragStart={drag(entry, 'file-ref')}
               onClick={(e) => { e.stopPropagation(); setFolder(parent); }}
-              onDoubleClick={() => { if (isFile && !relinkNodeId && !renaming(entry)) void addToCanvas(entry); }}
+              // text opens to be typed into; what cannot be typed into goes on the canvas, where it can be read
+              onDoubleClick={() => { if (isFile && !relinkNodeId && !renaming(entry)) void (isEditableText(entry.name) ? openFile(entry) : addToCanvas(entry)); }}
               style={{ paddingLeft: pad.paddingLeft + 18 }}
               data-tree-file={entry.name}
-              className={`group pr-1.5 py-1 flex items-center gap-1.5 text-xs hover:bg-wash transition-colors ${isFile ? 'text-ink cursor-grab' : 'text-ink-faint'}`}
+              className={`group relative pr-1.5 py-1 flex items-center gap-1.5 text-xs hover:bg-wash transition-colors ${isFile ? 'text-ink cursor-grab' : 'text-ink-faint'}`}
             >
               <FileIcon size={13} strokeWidth={1.75} className="text-ink-faint shrink-0" />
               {nameOf(entry)}
@@ -349,7 +359,7 @@ export default function WorkspaceExplorer({ placeAt }: Props) {
                 </button>
               )}
               {isFile && !relinkNodeId && !renaming(entry) && (
-                <span className="shrink-0 hidden group-hover:flex focus-within:flex items-center gap-0.5">
+                <span className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 px-0.5 rounded bg-wash opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                   <button onClick={stop(() => void addToCanvas(entry))} title={t('workspace.addToCanvas')} data-tree-add className={act}><Plus size={13} strokeWidth={1.75} /></button>
                   <button onClick={stop(() => void reveal(entry))} title={t('workspace.reveal')} data-tree-reveal className={act}><FolderOpen size={12} strokeWidth={1.75} /></button>
                   {changes(entry)}

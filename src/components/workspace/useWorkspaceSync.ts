@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useStore } from '../../store';
 import { useProjects } from '../../store/projects';
 import { documents } from '../../lib/documents/document-service';
+import { closeAllSurfaces, restoreLayout, saveLayout, useSurfaces } from '../../lib/documents/surface-store';
 import { workspaceAvailable } from '../../lib/workspace/client';
 import { keepCopiesOutOfHistory } from '../../lib/workspace/graph-resource';
 import { restoreWorkspace, useWorkspacePanel, watchWorkspaces } from '../../lib/workspace/session';
@@ -25,6 +26,22 @@ export function useWorkspaceSync(): void {
   useEffect(() => {
     if (!canvasId || switching || !workspaceAvailable()) return;
     void restoreWorkspace();
+  }, [canvasId, switching]);
+
+  // the documents this canvas had open: put back where they were, remembered as they are moved, closed when the canvas is left
+  useEffect(() => {
+    if (!canvasId || switching || !workspaceAvailable()) return;
+    let here = true;
+    let stopRemembering = () => {};
+    void restoreLayout(canvasId).then(() => {
+      if (here) stopRemembering = useSurfaces.subscribe(() => saveLayout(canvasId));
+    });
+    return () => {
+      here = false;
+      stopRemembering();
+      // their unsaved typing is saved or kept as drafts by the document service
+      closeAllSurfaces();
+    };
   }, [canvasId, switching]);
 
   // an undo or a redo brings back a picture of the canvas, not of the files

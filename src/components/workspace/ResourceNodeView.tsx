@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Handle, NodeResizeControl, Position, useUpdateNodeInternals, type NodeProps } from '@xyflow/react';
 import { AlertTriangle, BookOpen, FileText, FolderOpen, Link2Off, MoveDiagonal2, Pencil, Trash2 } from 'lucide-react';
 import type { ThoughtNode as ThoughtNodeType } from '../../types';
@@ -9,8 +9,7 @@ import { isViewerMode } from '../../lib/viewer';
 import { revealFile, workspaceAvailable } from '../../lib/workspace/client';
 import { isEditableText } from '../../lib/workspace/file-types';
 import { RESOURCE_DRAG_TYPE, type DragPayload } from '../../lib/workspace/graph-resource';
-import { documents, type DocumentStatus } from '../../lib/documents/document-service';
-import type { DocumentModel } from '../../lib/workspace/contracts';
+import { openFileSurface } from '../../lib/documents/surface-store';
 import { useWorkspacePanel } from '../../lib/workspace/session';
 import { useT, fmt } from '../../i18n';
 import ContentNode from '../ContentNode';
@@ -20,9 +19,9 @@ import ContentNode from '../ContentNode';
 // flows into context along its edge. Removing the node removes no file. A
 // lost file shows a card for finding it again, never an empty body.
 //
-// Typing into the file from the node is one view of the file's document
-// (lib/documents): the same buffer every other view of that file shows.
-// The node holds none of the text being typed.
+// The node is where the file sits on the canvas, not where it is typed
+// into: its pencil opens the file in a surface (lib/documents), the same
+// document every other view of that file shows.
 
 type Props = NodeProps<ThoughtNodeType>;
 const why = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -52,44 +51,12 @@ function ResourceCard({ id, data, selected }: Props) {
   const copy = data.attachments?.[0];
   const lost = hint?.status === 'missing' || hint?.status === 'ambiguous';
   const canEdit = !isViewerMode && hint?.status === 'ready' && !!copy && isEditableText(hint.name) && workspaceAvailable();
-  // the document being typed into from this node, while it is; the text lives in the document service
-  const surfaceId = `node:${id}`;
-  const [editing, setEditing] = useState<DocumentModel | null>(null);
-  const [status, setStatus] = useState<DocumentStatus | null>(null);
-  const documentId = editing?.documentId ?? null;
-  useEffect(() => {
-    if (!documentId) return;
-    return documents.subscribe(documentId, (model) => { setEditing(model); setStatus(documents.status(model.documentId) ?? null); });
-  }, [documentId]);
-  // the node going away closes its view; what was typed is saved or kept as a draft by the service
-  useEffect(() => () => { void documents.closeView(surfaceId); }, [surfaceId]);
   const revision = hint?.revision ?? null;
-
-  const startEditing = async () => {
-    try {
-      const model = await documents.open(fileId, surfaceId);
-      setEditing(model);
-      setStatus(documents.status(model.documentId) ?? null);
-    } catch (e) {
-      toast('error', fmt(t('workspace.failed'), { why: why(e) }));
-    }
-  };
-  const stopEditing = () => {
-    setEditing(null);
-    setStatus(null);
-    void documents.closeView(surfaceId);
-  };
-  const save = async () => {
-    if (!editing) return;
-    const result = await documents.save(editing.documentId);
-    if (result.status === 'error') toast('error', fmt(t('resource.saveFailed'), { why: result.reason }));
-  };
-  const problem = status?.problem ?? null;
+  const openToType = () => { void openFileSurface(fileId).catch((e) => toast('error', fmt(t('workspace.failed'), { why: why(e) }))); };
 
   const isImage = !!copy && copy.type.startsWith('image/');
   const text = copy && !isImage && copy.type !== 'application/pdf' ? (copy.extractedText ?? copy.content) : '';
   const action = 'text-ink-faint hover:text-accent rounded-full w-6 h-6 flex items-center justify-center transition-colors';
-  const small = 'px-2 py-1 rounded-md text-2xs transition-colors';
 
   return (
     <div
@@ -97,7 +64,7 @@ function ResourceCard({ id, data, selected }: Props) {
         lost ? 'border-amber-300' : 'border-line'
       } ${selectedNodeId === id ? 'ring-2 ring-accent selected-glow' : ''}`}
       onClick={() => setSelectedNodeId(id)}
-      onDoubleClick={() => { if (!editing && copy) useUiStore.getState().setReaderNodeId(id); }}
+      onDoubleClick={() => { if (canEdit) openToType(); else if (copy) useUiStore.getState().setReaderNodeId(id); }}
       data-resource-node={hint?.status ?? 'ready'}
     >
       {/* Pure source, like every piece of material: nothing flows INTO it, so no target handle. */}
@@ -114,10 +81,10 @@ function ResourceCard({ id, data, selected }: Props) {
           )}
         </div>
         <div className="flex items-center gap-1 shrink-0 nodrag">
-          {canEdit && !editing && (
-            <button onClick={(e) => { e.stopPropagation(); void startEditing(); }} title={t('resource.edit')} className={action} data-resource-edit><Pencil size={13} strokeWidth={1.75} /></button>
+          {canEdit && (
+            <button onClick={(e) => { e.stopPropagation(); openToType(); }} title={t('surface.open')} className={action} data-resource-edit><Pencil size={13} strokeWidth={1.75} /></button>
           )}
-          {copy && !editing && (
+          {copy && (
             <button onClick={(e) => { e.stopPropagation(); useUiStore.getState().setReaderNodeId(id); }} title={t('reader.open')} className={action}><BookOpen size={13} strokeWidth={1.75} /></button>
           )}
           {!lost && workspaceAvailable() && (
@@ -164,55 +131,6 @@ function ResourceCard({ id, data, selected }: Props) {
                 {t('resource.relink')}
               </button>
             )}
-          </div>
-        ) : editing ? (
-          <div className="flex flex-col flex-1 min-h-[160px] gap-1.5" onDoubleClick={(e) => e.stopPropagation()}>
-            <textarea
-              autoFocus
-              value={editing.text}
-              readOnly={editing.state === 'readonly'}
-              onChange={(e) => documents.setText(editing.documentId, e.target.value, surfaceId)}
-              onKeyDown={(e) => {
-                e.stopPropagation();
-                const mod = e.metaKey || e.ctrlKey;
-                const key = e.key.toLowerCase();
-                if (mod && key === 's') { e.preventDefault(); void save(); }
-                // undo and redo are the document's, shared by every view of the file
-                else if (mod && key === 'z') { e.preventDefault(); if (e.shiftKey) documents.redo(editing.documentId, surfaceId); else documents.undo(editing.documentId, surfaceId); }
-                else if (mod && key === 'y') { e.preventDefault(); documents.redo(editing.documentId, surfaceId); }
-              }}
-              spellCheck={false}
-              data-resource-editor
-              className="flex-1 min-h-[120px] w-full resize-none bg-wash border border-line rounded-md px-2 py-1.5 text-xs font-mono text-ink leading-relaxed outline-none focus:border-accent/60"
-            />
-            {problem?.kind === 'conflict' && (
-              <div className="rounded-md bg-amber-50 border border-amber-200 px-2.5 py-2 text-2xs text-amber-800 leading-snug" data-resource-conflict>
-                <p>{t(problem.theirsRevision ? 'resource.conflict' : 'resource.conflictGone')}</p>
-                {problem.theirsRevision && (
-                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
-                    <button onClick={() => void documents.resolveConflict(editing.documentId, 'theirs')} className="underline hover:no-underline" data-conflict-reload>{t('resource.conflictReload')}</button>
-                    <button onClick={() => void documents.resolveConflict(editing.documentId, 'mine')} className="underline hover:no-underline" data-conflict-overwrite>{t('resource.conflictOverwrite')}</button>
-                    <button onClick={() => void documents.resolveConflict(editing.documentId, 'both', { mine: t('resource.mine'), theirs: t('resource.theirs') })} className="underline hover:no-underline" data-conflict-both>{t('resource.conflictBoth')}</button>
-                  </div>
-                )}
-              </div>
-            )}
-            {problem?.kind === 'lost' && <p className="text-2xs text-amber-800 leading-snug" data-resource-edit-lost>{t('resource.conflictGone')}</p>}
-            {problem?.kind === 'error' && <p className="text-2xs text-red-600 leading-snug" data-resource-edit-error>{fmt(t('resource.saveFailed'), { why: problem.reason })}</p>}
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-2xs text-ink-faint" data-resource-save-state={editing.state}>
-                {editing.state === 'saving' ? t('resource.saving')
-                  : editing.state === 'dirty' ? t(status?.restoredFromDraft ? 'resource.restoredDraft' : 'resource.unsaved')
-                    : editing.state === 'clean' ? t('resource.saved')
-                      : editing.state === 'readonly' ? t('workspace.readOnly') : ''}
-              </span>
-              <span className="flex gap-1.5">
-                <button onClick={() => void save()} disabled={editing.state === 'clean' || editing.state === 'saving' || editing.state === 'readonly' || problem?.kind === 'conflict' || problem?.kind === 'lost'} data-resource-save
-                  className={`${small} text-white bg-accent hover:opacity-90 disabled:opacity-40`}>{t('common.save')}</button>
-                <button onClick={stopEditing} data-resource-done
-                  className={`${small} text-ink-muted hover:bg-wash`}>{t('common.done')}</button>
-              </span>
-            </div>
           </div>
         ) : !copy && !hint?.uncopied && revision === null ? (
           // the file has not been read yet: its copy is on its way

@@ -8,6 +8,7 @@ import { reconcileFile, revealFile } from '../../lib/workspace/client';
 import { addNodeFor, createDocument } from '../../lib/workspace/create-command';
 import { attachEntry, attachResource, type DragPayload } from '../../lib/workspace/graph-resource';
 import { ensureWorkspace, reloadTree } from '../../lib/workspace/session';
+import { openFileSurface } from '../../lib/documents/surface-store';
 import { toast } from '../../lib/ui-store';
 import { t as say, fmt } from '../../i18n';
 
@@ -52,6 +53,8 @@ export async function createInGraph(extension: string, at: Point): Promise<void>
     const made = await createDocument({ workspaceId: workspace.workspaceId, extension, origin: 'graph', graphId: canvasId, position: at });
     reloadTree();
     const name = made.record.relativePath ?? '';
+    // made to be typed into: it opens at once, node or no node
+    void openFileSurface(made.record.fileId).catch(() => {});
     if (made.nodeId) {
       toast('success', fmt(say('workspace.created'), { name }), 5000, { label: say('workspace.reveal'), run: () => void revealFile(made.record.fileId).catch(() => {}) });
     } else {

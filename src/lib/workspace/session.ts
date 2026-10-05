@@ -10,13 +10,16 @@ import { setProjectWorkspace, useProjects } from '../../store/projects';
 import { chooseRoot, listWorkspaces, openDefaultWorkspace, workspaceAvailable, WorkspaceError } from './client';
 import type { WorkspaceRecord } from './contracts';
 import { subscribeWorkspace } from './events';
+import { canvasVisit } from './canvas-visit';
 import { applyWorkspaceEvent, syncResourceNodes } from './graph-resource';
 
 interface WorkspacePanelState {
   /** the file panel is showing */
   open: boolean;
-  /** the folder the open canvas works in, when it has one */
+  /** the folder the open canvas works in, when it has one and it is known */
   workspace: WorkspaceRecord | null;
+  /** the canvas `workspace` belongs to: the panel never shows one canvas the folder of another */
+  canvasId: string | null;
   /** the node whose lost file the person is looking for */
   relinkNodeId: string | null;
   /** goes up whenever the tree should be read again */
@@ -25,54 +28,91 @@ interface WorkspacePanelState {
   createAt: { screen: { x: number; y: number }; at: { x: number; y: number } } | null;
 }
 
-export const useWorkspacePanel = create<WorkspacePanelState>(() => ({ open: false, workspace: null, relinkNodeId: null, treeVersion: 0, createAt: null }));
+export const useWorkspacePanel = create<WorkspacePanelState>(() => ({ open: false, workspace: null, canvasId: null, relinkNodeId: null, treeVersion: 0, createAt: null }));
 
 export const reloadTree = (): void => useWorkspacePanel.setState((s) => ({ treeVersion: s.treeVersion + 1 }));
 
-/** Make this the folder the open canvas works in, and remember it for the canvas. */
-export async function bindWorkspace(record: WorkspaceRecord): Promise<void> {
-  useWorkspacePanel.setState((s) => ({ workspace: record, treeVersion: s.treeVersion + 1 }));
-  const canvasId = useProjects.getState().activeId;
-  if (canvasId) await setProjectWorkspace(canvasId, record.workspaceId);
+const activeCanvas = (): string | null => useProjects.getState().activeId;
+const rememberedBy = (canvasId: string): string | undefined => useProjects.getState().projects.find((p) => p.id === canvasId)?.workspaceId;
+
+/** Show a canvas's folder in the panel, if that canvas is the one that is open. */
+function show(canvasId: string, record: WorkspaceRecord | null): void {
+  if (activeCanvas() !== canvasId) return;
+  useWorkspacePanel.setState((s) => ({ workspace: record, canvasId, treeVersion: s.treeVersion + 1 }));
 }
 
-/** Let the person pick a folder. Resolves with null when they picked none. */
+/**
+ * Make this the folder a canvas works in, and remember it for that canvas.
+ * The canvas is named by whoever asked: a folder that took a while to open
+ * belongs to the canvas it was opened for, whichever canvas is showing by
+ * the time it is there.
+ */
+export async function bindWorkspace(record: WorkspaceRecord, canvasId: string): Promise<void> {
+  show(canvasId, record);
+  await setProjectWorkspace(canvasId, record.workspaceId);
+}
+
+/** The folder a canvas remembers, if the shell still has it. Looks at the canvas's own record, never at what the panel shows. */
+async function folderOf(canvasId: string): Promise<WorkspaceRecord | null> {
+  const wanted = rememberedBy(canvasId);
+  if (!wanted) return null;
+  try { return (await listWorkspaces()).find((w) => w.workspaceId === wanted) ?? null; } catch { return null; }
+}
+
+/** Let the person pick a folder for the canvas that is open now. Resolves with null when they picked none. */
 export async function pickWorkspaceFolder(): Promise<WorkspaceRecord | null> {
+  const canvasId = activeCanvas();
+  if (!canvasId) throw new WorkspaceError('invalid-request', 'no canvas is open');
   const record = await chooseRoot();
-  if (record) await bindWorkspace(record);
+  if (record) await bindWorkspace(record, canvasId);
   return record;
 }
 
-/** Use the canvas's own folder: the one the shell keeps for it, with no picker. */
-export async function openCanvasFolder(): Promise<WorkspaceRecord> {
-  const canvasId = useProjects.getState().activeId;
+/** Use a canvas's own folder: the one the shell keeps for it, with no picker. The open canvas when none is named. */
+export async function openCanvasFolder(canvasId: string | null = activeCanvas()): Promise<WorkspaceRecord> {
   if (!canvasId) throw new WorkspaceError('invalid-request', 'no canvas is open');
   const record = await openDefaultWorkspace(canvasId);
-  await bindWorkspace(record);
+  await bindWorkspace(record, canvasId);
   return record;
 }
 
-/** The open canvas's workspace; its own folder is opened when it has none yet. */
-export async function ensureWorkspace(): Promise<WorkspaceRecord> {
-  return useWorkspacePanel.getState().workspace ?? openCanvasFolder();
+/**
+ * The workspace of a canvas (the open one when none is named): the folder
+ * it remembers, else its own folder, opened and remembered. It is worked
+ * out from the canvas's own record every time, so a canvas that was just
+ * switched to is never given the folder of the canvas before it.
+ */
+export async function ensureWorkspace(canvasId: string | null = activeCanvas()): Promise<WorkspaceRecord> {
+  if (!canvasId) throw new WorkspaceError('invalid-request', 'no canvas is open');
+  const known = await folderOf(canvasId);
+  if (!known) return openCanvasFolder(canvasId);
+  const panel = useWorkspacePanel.getState();
+  if (panel.canvasId !== canvasId || panel.workspace?.workspaceId !== known.workspaceId) show(canvasId, known);
+  return known;
 }
 
 /**
  * Pick up the workspace the open canvas used last time and bring its file
- * nodes up to date. A canvas whose folder the shell no longer has is left
- * without one; its nodes say their files are missing.
+ * nodes up to date. From the moment it is called the panel is this
+ * canvas's: it shows no folder until this canvas's own is known. A canvas
+ * whose folder the shell no longer has is left without one; its nodes say
+ * their files are missing. An answer that comes back after another canvas
+ * was opened, or after this one was opened again, changes nothing.
  */
 export async function restoreWorkspace(): Promise<void> {
   if (!workspaceAvailable()) return;
-  const { projects, activeId } = useProjects.getState();
-  const wanted = projects.find((p) => p.id === activeId)?.workspaceId;
-  let found: WorkspaceRecord | null = null;
-  if (wanted) {
-    try { found = (await listWorkspaces()).find((w) => w.workspaceId === wanted) ?? null; } catch { /* stays without one */ }
-  }
-  // the canvas may have been switched again while the shell was asked
-  if (useProjects.getState().activeId !== activeId) return;
-  useWorkspacePanel.setState((s) => ({ workspace: found, relinkNodeId: null, treeVersion: s.treeVersion + 1 }));
+  const canvasId = activeCanvas();
+  if (!canvasId) return;
+  const visit = canvasVisit();
+  const wanted = rememberedBy(canvasId);
+  useWorkspacePanel.setState((s) => (s.canvasId === canvasId && s.workspace?.workspaceId === wanted
+    ? { relinkNodeId: null, createAt: null }
+    : { workspace: null, canvasId, relinkNodeId: null, createAt: null, treeVersion: s.treeVersion + 1 }));
+  const found = await folderOf(canvasId);
+  // another canvas since, this one opened anew since, or the canvas was given another folder while the shell was asked
+  if (canvasVisit() !== visit || activeCanvas() !== canvasId || rememberedBy(canvasId) !== wanted) return;
+  const panel = useWorkspacePanel.getState();
+  if (panel.workspace?.workspaceId !== found?.workspaceId) show(canvasId, found);
   await syncResourceNodes();
 }
 

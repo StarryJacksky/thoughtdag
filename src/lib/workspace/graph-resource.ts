@@ -6,14 +6,25 @@
 // content as its attachment, which is what flows into context along its
 // edge, and that copy is refreshed whenever the workspace reports a change.
 //
+// The copy is one attachment for the life of the node. When the file's
+// content changes, the attachment's content is replaced and its id stays:
+// what other nodes decided about it (left out of a question, taken back
+// in) is recorded against that id and must go on meaning the same file.
+//
+// The copy is the file's state, not something the person did on the
+// canvas. It is no step in the undo history, and undoing a step never
+// takes the copy back to what the file used to hold.
+//
 // Nothing here acts on a path. Every operation names the file by its id and
 // goes through the workspace door.
 
 import { useStore } from '../../store';
 import { useProjects } from '../../store/projects';
-import type { ThoughtNode } from '../../types';
+import type { Attachment, ThoughtNode } from '../../types';
 import { buildContentNode } from '../content';
 import { processFile } from '../attachments';
+import { moveVaulted } from '../attachment-vault';
+import { canvasVisit } from './canvas-visit';
 import { importText, moveFile, newOperationId, readBytes, readText, reconcileFile, registerEntry, relinkFile, WorkspaceError } from './client';
 import { validateDTO, type ResourceRecord, type ResourceRef, type WorkspaceEvent } from './contracts';
 
@@ -71,41 +82,124 @@ function patchNodes(fileId: string, patch: (data: ThoughtNode['data']) => Partia
 // must not land on top of a newer one.
 const refreshSerial = new Map<string, number>();
 
+// What each file was last seen to hold and where, by file id: the state of
+// the files the open canvas refers to, kept apart from the canvas's own
+// history. It is what a node is brought back to after an undo or a redo
+// put an older picture of the canvas in the store. It belongs to one visit
+// of one canvas and is dropped when that changes.
+interface LiveFile { hint?: ResourceHint; revision?: string; copy?: Attachment | null }
+const live = new Map<string, LiveFile>();
+let liveVisit = -1;
+function liveOf(fileId: string): LiveFile {
+  if (liveVisit !== canvasVisit()) { live.clear(); liveVisit = canvasVisit(); }
+  let known = live.get(fileId);
+  if (!known) { known = {}; live.set(fileId, known); }
+  return known;
+}
+
 /**
- * Take a fresh copy of the file's content into the node, replacing the copy
- * it held. The node keeps its place, its edges and its identity. A file that
- * cannot be read leaves the node as a reference without a copy. This is the
- * workspace catching up with the file, not something the person did, so it
- * is not a step in the undo history.
+ * The attachment a node holds for a new copy of its file: the new content
+ * under the id the node's copy already had, with what the person chose for
+ * how it is shown. A node that had no copy takes the new one as it is.
+ */
+function sameAttachment(held: Attachment | undefined, fresh: Attachment): Attachment {
+  if (!held) return fresh;
+  return { ...fresh, id: held.id, ...(held.addedAt ? { addedAt: held.addedAt } : {}), ...(held.renderMode ? { renderMode: held.renderMode } : {}) };
+}
+
+/**
+ * Take a fresh copy of the file's content into the node, replacing the
+ * content of the copy it held. The node keeps its place, its edges, its
+ * identity, and the identity of its copy. A file that cannot be read leaves
+ * the node as a reference without a copy. The copy and the revision it was
+ * taken at change together, in one step, once the new copy is whole.
+ *
+ * The read belongs to the canvas, the visit, the node and the file it was
+ * started for. If any of those is different when it comes back (another
+ * canvas was opened, this one was opened anew, the node now references
+ * another file, a newer read was started) it writes nothing.
  */
 export async function refreshResourceNode(nodeId: string): Promise<void> {
   const node = useStore.getState().nodes.find((n) => n.id === nodeId);
   const ref = node?.data.resourceRef;
   const hint = node?.data.resourceHint;
   if (!node || !ref || !hint) return;
+  const fileId = ref.fileId;
+  const canvasId = useProjects.getState().activeId;
+  const visit = canvasVisit();
   const serial = (refreshSerial.get(nodeId) ?? 0) + 1;
   refreshSerial.set(nodeId, serial);
-  const { bytes, revision } = await readBytes(ref.fileId);
-  // the node may have gone, or a newer refresh may have started, while the file was read
-  const stillWanted = () => refreshSerial.get(nodeId) === serial && !!useStore.getState().nodes.find((n) => n.id === nodeId)?.data.resourceRef;
+  const nodeNow = () => useStore.getState().nodes.find((n) => n.id === nodeId);
+  const stillWanted = () => canvasVisit() === visit && useProjects.getState().activeId === canvasId
+    && refreshSerial.get(nodeId) === serial && nodeNow()?.data.resourceRef?.fileId === fileId;
+
+  const { bytes, revision } = await readBytes(fileId);
   if (!stillWanted()) return;
-  const patch = (data: (d: ThoughtNode['data']) => Partial<ThoughtNode['data']>) => useStore.setState((st) => ({
-    nodes: st.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ...data(n.data) } } : n)),
-  }));
-  const name = useStore.getState().nodes.find((n) => n.id === nodeId)?.data.resourceHint?.name ?? hint.name;
+  const name = nodeNow()?.data.resourceHint?.name ?? hint.name;
   const type = copyableAs(name, bytes);
-  let copied = false;
+  let fresh: Attachment | null = null;
   if (type !== null) {
+    // the pipeline hands the attachment over and may fill it in afterwards (extracted text); it is taken once it is whole
     await processFile(new File([bytes as BlobPart], name, { type }), {
-      add: (att) => { if (stillWanted()) { copied = true; patch(() => ({ attachments: [att] })); } },
-      update: (attId, change) => { if (stillWanted()) useStore.getState().setAttachmentData(nodeId, attId, change); },
+      add: (att) => { fresh = att; },
+      update: (_attId, change) => { if (fresh) fresh = { ...fresh, ...change }; },
     });
   }
   if (!stillWanted()) return;
-  patch((d) => ({
-    ...(copied ? {} : { attachments: [] }),
-    ...(d.resourceHint ? { resourceHint: { ...d.resourceHint, revision } } : {}),
+  const made = fresh as Attachment | null;
+  const held = nodeNow()?.data.attachments?.[0];
+  const copy = made ? sameAttachment(held, made) : null;
+  // a payload kept outside the node is kept under the attachment's id: it follows the id
+  if (made?.contentInVault && copy && copy.id !== made.id) await moveVaulted(made.id, copy.id);
+  if (!stillWanted()) return;
+  useStore.setState((st) => ({
+    nodes: st.nodes.map((n) => (n.id === nodeId && n.data.resourceHint
+      ? { ...n, data: { ...n.data, attachments: copy ? [copy] : [], resourceHint: { ...n.data.resourceHint, revision } } }
+      : n)),
   }));
+  Object.assign(liveOf(fileId), { revision, copy });
+}
+
+/**
+ * Bring every file node in the store in line with what its file was last
+ * seen to hold. Called after an undo or a redo: the picture of the canvas
+ * that came back is of the canvas, and whatever it says of the files is as
+ * old as the picture. Where the file's state is known here the node is put
+ * right at once; where it is not, the workspace is asked.
+ */
+function bringCopiesUpToDate(): void {
+  const stale: string[] = [];
+  useStore.setState((st) => ({
+    nodes: st.nodes.map((n) => {
+      const fileId = n.data.resourceRef?.fileId;
+      const hint = n.data.resourceHint;
+      if (!fileId || !hint) return n;
+      const known = live.get(fileId);
+      if (liveVisit !== canvasVisit() || !known) { stale.push(n.id); return n; }
+      let data = n.data;
+      if (known.hint) data = { ...data, resourceHint: { ...known.hint, revision: hint.revision } };
+      if (known.revision !== undefined && known.revision !== hint.revision) {
+        // a payload kept outside the node belongs to the node that read it: this one reads its own
+        if (known.copy?.contentInVault) stale.push(n.id);
+        else data = { ...data, attachments: known.copy ? [sameAttachment(n.data.attachments?.[0], known.copy)] : [], resourceHint: { ...data.resourceHint!, revision: known.revision } };
+      }
+      return data === n.data ? n : { ...n, data };
+    }),
+  }));
+  for (const nodeId of stale) void refreshResourceNode(nodeId).catch(() => {});
+  // and the workspace is asked about every file: a node that came back may reference one nobody was watching
+  void syncResourceNodes().catch(() => {});
+}
+
+/**
+ * Keep file nodes showing what their files hold now when the person undoes
+ * or redoes a step on the canvas. Returns the function that stops it.
+ */
+export function keepCopiesOutOfHistory(): () => void {
+  return useStore.subscribe((now, before) => {
+    // an undo or a redo: the canvas is replaced by a picture of itself and the list of pictures stays as it is
+    if (now.historyIndex !== before.historyIndex && now.history === before.history && now.nodes !== before.nodes) bringCopiesUpToDate();
+  });
 }
 
 /** Above this a node keeps the reference and takes no copy of the content. */
@@ -158,6 +252,7 @@ export async function attachEntry(graphId: string, workspaceId: string, entryId:
  * of its content when that changed.
  */
 export function applyRecord(record: ResourceRecord): void {
+  liveOf(record.fileId).hint = hintOf(record, null);
   const affected = nodesOfFile(record.fileId);
   if (affected.length === 0) return;
   patchNodes(record.fileId, (data) => ({ resourceHint: hintOf(record, data.resourceHint?.revision ?? null) }));
@@ -185,6 +280,8 @@ export async function syncResourceNodes(): Promise<void> {
       applyRecord(await reconcileFile(fileId));
     } catch (e) {
       if (e instanceof WorkspaceError && e.code === 'unavailable') return;
+      const known = liveOf(fileId);
+      if (known.hint) known.hint = { ...known.hint, status: 'missing' };
       patchNodes(fileId, (data) => (data.resourceHint ? { resourceHint: { ...data.resourceHint, status: 'missing' } } : {}));
     }
   }));
@@ -201,7 +298,7 @@ export async function moveReferencedFile(nodeId: string, targetParentId: string 
   const hint = node?.data.resourceHint;
   if (!ref || !hint) throw new WorkspaceError('invalid-request', 'that node does not reference a file');
   const moved = await moveFile(ref.fileId, targetParentId, newName ?? hint.name, newOperationId());
-  patchNodes(ref.fileId, (data) => ({ resourceHint: hintOf(moved, data.resourceHint?.revision ?? null) }));
+  applyRecord(moved);
   return moved;
 }
 
@@ -210,8 +307,7 @@ export async function relinkNode(nodeId: string, entryId: string): Promise<Resou
   const ref = useStore.getState().nodes.find((n) => n.id === nodeId)?.data.resourceRef;
   if (!ref) throw new WorkspaceError('invalid-request', 'that node does not reference a file');
   const record = await relinkFile(ref.fileId, entryId);
-  patchNodes(ref.fileId, (data) => ({ resourceHint: hintOf(record, data.resourceHint?.revision ?? null) }));
-  for (const n of nodesOfFile(ref.fileId)) void refreshResourceNode(n.id).catch(() => {});
+  applyRecord(record);
   return record;
 }
 

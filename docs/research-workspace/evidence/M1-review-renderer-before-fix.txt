@@ -1,0 +1,18 @@
+# The renderer regression tests for the M1 review, run against the reviewed commit a3ffb85 (before the fixes).
+# tests/unit/graph-resource, workspace-session, workspace-subscribe: the tests that failed, and the totals.
+     × all fail when the shell refuses, none is left believing it is subscribed, and asking again asks the shell again
+     × a folder that was being opened for one canvas when another was switched to stays with the canvas it was asked for
+     × a folder being picked for one canvas when another was switched to is that canvas's, not the one showing
+     × a canvas just switched to is never handed the folder of the canvas before it, even before anything has looked up its own
+     × answers that arrive out of order after going to another canvas and back leave the panel on this canvas's folder
+     × a file created from the graph during a switch lands in the folder of the canvas it was asked on
+     × a file left out of a question stays left out after another program edits it
+     × a file left out further up the chain stays left out below, and a question that took it back in still has it
+     × the copy stays the same attachment through a save from the app and through finding a lost file again
+     × how the person chose to have the copy shown is kept when its content is replaced
+     × takes back the move and not the file's content: the node shows what the file holds now
+     × brings back a deleted node with what its file holds now, and where its file is now
+     × does not make the refresh itself a step to undo
+     × does not land on a node of the other canvas that happens to have the same node id
+     × does not put an old read over a newer copy after going to another canvas and back
+      Tests  15 failed | 32 passed (47)

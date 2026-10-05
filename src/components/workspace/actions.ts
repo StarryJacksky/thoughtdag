@@ -45,9 +45,10 @@ const why = (e: unknown) => (e instanceof Error ? e.message : String(e));
  */
 export async function createInGraph(extension: string, at: Point): Promise<void> {
   try {
+    // the canvas is fixed now: whatever is opened while the folder is looked up, the file is this canvas's
     const canvasId = useProjects.getState().activeId;
     if (!canvasId) return;
-    const workspace = await ensureWorkspace();
+    const workspace = await ensureWorkspace(canvasId);
     const made = await createDocument({ workspaceId: workspace.workspaceId, extension, origin: 'graph', graphId: canvasId, position: at });
     reloadTree();
     const name = made.record.relativePath ?? '';

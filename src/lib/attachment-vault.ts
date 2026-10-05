@@ -29,6 +29,16 @@ export async function internAttachment(att: Attachment): Promise<Attachment> {
   return { ...att, content: '', contentInVault: true };
 }
 
+/** Put a vaulted payload under another attachment id: an attachment that
+    is replaced by a newer copy of itself keeps its id, and its payload follows. */
+export async function moveVaulted(fromId: string, toId: string): Promise<void> {
+  if (fromId === toId) return;
+  const payload = await idbGet<string>(vaultKey(fromId));
+  if (payload === undefined) return;
+  await idbSet(vaultKey(toId), payload);
+  await idbDel(vaultKey(fromId));
+}
+
 /** The attachment's payload, wherever it lives. '' when the vault entry is
     missing (cleared storage) — callers surface their own error state. */
 export async function loadAttachmentContent(att: Attachment): Promise<string> {

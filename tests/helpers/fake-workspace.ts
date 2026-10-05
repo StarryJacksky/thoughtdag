@@ -33,6 +33,10 @@ export interface FakeWorkspace {
   emit(event: WorkspaceEvent): void;
   /** make the next call of this method reject with `code: message` */
   failNext(method: string, code: string, message: string): void;
+  /** hold the next call of this method until `release()`: it answers with what is true at that later moment */
+  holdNext(method: string): { release(): void };
+  /** like holdNext, but the answer is worked out when the call arrives and only handed over on `release()`: an answer that is old by the time it lands */
+  delayNext(method: string): { release(): void };
   uninstall(): void;
 }
 
@@ -45,7 +49,16 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
   const files = new Map<string, FakeFile>();
   const calls: { method: string; args: unknown[] }[] = [];
   const failures = new Map<string, Error>();
+  const holds = new Map<string, { when: 'before' | 'after'; gate: Promise<void> }[]>();
+  const hold = (method: string, when: 'before' | 'after') => {
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    holds.set(method, [...(holds.get(method) ?? []), { when, gate }]);
+    return { release };
+  };
   const done = new Map<string, unknown>();
+  // the canvases' own folders: one per canvas, made the first time it is asked for
+  const own = new Map<string, WorkspaceRecord>();
   let serial = 0;
 
   const byPath = (workspace_: string, relativePath: string) => [...files.values()].find((f) => f.workspaceId === workspace_ && f.relativePath === relativePath);
@@ -77,20 +90,26 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
   /** Record the call, fail it if a failure was queued, and return an earlier answer for a repeated operation id. */
   const door = <A extends unknown[], R>(method: string, opIdAt: number | null, run: (...args: A) => R) => async (...args: A): Promise<R> => {
     calls.push({ method, args });
+    const held = holds.get(method)?.shift();
+    if (held?.when === 'before') await held.gate;
     const failure = failures.get(method);
     if (failure) { failures.delete(method); throw failure; }
     const opId = opIdAt === null ? null : `${method}:${String(args[opIdAt])}`;
     if (opId && done.has(opId)) return done.get(opId) as R;
     const result = run(...args);
     if (opId) done.set(opId, result);
+    if (held?.when === 'after') await held.gate;
     return result;
   };
 
   const bridge: DesktopWorkspaceBridge = {
     chooseRoot: door('chooseRoot', null, () => workspace),
-    listWorkspaces: door('listWorkspaces', null, () => [workspace]),
+    listWorkspaces: door('listWorkspaces', null, () => [workspace, ...own.values()]),
     close: door('close', null, () => true),
-    openDefault: door('openDefault', null, () => workspace),
+    openDefault: door('openDefault', null, (canvasId: string) => {
+      if (!own.has(canvasId)) own.set(canvasId, { workspaceId: `ws_own_${canvasId}`, displayName: canvasId, readOnly: false, kind: 'local', rootGrantId: `grant_own_${canvasId}` });
+      return own.get(canvasId)!;
+    }),
     listChildren: door('listChildren', null, (workspace_: string, parentId?: string): FileEntry[] => {
       const parent = pathOf(parentId);
       const seen = new Map<string, FileEntry>();
@@ -189,6 +208,8 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
     editExternally: (fileId, content) => { files.get(fileId)!.content = content; emit(event(fileId, 'content', null)); },
     emit,
     failNext: (method, code, message) => { failures.set(method, new Error(`Error invoking remote method 'workspace:${method}': Error: ${code}: ${message}`)); },
+    holdNext: (method) => hold(method, 'before'),
+    delayNext: (method) => hold(method, 'after'),
     uninstall: () => { window.desktopWorkspace = previous; },
   };
 }

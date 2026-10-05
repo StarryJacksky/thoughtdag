@@ -214,6 +214,9 @@ function ResourceCard({ id, data, selected }: Props) {
               </span>
             </div>
           </div>
+        ) : !copy && revision === null ? (
+          // the file has not been read yet: its copy is on its way
+          <p className="text-2xs text-ink-faint" data-resource-reading>{t('workspace.loading')}</p>
         ) : !copy ? (
           <p className="text-2xs text-ink-faint leading-snug" data-resource-no-copy>{t('resource.noCopy')}</p>
         ) : isImage ? (

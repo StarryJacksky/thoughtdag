@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useStore } from '../../store';
 import { useProjects } from '../../store/projects';
 import { workspaceAvailable } from '../../lib/workspace/client';
+import { keepCopiesOutOfHistory } from '../../lib/workspace/graph-resource';
 import { restoreWorkspace, useWorkspacePanel, watchWorkspaces } from '../../lib/workspace/session';
 
 /**
@@ -24,6 +25,9 @@ export function useWorkspaceSync(): void {
     if (!canvasId || switching || !workspaceAvailable()) return;
     void restoreWorkspace();
   }, [canvasId, switching]);
+
+  // an undo or a redo brings back a picture of the canvas, not of the files
+  useEffect(() => (workspaceAvailable() ? keepCopiesOutOfHistory() : undefined), []);
 
   useEffect(() => {
     if (!workspaceAvailable()) return;

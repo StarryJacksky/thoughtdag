@@ -849,6 +849,7 @@ function setupAgents() {
 // path. Every call is accepted from the app's own top frame alone.
 const { createWorkspaceService } = require(path.join(RUNTIME_DIR, 'workspace', 'index.cjs'));
 const { checkSender, senderOf } = require(path.join(RUNTIME_DIR, 'workspace', 'ipc-guard.cjs'));
+const { createSubscriptionHub, releaseWithPage } = require(path.join(RUNTIME_DIR, 'workspace', 'subscriptions.cjs'));
 let appOrigin = null; // set by boot() once the bundled server has its port
 function setupWorkspace() {
   const service = createWorkspaceService({
@@ -894,26 +895,27 @@ function setupWorkspace() {
 
   // Changes to registered files, pushed to the page. They go only to the
   // app itself: a window that was sent somewhere else is told nothing.
-  const subscriptions = new Map(); // workspaceId → unsubscribe
   const push = (event) => {
     if (!win || win.isDestroyed()) return;
     let showing = null;
     try { showing = new URL(win.webContents.getURL()).origin; } catch { /* not a URL */ }
     if (showing === appOrigin) win.webContents.send('workspace:event', event);
   };
-  door('workspace:subscribe', async (workspaceId) => {
-    const id = String(workspaceId);
-    if (!subscriptions.has(id)) subscriptions.set(id, await service.subscribeWorkspace(id, push));
-    return true;
+  // What a page subscribed to lives as long as that page: closing the window
+  // (the app stays running on macOS), a reload or a dead renderer releases it,
+  // and the folders stop being watched. They stay granted.
+  const hub = createSubscriptionHub({ service, send: push });
+  app.on('web-contents-created', (_event, contents) => releaseWithPage(hub, contents));
+  ipcMain.handle('workspace:subscribe', async (event, workspaceId) => {
+    const verdict = checkSender(senderOf(event), { origin: appOrigin, webContentsId: win?.webContents.id ?? null });
+    if (!verdict.trusted) throw new Error('refused: ' + verdict.reason);
+    try { return await hub.subscribe(String(workspaceId), event.sender.id); } catch (e) {
+      throw new Error(e && typeof e.code === 'string' ? `${e.code}: ${e.message}` : 'failed: the workspace call failed');
+    }
   });
-  door('workspace:unsubscribe', (workspaceId) => {
-    const id = String(workspaceId);
-    subscriptions.get(id)?.();
-    subscriptions.delete(id);
-    return true;
-  });
+  door('workspace:unsubscribe', (workspaceId) => hub.unsubscribe(String(workspaceId)));
   // the watcher can miss a change made while the app was in the background
-  app.on('browser-window-focus', () => { for (const id of subscriptions.keys()) void service.rescanWorkspace(id).catch(() => {}); });
+  app.on('browser-window-focus', () => hub.rescanAll());
 }
 
 function codexAppServer() {

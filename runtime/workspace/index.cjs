@@ -6,15 +6,22 @@
 //
 // Opening a folder reads its listing, not its files: no content is read and
 // nothing is indexed. A file gets an identity when it is first used.
+//
+// A workspace id leads to exactly one folder. The id travels with the
+// folder (it is in the folder's own records), so a folder that was moved is
+// the same workspace at its new place, and a copy of a folder that is still
+// open is given an id, and file ids, of its own the moment it is opened:
+// two folders never answer to one id.
 'use strict';
 
 const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const { assertAllowedPath, WorkspaceAccessError, METADATA_DIR } = require('./path-policy.cjs');
-const { createRegistry, writeFileAtomic } = require('./registry.cjs');
+const { createRegistry, writeFileAtomic, REGISTRY_FILE } = require('./registry.cjs');
 const { mediaTypeOf } = require('./media-types.cjs');
-const { createJournal } = require('./journal.cjs');
+const { createJournal, JOURNAL_FILE } = require('./journal.cjs');
+const { recoveryRoot } = require('./recovery.cjs');
 const { createFileOps } = require('./file-ops.cjs');
 const { createReconciler } = require('./reconcile.cjs');
 const { watchWorkspace } = require('./watch.cjs');
@@ -48,26 +55,59 @@ function relativePathOf(entryId) {
 function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, watch = {}, now = () => new Date().toISOString(), newId = () => randomUUID() }) {
   const grantsFile = path.join(stateDir, GRANTS_FILE);
   let grants = null;              // Map<rootGrantId, { rootPath, workspaceId, displayName, readOnly, grantedAt }>
-  const registries = new Map();   // workspaceId → registry
-  const operations = new Map();   // workspaceId → Promise<file operations>
+  let grantsLoading = null;       // the one load everyone waits for
+  const registries = new Map();   // rootGrantId → Promise<registry>
+  const operations = new Map();   // rootGrantId → Promise<file operations>
   const listeners = new Map();    // workspaceId → Set<listener>
   const watchers = new Map();     // workspaceId → folder watcher
 
-  async function loadGrants() {
-    if (grants) return grants;
-    grants = new Map();
-    try {
-      const doc = JSON.parse(await fsp.readFile(grantsFile, 'utf8'));
-      for (const [id, g] of Object.entries(doc?.grants ?? {})) {
-        if (g && typeof g.rootPath === 'string' && path.isAbsolute(g.rootPath) && typeof g.workspaceId === 'string') grants.set(id, g);
-      }
-    } catch { /* no grants yet */ }
-    return grants;
+  const isFolder = (dir) => fsp.stat(dir).then((s) => s.isDirectory(), () => false);
+
+  /** The grants, once they are all read. Everyone who asks while they are being read gets the same, complete list. */
+  function loadGrants() {
+    if (!grantsLoading) {
+      const loading = (async () => {
+        let text = null;
+        try { text = await fsp.readFile(grantsFile, 'utf8'); } catch (e) {
+          // no file is no grants yet; a file that is there and could not be read is not an empty list
+          if (e.code !== 'ENOENT') throw e;
+        }
+        const read = [];
+        if (text !== null) {
+          let doc = null;
+          try { doc = JSON.parse(text); } catch { /* not readable: the folders are asked for again */ }
+          for (const [id, g] of Object.entries(doc?.grants ?? {})) {
+            if (g && typeof g.rootPath === 'string' && path.isAbsolute(g.rootPath) && typeof g.workspaceId === 'string') read.push([id, g]);
+          }
+        }
+        // one folder per workspace id: of several, the one whose folder is still there
+        const loaded = new Map();
+        const holder = new Map(); // workspaceId → rootGrantId
+        for (const [id, g] of read) {
+          const earlier = holder.get(g.workspaceId);
+          if (earlier === undefined) { holder.set(g.workspaceId, id); loaded.set(id, g); continue; }
+          if (!(await isFolder(loaded.get(earlier).rootPath)) && await isFolder(g.rootPath)) {
+            loaded.delete(earlier);
+            holder.set(g.workspaceId, id);
+            loaded.set(id, g);
+          }
+        }
+        grants = loaded;
+        return loaded;
+      })();
+      grantsLoading = loading;
+      // a load that failed is tried again by the next caller
+      loading.catch(() => { if (grantsLoading === loading) grantsLoading = null; });
+    }
+    return grantsLoading;
   }
   async function saveGrants() {
     await fsp.mkdir(stateDir, { recursive: true });
     await writeFileAtomic(grantsFile, JSON.stringify({ grants: Object.fromEntries(grants) }, null, 2) + '\n');
   }
+  // one change to the grants at a time: two openings of one folder are one grant
+  let grantChanges = Promise.resolve();
+  const changingGrants = (fn) => { const run = grantChanges.then(fn, fn); grantChanges = run.catch(() => {}); return run; };
 
   const recordOf = (rootGrantId, g) => ({ workspaceId: g.workspaceId, displayName: g.displayName, readOnly: g.readOnly, kind: 'local', rootGrantId });
 
@@ -76,34 +116,59 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
     throw new WorkspaceAccessError('no-grant', 'that workspace is not open');
   }
 
-  async function registryOf(grant) {
-    let registry = registries.get(grant.workspaceId);
-    if (!registry) {
-      registry = createRegistry({ rootPath: grant.rootPath, workspaceId: grant.workspaceId, rootGrantId: grant.rootGrantId, readOnly: grant.readOnly, contracts: await loadContracts() });
-      registries.set(grant.workspaceId, registry);
+  /** The registry of a granted folder. Everyone who asks while it is being made gets the same one. */
+  function registryOf(grant) {
+    let ready = registries.get(grant.rootGrantId);
+    if (!ready) {
+      ready = (async () => createRegistry({ rootPath: grant.rootPath, workspaceId: grant.workspaceId, rootGrantId: grant.rootGrantId, readOnly: grant.readOnly, contracts: await loadContracts() }))();
+      registries.set(grant.rootGrantId, ready);
+      const mine = ready;
+      ready.catch(() => { if (registries.get(grant.rootGrantId) === mine) registries.delete(grant.rootGrantId); });
     }
-    return registry;
+    return ready;
+  }
+
+  /** Drop what is held in memory for a grant: its folder is closed, or is somewhere else now. */
+  function forget(grant) {
+    registries.delete(grant.rootGrantId);
+    operations.delete(grant.rootGrantId);
+    watchers.get(grant.workspaceId)?.close();
+    watchers.delete(grant.workspaceId);
+  }
+
+  function startWatching(grant) {
+    if (watchers.has(grant.workspaceId)) return;
+    watchers.set(grant.workspaceId, watchWorkspace({
+      rootPath: grant.rootPath,
+      // the grant is looked up when the signal comes: the folder may have been moved since
+      onSignal: () => { void grantOf(grant.workspaceId).then(rescan).catch(() => {}); },
+      ...watch,
+    }));
   }
 
   /** The file operations of a workspace. The first use settles whatever a
    *  crash left unfinished there, before anything new is done. */
   function operationsOf(grant) {
-    let ready = operations.get(grant.workspaceId);
+    let ready = operations.get(grant.rootGrantId);
     if (!ready) {
       ready = (async () => {
+        const registry = await registryOf(grant);
         const ops = createFileOps({
           grant,
-          registry: await registryOf(grant),
-          journal: createJournal({ rootPath: grant.rootPath, readOnly: grant.readOnly, now }),
+          registry,
+          // a registry this version may not write means a folder this version does not write to at all
+          journal: createJournal({ rootPath: grant.rootPath, readOnly: grant.readOnly || (await registry.access()) !== 'read-write', now }),
           trash,
           ...(io ? { io } : {}),
           now,
+          notify: (record, change) => emit(grant.workspaceId, record, change),
         });
         await ops.reconcile();
         return ops;
       })();
-      operations.set(grant.workspaceId, ready);
-      ready.catch(() => operations.delete(grant.workspaceId));
+      operations.set(grant.rootGrantId, ready);
+      const mine = ready;
+      ready.catch(() => { if (operations.get(grant.rootGrantId) === mine) operations.delete(grant.rootGrantId); });
     }
     return ready;
   }
@@ -161,6 +226,49 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
     return { workspaceId, readOnly: false };
   }
 
+  /** Whether the folder at `rootPath` is there and carries this workspace id in its own records. */
+  async function holdsIdentity(rootPath, workspaceId) {
+    try { return JSON.parse(await fsp.readFile(path.join(rootPath, METADATA_DIR, IDENTITY_FILE), 'utf8'))?.workspaceId === workspaceId; } catch { return false; }
+  }
+
+  /**
+   * Give a folder that is a copy of an open workspace an identity of its
+   * own: a new workspace id, and a new id for every file in its registry,
+   * since the ones it was copied with are the original's. The copied
+   * journal speaks of the original's operations and is set aside. The
+   * folder's id is written last: a copy half-way through this is still seen
+   * as a copy the next time it is opened. Resolves with the new id.
+   */
+  async function ownIdentityFor(rootPath) {
+    const { versionAccess, SCHEMA_VERSION } = await loadContracts();
+    const meta = path.join(rootPath, METADATA_DIR);
+    const cannot = () => new WorkspaceAccessError('duplicate-workspace', 'this folder is a copy of a workspace that is already open, and its records cannot be rewritten to give it an identity of its own');
+    const workspaceId = `ws_${newId()}`;
+
+    const registryFile = path.join(meta, REGISTRY_FILE);
+    const text = await fsp.readFile(registryFile, 'utf8').catch((e) => { if (e.code === 'ENOENT') return null; throw cannot(); });
+    const renamed = new Map(); // the original's file id → this folder's
+    if (text !== null) {
+      let doc;
+      try { doc = JSON.parse(text); } catch { throw cannot(); }
+      if (versionAccess(doc?.schemaVersion, SCHEMA_VERSION) !== 'read-write') throw cannot();
+      for (const entry of Array.isArray(doc.resources) ? doc.resources : []) {
+        if (!entry?.record || typeof entry.record.fileId !== 'string') continue;
+        const fileId = `file_${newId()}`;
+        renamed.set(entry.record.fileId, fileId);
+        entry.record = { ...entry.record, fileId, workspaceId };
+      }
+      doc.workspaceId = workspaceId;
+      await writeFileAtomic(registryFile, JSON.stringify(doc, null, 2) + '\n');
+    }
+    // earlier versions of a file are kept under its id: they follow it to the new one
+    const versions = path.join(recoveryRoot(rootPath), 'versions');
+    for (const [from, to] of renamed) await fsp.rename(path.join(versions, from), path.join(versions, to)).catch(() => {});
+    await fsp.rename(path.join(meta, JOURNAL_FILE), path.join(meta, `journal.copied-${Date.now()}.jsonl`)).catch(() => {});
+    await writeFileAtomic(path.join(meta, IDENTITY_FILE), JSON.stringify({ schemaVersion: SCHEMA_VERSION, workspaceId, createdAt: now() }, null, 2) + '\n');
+    return workspaceId;
+  }
+
   return {
     /** Ask the person for a folder and open it. Null when they cancel. */
     async chooseRoot() {
@@ -186,15 +294,36 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
       try { rootPath = await fsp.realpath(picked); } catch { throw new WorkspaceAccessError('root-missing', 'the chosen folder is not there'); }
       if (!(await fsp.stat(rootPath)).isDirectory()) throw new WorkspaceAccessError('not-a-directory', 'a workspace is a folder');
       if (path.dirname(rootPath) === rootPath) throw new WorkspaceAccessError('root-too-wide', 'a whole disk cannot be a workspace; choose a folder');
-      await loadGrants();
-      for (const [rootGrantId, g] of grants) if (g.rootPath === rootPath) return recordOf(rootGrantId, g);
-      const writable = await fsp.access(rootPath, fs.constants.W_OK).then(() => true, () => false);
-      const { workspaceId, readOnly } = await identityOf(rootPath, writable);
-      const rootGrantId = `grant_${newId()}`;
-      const grant = { rootPath, workspaceId, displayName: path.basename(rootPath), readOnly, grantedAt: now() };
-      grants.set(rootGrantId, grant);
-      await saveGrants();
-      return recordOf(rootGrantId, grant);
+      return changingGrants(async () => {
+        await loadGrants();
+        for (const [rootGrantId, g] of grants) if (g.rootPath === rootPath) return recordOf(rootGrantId, g);
+        const writable = await fsp.access(rootPath, fs.constants.W_OK).then(() => true, () => false);
+        let { workspaceId, readOnly } = await identityOf(rootPath, writable);
+
+        // the id this folder carries may already lead to a folder
+        const holder = [...grants].find(([, g]) => g.workspaceId === workspaceId);
+        if (holder) {
+          const [rootGrantId, g] = holder;
+          if (!(await holdsIdentity(g.rootPath, workspaceId))) {
+            // the folder that had this id is no longer where it was: it is this one, moved
+            forget({ rootGrantId, ...g });
+            const moved = { ...g, rootPath, displayName: path.basename(rootPath), readOnly };
+            grants.set(rootGrantId, moved);
+            await saveGrants();
+            if (listeners.has(workspaceId)) startWatching({ rootGrantId, ...moved });
+            return recordOf(rootGrantId, moved);
+          }
+          // both folders are there with one id: the one being opened now is the copy
+          if (readOnly) throw new WorkspaceAccessError('duplicate-workspace', 'this folder is a copy of a workspace that is already open, and it cannot be written to, so it cannot be given an identity of its own');
+          workspaceId = await ownIdentityFor(rootPath);
+        }
+
+        const rootGrantId = `grant_${newId()}`;
+        const grant = { rootPath, workspaceId, displayName: path.basename(rootPath), readOnly, grantedAt: now() };
+        grants.set(rootGrantId, grant);
+        await saveGrants();
+        return recordOf(rootGrantId, grant);
+      });
     },
 
     /** The workspaces that are open and whose folders are still there. */
@@ -207,16 +336,15 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
     },
 
     /** Close a workspace. Nothing in the folder is touched. */
-    async closeWorkspace(workspaceId) {
-      const grant = await grantOf(workspaceId);
-      grants.delete(grant.rootGrantId);
-      registries.delete(workspaceId);
-      operations.delete(workspaceId);
-      watchers.get(workspaceId)?.close();
-      watchers.delete(workspaceId);
-      listeners.delete(workspaceId);
-      await saveGrants();
-      return true;
+    closeWorkspace(workspaceId) {
+      return changingGrants(async () => {
+        const grant = await grantOf(workspaceId);
+        grants.delete(grant.rootGrantId);
+        forget(grant);
+        listeners.delete(workspaceId);
+        await saveGrants();
+        return true;
+      });
     },
 
     /** The entries of one folder: names and kinds, no content. Folders first. */
@@ -364,9 +492,7 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
       const grant = await grantOf(workspaceId);
       if (!listeners.has(workspaceId)) listeners.set(workspaceId, new Set());
       listeners.get(workspaceId).add(listener);
-      if (!watchers.has(workspaceId)) {
-        watchers.set(workspaceId, watchWorkspace({ rootPath: grant.rootPath, onSignal: () => { void rescan(grant).catch(() => {}); }, ...watch }));
-      }
+      startWatching(grant);
       return () => {
         const set = listeners.get(workspaceId);
         if (!set) return;

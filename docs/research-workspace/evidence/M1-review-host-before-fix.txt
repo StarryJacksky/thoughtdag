@@ -1,0 +1,40 @@
+# The host regression tests for the M1 review, run against the reviewed commit a3ffb85 (before the fixes).
+# tests/host/concurrency, workspace-identity, crash-recovery:
+not ok 2 - two files moved onto the same name at once: one move happens, the other file stays where it was, and nothing is lost
+not ok 3 - a move onto a name another program took in the meantime is refused, and that program's file is not replaced
+not ok 4 - two files given their identity at the same moment on a cold service both keep it, now and after a restart
+not ok 5 - the open workspaces are the same list for everyone who asks while a cold service is still loading them
+not ok 6 - the same folder opened twice at the same moment is one workspace
+not ok 7 - the same creation asked twice before the first answer is one file with one identity
+not ok 8 - the same import asked twice before the first answer is one file
+not ok 9 - a disk that fills while the old version is being kept: the save fails, and a retry never replaces the file with only part of the old version kept
+not ok 10 - part of an old version left in the recovery area by an earlier crash is not taken for the whole of it
+not ok 11 - a crash after the new file was written and before that was noted: the retry returns that file and makes no second one
+not ok 12 - every creation notes the name it is about to try before it writes there, so a crash at any point can be told from the journal
+ok 13 - a crash before the name that was about to be tried held this creation's content: nothing is claimed, and the retry makes exactly one file
+not ok 14 - a save that failed, was asked again, and was cut short after the replacement is recognized as done after a restart
+not ok 15 - a save that failed, was asked again, and was cut short before the replacement leaves the old content and clears that attempt's temp file
+ok 16 - what is noted after a half-written last line is still there when the journal is read again
+not ok 17 - the first thing noted after a half-written last line is not swallowed by it
+ok 18 - two things noted at the same moment are two whole lines
+not ok 19 - a move cut short between giving the file its new name and taking away the old one ends with the file under the new name only
+not ok 20 - a copy of an open workspace folder is a workspace of its own: its listing, its new files and its file identities are the copy's
+not ok 21 - a workspace folder that was moved is the same workspace at its new place: one entry, working listing, the same file identities
+not ok 22 - a name used again after its file was trashed is a new file with a new identity; the old reference stays lost
+not ok 23 - a file put back where it was, the very same file, is its old identity again whichever way it is first noticed
+# tests 23
+# pass 3
+# fail 20
+
+# tests/host/change-notification (with the new subscriptions module copied in, since it did not exist yet):
+not ok 1 - a file changed by another program and read for its text before the watcher speaks: everyone listening still hears of the change, once
+not ok 2 - a file changed by another program and read for its bytes before the watcher speaks: everyone listening still hears of the change, once
+ok 3 - the first look at a file's content is not news: nothing changed
+not ok 4 - a folder whose records were written by a newer version is not written to: no save, creation, move, copy, trash or folder, and its records stay as they were
+ok 5 - a page that is closed, reloaded or loses its process takes its subscriptions with it, and the folders stop being watched
+ok 6 - a move within the same document is not a new page, and another page's leaving releases nothing of this one's
+ok 7 - a page that leaves while its subscription is still being set up does not leave it behind
+ok 8 - a subscription that could not be made is not held, and asking again tries again
+# tests 8
+# pass 5
+# fail 3

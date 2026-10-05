@@ -8,6 +8,11 @@
 // One writer: every change goes through this object, one at a time, and the
 // file is replaced whole (temp file, flush, rename), never edited in place.
 // A registry written by a newer version is read and never rewritten.
+//
+// A path can have more than one record over time: a file that was lost
+// keeps its record, and a new file may later be made under the same name.
+// Looking a path up finds the record of the file that is there now, never
+// the lost one; a new file never takes over a lost file's identity.
 'use strict';
 
 const fs = require('node:fs');
@@ -76,6 +81,8 @@ function createRegistry({ rootPath, workspaceId, rootGrantId, readOnly = false, 
     if (access === 'read-write') {
       for (const entry of Array.isArray(doc.resources) ? doc.resources : []) {
         if (doc.schemaVersion === '1.0' && entry?.record) entry.record = migrateRecord(entry.record, rootGrantId);
+        // the grant is this shell's name for the folder: a registry that came from another shell, or whose folder was granted anew, names this one
+        if (entry?.record?.locator?.kind === 'local' && entry.record.locator.rootGrantId !== rootGrantId) entry.record = { ...entry.record, locator: { ...entry.record.locator, rootGrantId } };
         const checked = contracts.validateDTO('ResourceRecord', entry?.record);
         if (!checked.ok) throw new RegistryError('corrupt', 'the resource registry holds a record that does not fit the contract; it was left untouched');
         resources.set(entry.record.fileId, { record: entry.record, observed: entry.observed ?? null });
@@ -101,7 +108,41 @@ function createRegistry({ rootPath, workspaceId, rootGrantId, readOnly = false, 
     await writeFileAtomic(file, JSON.stringify(doc, null, 2) + '\n');
   }
 
-  const byPath = (relativePath) => [...state.resources.values()].find((e) => e.record.relativePath === relativePath) ?? null;
+  const isLost = (record) => record.status === 'missing' || record.status === 'ambiguous';
+  const sameFile = (a, b) => !!a && !!b && a.dev === b.dev && a.ino === b.ino;
+  /** The record of the file that is at this path now: lost files do not hold their old paths. */
+  const liveAt = (relativePath) => [...state.resources.values()].find((e) => e.record.relativePath === relativePath && !isLost(e.record)) ?? null;
+  const liveStatus = () => (state.access === 'read-write' ? 'ready' : 'readonly');
+
+  /** Put a new record in, or change one, and store the registry; on failure memory is put back as it was. */
+  async function commit(fileId, entry) {
+    const previous = state.resources.get(fileId);
+    state.resources.set(fileId, entry);
+    // a read-only workspace still gets identities for this session; they are not stored
+    if (state.access !== 'read-write') return;
+    try { await save(); } catch (e) {
+      if (previous) state.resources.set(fileId, previous); else state.resources.delete(fileId);
+      throw e;
+    }
+  }
+
+  function newRecord({ relativePath, mediaType, origin, revision = null, importedFrom }) {
+    const record = {
+      fileId: newId(),
+      workspaceId,
+      relativePath,
+      locator: { kind: 'local', rootGrantId, relativePath },
+      sourceRevision: null,
+      mediaType,
+      origin,
+      status: liveStatus(),
+      revision,
+      ...(importedFrom ? { importedFrom } : {}),
+    };
+    const checked = contracts.validateDTO('ResourceRecord', record);
+    if (!checked.ok) throw new RegistryError('invalid-record', 'the new record does not fit the contract: ' + checked.errors.map((e) => `${e.path} ${e.message}`).join('; '));
+    return record;
+  }
 
   return {
     /** 'read-write', or 'read-only' for a read-only root or a newer registry */
@@ -112,38 +153,48 @@ function createRegistry({ rootPath, workspaceId, rootGrantId, readOnly = false, 
     /** The record and what the file system last showed for it (`observed`), or null. */
     entry: (fileId) => serial(async () => { const e = (await load()).resources.get(fileId); return e ? { record: e.record, observed: e.observed } : null; }),
 
-    findByPath: (relativePath) => serial(async () => { await load(); return byPath(relativePath)?.record ?? null; }),
+    /** The record of the file that is at `relativePath` now, or null. A lost file's record is not found by its old path. */
+    findByPath: (relativePath) => serial(async () => { await load(); return liveAt(relativePath)?.record ?? null; }),
 
     all: () => serial(async () => [...(await load()).resources.values()].map((e) => e.record)),
 
     /**
-     * The record of the file at `relativePath`: the one already registered
-     * there, else a new one with a fresh fileId. `observed` is what the file
-     * system showed (device, inode, size, mtime), kept beside the record for
-     * telling a moved file from a new one later; it is never the identity.
+     * The record of a file that is already there at `relativePath`: the one
+     * registered for it, else a new one with a fresh fileId. `observed` is
+     * what the file system showed (device, inode, size, mtime), kept beside
+     * the record for telling a moved file from a new one later; it is never
+     * the identity. A lost record at that path is taken up again only when
+     * the file there is provably the same file; a name alone is not proof.
      */
     register: ({ relativePath, mediaType, origin, observed, revision = null, importedFrom }) => serial(async () => {
       await load();
-      const existing = byPath(relativePath);
+      const existing = liveAt(relativePath);
       if (existing) return existing.record;
-      const record = {
-        fileId: newId(),
-        workspaceId,
-        relativePath,
-        locator: { kind: 'local', rootGrantId, relativePath },
-        sourceRevision: null,
-        mediaType,
-        origin,
-        status: state.access === 'read-write' ? 'ready' : 'readonly',
-        revision,
-        ...(importedFrom ? { importedFrom } : {}),
-      };
-      const checked = contracts.validateDTO('ResourceRecord', record);
-      if (!checked.ok) throw new RegistryError('invalid-record', 'the new record does not fit the contract: ' + checked.errors.map((e) => `${e.path} ${e.message}`).join('; '));
-      state.resources.set(record.fileId, { record, observed: observed ?? null });
-      // a read-only workspace still gets identities for this session; they are not stored
-      if (state.access === 'read-write') {
-        try { await save(); } catch (e) { state.resources.delete(record.fileId); throw e; }
+      const returned = [...state.resources.values()].find((e) => e.record.relativePath === relativePath && isLost(e.record) && sameFile(e.observed, observed));
+      if (returned) {
+        const record = { ...returned.record, status: liveStatus() };
+        await commit(record.fileId, { record, observed: observed ?? returned.observed });
+        return record;
+      }
+      const record = newRecord({ relativePath, mediaType, origin, revision, importedFrom });
+      await commit(record.fileId, { record, observed: observed ?? null });
+      return record;
+    }),
+
+    /**
+     * The record of a file that was just made at `relativePath`: always a
+     * new identity. Whatever record held that path before is of a file that
+     * is no longer there (the name was free to create), so it is marked
+     * missing and keeps its own identity.
+     */
+    create: ({ relativePath, mediaType, origin, observed, revision = null, importedFrom }) => serial(async () => {
+      await load();
+      const stale = liveAt(relativePath);
+      const record = newRecord({ relativePath, mediaType, origin, revision, importedFrom });
+      if (stale) state.resources.set(stale.record.fileId, { record: { ...stale.record, status: 'missing' }, observed: stale.observed });
+      try { await commit(record.fileId, { record, observed: observed ?? null }); } catch (e) {
+        if (stale) state.resources.set(stale.record.fileId, stale);
+        throw e;
       }
       return record;
     }),
@@ -161,11 +212,7 @@ function createRegistry({ rootPath, workspaceId, rootGrantId, readOnly = false, 
       if (typeof patch.relativePath === 'string') record.locator = { ...entry.record.locator, relativePath: patch.relativePath };
       const checked = contracts.validateDTO('ResourceRecord', record);
       if (!checked.ok) throw new RegistryError('invalid-record', 'the changed record does not fit the contract: ' + checked.errors.map((e) => `${e.path} ${e.message}`).join('; '));
-      const previous = entry;
-      state.resources.set(fileId, { record, observed: observed === undefined ? entry.observed : observed });
-      if (state.access === 'read-write') {
-        try { await save(); } catch (e) { state.resources.set(fileId, previous); throw e; }
-      }
+      await commit(fileId, { record, observed: observed === undefined ? entry.observed : observed });
       return record;
     }),
   };

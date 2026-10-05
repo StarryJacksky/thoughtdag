@@ -16,7 +16,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import 'highlight.js/styles/github.css';
-import { ArrowRight, BookOpen, Bot, Brain, CircleHelp, Download, Drama, Eye, FileText, FolderSync, Frame, GitBranch, Hand, Highlighter, History as HistoryIcon, ImageDown, KeyRound, LayoutGrid, ListRestart, Loader2, MessageCircleQuestion, Minimize2, MoreHorizontal, Paperclip, Redo2, Rewind, Scissors, Search, Share2, SquareTerminal, Star, Stethoscope, StickyNote, Trash2, Undo2, Workflow, X } from 'lucide-react';
+import { ArrowRight, BookOpen, Bot, Brain, CircleHelp, Download, Drama, Eye, FilePlus, FileText, FolderSync, Frame, GitBranch, Hand, Highlighter, History as HistoryIcon, ImageDown, KeyRound, LayoutGrid, ListRestart, Loader2, MessageCircleQuestion, Minimize2, MoreHorizontal, Paperclip, Redo2, Rewind, Scissors, Search, Share2, SquareTerminal, Star, Stethoscope, StickyNote, Trash2, Undo2, Workflow, X } from 'lucide-react';
 import './index.css';
 import ThoughtNode from './components/ThoughtNode';
 import ParadigmNode from './components/ParadigmNode';
@@ -35,6 +35,12 @@ import { REPO_URL, useGithubStars, formatStars } from './lib/github-stars';
 import DiagnosticsPanel from './components/DiagnosticsPanel';
 import MaterialReader from './components/MaterialReader';
 import ProjectSwitcher from './components/ProjectSwitcher';
+import ResourceNodeView from './components/workspace/ResourceNodeView';
+import WorkspaceLayer from './components/workspace/WorkspaceLayer';
+import { dropOnCanvas, freeSpot } from './components/workspace/actions';
+import { workspaceAvailable } from './lib/workspace/client';
+import { RESOURCE_DRAG_TYPE, parseDragPayload } from './lib/workspace/graph-resource';
+import { useWorkspacePanel } from './lib/workspace/session';
 import SessionAtlas from './components/SessionAtlas';
 import { useStore } from './store';
 import { shownStaleIds } from './lib/stale-judge';
@@ -98,6 +104,8 @@ import { useStore as useRfStore, useReactFlow } from '@xyflow/react';
 const NodeDispatch = memo(function NodeDispatch(props: Parameters<typeof ThoughtNode>[0]) {
   const isParadigm = useProjects((s) => s.projects.find((p) => p.id === s.activeId)?.kind === 'paradigm');
   if (props.data?.stepKind === 'frame') return <FrameNode {...props} />;
+  // a node that stands for a real workspace file has its own card
+  if (props.data?.resourceRef) return <ResourceNodeView {...props} />;
   if (isContentKind(props.data?.stepKind)) return <ContentNode {...props} />;
   return isParadigm ? <ParadigmNode {...props} /> : <ThoughtNode {...props} />;
 });
@@ -226,6 +234,7 @@ function Canvas() {
   const landingFileRef = useRef<HTMLInputElement>(null);
   const docFileRef = useRef<HTMLInputElement>(null);
   const hasNodes = nodes.length > 0;
+  const explorerOpen = useWorkspacePanel((s) => s.open);
   const hasEvents = useStore((s) => s.events.length > 0);
   const highlightCount = useStore((s) => s.nodes.reduce((sum, n) => sum + (n.data.highlights?.length ?? 0), 0));
   const materialCount = useStore((s) => s.nodes.reduce((sum, n) =>
@@ -1062,6 +1071,12 @@ function Canvas() {
           }
         }}
         onDragOver={(e) => {
+          if (e.dataTransfer.types.includes(RESOURCE_DRAG_TYPE)) {
+            // a workspace file from the file panel: it lands as a node referencing it
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+            return;
+          }
           if (e.dataTransfer.types.includes('application/thoughtdag-content') || e.dataTransfer.types.includes('Files')) {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'copy';
@@ -1071,6 +1086,12 @@ function Canvas() {
         onDrop={(e) => {
           if (isViewerMode) return;
           const el = e.target as HTMLElement;
+          const resource = e.dataTransfer.types.includes(RESOURCE_DRAG_TYPE) ? parseDragPayload(e.dataTransfer.getData(RESOURCE_DRAG_TYPE)) : null;
+          if (resource) {
+            e.preventDefault();
+            void dropOnCanvas(resource, flowPosAt({ x: e.clientX, y: e.clientY }));
+            return;
+          }
           // Landing (empty canvas): dropping a document means "start from
           // this material" — file nodes + the reader, not attachments
           if (!hasNodes && !isParadigm && e.dataTransfer.files.length > 0) {
@@ -1509,11 +1530,14 @@ function Canvas() {
       {/* Project switcher */}
       {!isViewerMode && <ProjectSwitcher onSwitched={afterProjectSwitch} />}
 
+      {/* Workspace files: the file panel, its toggle, and the type menu for a file created from the graph */}
+      <WorkspaceLayer flowPosAt={flowPosAt} />
+
       {/* Content palette — canvas material, both modes. Click drops at the
           viewport center; DRAG drops at the pointer. Paste works anywhere:
           text → note, a URL → link snapshot, image/files → file node. */}
       {(hasNodes || isParadigm) && !isViewerMode && (
-        <div className="absolute top-[38%] -translate-y-1/2 left-4 z-10 flex flex-col gap-1.5 bg-card/90 backdrop-blur border border-line rounded-xl p-1.5 shadow-sm">
+        <div className="absolute top-[38%] -translate-y-1/2 z-10 flex flex-col gap-1.5 bg-card/90 backdrop-blur border border-line rounded-xl p-1.5 shadow-sm transition-[left] duration-200" style={{ left: explorerOpen ? 300 : 16 }}>
           {!isParadigm && (
             <button
               onClick={() => spawnAskNode(flowPosAt(null))}
@@ -1539,6 +1563,19 @@ function Canvas() {
           >
             <Paperclip size={17} strokeWidth={1.75} />
           </button>
+          {workspaceAvailable() && (
+            <button
+              onPointerDown={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                paletteDrag(e, (screen) => useWorkspacePanel.setState({ createAt: { screen: screen ?? { x: rect.right + 10, y: rect.top }, at: screen ? flowPosAt(screen) : freeSpot(flowPosAt(null)) } }));
+              }}
+              title={t('palette.newFileTitle')}
+              data-palette-new-file
+              className="w-9 h-9 rounded-lg flex items-center justify-center text-ink-muted hover:bg-wash transition-colors"
+            >
+              <FilePlus size={17} strokeWidth={1.75} />
+            </button>
+          )}
           <button
             onPointerDown={(e) => paletteDrag(e, (screen) => spawnFrame(flowPosAt(screen)))}
             title={t('palette.frameTitle')}

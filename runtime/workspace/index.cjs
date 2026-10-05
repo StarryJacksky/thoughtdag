@@ -166,6 +166,22 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
     async chooseRoot() {
       const picked = await pickDirectory();
       if (!picked) return null;
+      return this.openRoot(picked);
+    },
+
+    /**
+     * Open a folder the shell itself chose (a canvas's own managed folder),
+     * creating it if needed. Host-only: the page never names a path, so this
+     * is not reachable with one it supplied.
+     */
+    async openManaged(absolutePath) {
+      if (typeof absolutePath !== 'string' || !path.isAbsolute(absolutePath)) throw new WorkspaceAccessError('no-grant', 'a managed workspace needs an absolute folder');
+      await fsp.mkdir(absolutePath, { recursive: true });
+      return this.openRoot(absolutePath);
+    },
+
+    /** Grant a folder as a workspace root. Not exposed to the page. */
+    async openRoot(picked) {
       let rootPath;
       try { rootPath = await fsp.realpath(picked); } catch { throw new WorkspaceAccessError('root-missing', 'the chosen folder is not there'); }
       if (!(await fsp.stat(rootPath)).isDirectory()) throw new WorkspaceAccessError('not-a-directory', 'a workspace is a folder');
@@ -288,6 +304,15 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
 
     async readBytes(fileId) {
       return (await operationsOf(await grantOfFile(fileId))).readBytes(fileId);
+    },
+
+    /** Where a registered file is on disk. Host-only: for showing it in the
+     *  system file manager. The path never goes to the page. */
+    async locate(fileId) {
+      const grant = await grantOfFile(fileId);
+      const record = await (await registryOf(grant)).get(fileId);
+      if (record.status === 'missing' || record.status === 'ambiguous') throw new WorkspaceAccessError('lost', 'the file is lost; it has to be found again first');
+      return (await assertAllowedPath(grant, 'stat', record.relativePath)).absolute;
     },
 
     /** The open workspace with this id, as a record. */

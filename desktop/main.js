@@ -885,6 +885,12 @@ function setupWorkspace() {
   door('workspace:reconcile', (fileId) => service.reconcile(String(fileId)));
   door('workspace:rescan', (workspaceId) => service.rescanWorkspace(String(workspaceId)));
   door('workspace:relink', (fileId, entryId) => service.relink(String(fileId), String(entryId)));
+  door('workspace:read-bytes', (fileId) => service.readBytes(String(fileId)));
+  // a canvas's own folder, the one its agents already run in: opened without
+  // a picker because the shell, not the page, decides where it is
+  door('workspace:open-default', async (canvasId) => service.openManaged(await workspaceFor(String(canvasId))));
+  // shown in the system file manager, never opened: a file here may be a script
+  door('workspace:reveal', async (fileId) => { shell.showItemInFolder(await service.locate(String(fileId))); return true; });
 
   // Changes to registered files, pushed to the page. They go only to the
   // app itself: a window that was sent somewhere else is told nothing.

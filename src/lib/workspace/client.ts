@@ -151,3 +151,22 @@ export async function rescanWorkspace(workspaceId: string): Promise<ResourceReco
 export async function relinkFile(fileId: string, entryId: string): Promise<ResourceRecord> {
   return checked('ResourceRecord', await call((b) => b.relink(fileId, entryId)));
 }
+
+/** A file's bytes and their content hash, whatever the file is. */
+export async function readBytes(fileId: string): Promise<{ bytes: Uint8Array; revision: ContentHash }> {
+  const result = await call((b) => b.readBytes(fileId));
+  // the bytes cross a context boundary, so they are recognised by what they are, not by whose constructor made them
+  if (!result || !ArrayBuffer.isView(result.bytes) || !validateDTO('ContentHash', result.revision).ok) throw new WorkspaceError('contract', 'the shell answered with something that is not file content');
+  const view = result.bytes as ArrayBufferView;
+  return { bytes: new Uint8Array(view.buffer as ArrayBuffer, view.byteOffset, view.byteLength), revision: result.revision };
+}
+
+/** The canvas's own managed folder, opened as a workspace. No picker: the shell decides where it is. */
+export async function openDefaultWorkspace(canvasId: string): Promise<WorkspaceRecord> {
+  return checked('WorkspaceRecord', await call((b) => b.openDefault(canvasId)));
+}
+
+/** Show a file in the system file manager. It is shown, never opened or run. */
+export function revealFile(fileId: string): Promise<boolean> {
+  return call((b) => b.reveal(fileId));
+}

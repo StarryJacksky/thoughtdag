@@ -48,6 +48,9 @@ export interface ProjectMeta {
       step outside the working directory (default), or let everything
       through; `allow` lists directories that never ask. */
   agentGuard?: { mode: 'ask' | 'allow'; allow: string[] };
+  /** The workspace this canvas creates its files in and browses (an id the
+      shell handed out; the folder itself is known only to the shell). */
+  workspaceId?: string;
   /** Archived = hidden from the dropdown and Recent work, data untouched.
       Tidying and destroying are different verbs. */
   archived?: boolean;
@@ -284,6 +287,13 @@ export async function setProjectAgentCwd(id: string, cwd: string | undefined): P
 export async function setProjectAgentGuard(id: string, guard: { mode: 'ask' | 'allow'; allow: string[] } | undefined): Promise<void> {
   useProjects.setState((s) => ({
     projects: s.projects.map((p) => (p.id === id ? { ...p, agentGuard: guard } : p)),
+  }));
+  await saveMeta();
+}
+
+export async function setProjectWorkspace(id: string, workspaceId: string | undefined): Promise<void> {
+  useProjects.setState((s) => ({
+    projects: s.projects.map((p) => (p.id === id ? { ...p, workspaceId } : p)),
   }));
   await saveMeta();
 }

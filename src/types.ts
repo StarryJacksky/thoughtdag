@@ -361,6 +361,21 @@ export interface ThoughtData extends Record<string, unknown> {
   roleSourceNodeId?: string; // user-chosen role source node (for multi-parent role conflict)
   roleMode: 'inherit' | 'set-next' | 'reset'; // inherit from ancestors / set for descendants / reset for this node
   attachments: Attachment[];
+  /** This node stands for a real file in a workspace (lib/workspace/graph-resource).
+      The file's identity is the fileId in here; deleting the node never deletes the file. */
+  resourceRef?: import('./lib/workspace/contracts').ResourceRef;
+  /** What to show for the referenced file and whether it is still there: a
+      hint refreshed from the workspace, never the identity, never a path the app acts on. */
+  resourceHint?: {
+    workspaceId: string;
+    name: string;
+    relativePath?: string;
+    status: 'ready' | 'missing' | 'ambiguous' | 'readonly';
+    /** the content hash the node's copy of the text was taken at */
+    revision: string | null;
+    /** the file came in as a copy of something elsewhere and is not kept in step with it */
+    imported?: boolean;
+  };
   excludedAttachmentIds: string[]; // upstream attachment IDs to exclude from context
   includedAttachmentIds: string[]; // override ancestor exclusions (re-include)
   isRoot: boolean;

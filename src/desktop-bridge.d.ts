@@ -246,6 +246,12 @@ interface DesktopWorkspaceBridge {
   rescan(workspaceId: string): Promise<import('./lib/workspace/contracts').ResourceRecord[]>;
   /** the person says a lost file is this entry */
   relink(fileId: string, entryId: string): Promise<import('./lib/workspace/contracts').ResourceRecord>;
+  /** a file's bytes and their content hash, whatever the file is */
+  readBytes(fileId: string): Promise<{ bytes: Uint8Array; revision: string }>;
+  /** the canvas's own managed folder, opened as a workspace without a picker */
+  openDefault(canvasId: string): Promise<import('./lib/workspace/contracts').WorkspaceRecord>;
+  /** show the file in the system file manager; it is never opened or run */
+  reveal(fileId: string): Promise<boolean>;
   subscribe(workspaceId: string): Promise<boolean>;
   unsubscribe(workspaceId: string): Promise<boolean>;
   /** every change to a registered file of a subscribed workspace */

@@ -1,17 +1,19 @@
 import { Fragment, useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
-import { ChevronDown, ChevronRight, ClipboardPaste, File as FileIcon, FilePlus, Folder, FolderOpen, Plus, RefreshCw, Trash2, X } from 'lucide-react';
+import { ArchiveRestore, ChevronDown, ChevronRight, ClipboardPaste, Copy, File as FileIcon, FilePlus, Folder, FolderOpen, FolderPlus, Pencil, Plus, RefreshCw, Trash2, X } from 'lucide-react';
 import { useStore } from '../../store';
 import { useProjects } from '../../store/projects';
-import { listChildren, moveFile, newOperationId, registerEntry, revealFile, trashFile, workspaceAvailable, workspaceCapabilities } from '../../lib/workspace/client';
+import { copyFile, copyFolder, createFolder, listChildren, moveFile, moveFolder, newOperationId, registerEntry, revealFile, trashFile, trashFolder, workspaceAvailable, workspaceCapabilities, WorkspaceError } from '../../lib/workspace/client';
 import type { FileEntry, SourceCapabilities } from '../../lib/workspace/contracts';
 import { canDo } from '../../lib/workspace/provider-contracts';
 import { createDocument } from '../../lib/workspace/create-command';
+import { copyNameOf } from '../../lib/workspace/file-types';
 import { RESOURCE_DRAG_TYPE, applyRecord, attachEntry, copyAcrossWorkspaces, moveReferencedFile, parseDragPayload, relinkNode, type DragPayload } from '../../lib/workspace/graph-resource';
 import { openCanvasFolder, pickWorkspaceFolder, reloadTree, useWorkspacePanel } from '../../lib/workspace/session';
 import { confirmDialog, toast } from '../../lib/ui-store';
 import { useT, fmt } from '../../i18n';
 import CreateFileMenu from './CreateFileMenu';
 import ImportCopyDialog from './ImportCopyDialog';
+import RecoveryList from './RecoveryList';
 
 // The file panel: the folder the open canvas works in, as a tree. Files are
 // named here by the ids the shell gave them; a path is only ever shown.
@@ -21,8 +23,37 @@ import ImportCopyDialog from './ImportCopyDialog';
 // What the panel offers (create, move, trash) is what the workspace's
 // source says it supports. The panel never asks what kind of source it is,
 // and offers nothing until the source has answered.
+//
+// Folders are things too: they can be made, renamed, copied, dragged into
+// one another and trashed. A file in a folder that is moved is the same
+// file at its new place, and the nodes that reference it say so.
 
 type Listing = FileEntry[] | 'loading' | { error: string };
+/** A name being typed in the tree: for a new folder under `parent`, or for `entry` to be renamed. */
+type Naming = { mode: 'new-folder'; parent: FileEntry | null } | { mode: 'rename'; entry: FileEntry; parent: FileEntry | null };
+
+/** One line of the tree that is a text box: Enter keeps the name, Escape or leaving the box drops it. */
+function NameBox({ initial, placeholder, onDone }: { initial: string; placeholder: string; onDone: (name: string | null) => void }) {
+  const settled = useRef(false);
+  const finish = (name: string | null) => { if (settled.current) return; settled.current = true; onDone(name); };
+  return (
+    <input
+      autoFocus
+      defaultValue={initial}
+      placeholder={placeholder}
+      onFocus={(e) => { const dot = initial.lastIndexOf('.'); e.currentTarget.setSelectionRange(0, dot > 0 ? dot : initial.length); }}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter' && !e.nativeEvent.isComposing) { const name = e.currentTarget.value.trim(); finish(name && name !== initial ? name : null); }
+        if (e.key === 'Escape') finish(null);
+      }}
+      onBlur={() => finish(null)}
+      data-tree-name-box
+      className="flex-1 min-w-0 bg-card border border-accent/50 rounded px-1 py-0.5 text-xs text-ink outline-none"
+    />
+  );
+}
 const ROOT = '';
 const why = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -50,6 +81,8 @@ export default function WorkspaceExplorer({ placeAt }: Props) {
   const [importing, setImporting] = useState<null | 'chatgpt-space' | 'other'>(null);
   const [spaceNotice, setSpaceNotice] = useState(false);
   const [dropOn, setDropOn] = useState<string | null>(null);
+  const [naming, setNaming] = useState<Naming | null>(null);
+  const [view, setView] = useState<'tree' | 'recovery'>('tree');
   const [capabilities, setCapabilities] = useState<SourceCapabilities | null>(null);
   const can = (operation: keyof SourceCapabilities) => canDo(capabilities, operation);
 
@@ -116,10 +149,53 @@ export default function WorkspaceExplorer({ placeAt }: Props) {
 
   const trash = (entry: FileEntry) => attempt(async () => {
     if (!workspaceId) return;
-    const ok = await confirmDialog({ message: fmt(t('workspace.trashConfirm'), { name: entry.name }), confirmLabel: t('workspace.trash'), danger: true });
+    const isFolder = entry.kind === 'folder';
+    const ok = await confirmDialog({ message: fmt(t(isFolder ? 'workspace.trashFolderConfirm' : 'workspace.trashConfirm'), { name: entry.name }), confirmLabel: t('workspace.trash'), danger: true });
     if (!ok) return;
-    await trashFile((await registerEntry(workspaceId, entry.entryId)).fileId, newOperationId());
+    if (isFolder) await trashFolder(workspaceId, entry.entryId, newOperationId());
+    else await trashFile((await registerEntry(workspaceId, entry.entryId)).fileId, newOperationId());
+    if (folder?.entryId === entry.entryId) setFolder(null);
     reloadTree();
+    toast('success', fmt(t('workspace.trashed'), { name: entry.name }));
+  });
+
+  const makeFolder = (parent: FileEntry | null, name: string) => attempt(async () => {
+    if (!workspaceId) return;
+    await createFolder(workspaceId, parent?.entryId, name);
+    if (parent) setExpanded((prev) => new Set(prev).add(parent.entryId));
+    reloadTree();
+  });
+
+  /** A new name in the same folder. A file keeps its identity; so does every file in a folder. */
+  const rename = (entry: FileEntry, parent: FileEntry | null, name: string) => attempt(async () => {
+    if (!workspaceId) return;
+    if (entry.kind === 'folder') {
+      await moveFolder(workspaceId, entry.entryId, parent?.entryId, name, newOperationId());
+      if (folder?.entryId === entry.entryId) setFolder(null);
+    } else {
+      const from = await registerEntry(workspaceId, entry.entryId);
+      applyRecord(await moveFile(from.fileId, parent?.entryId, name, newOperationId()));
+    }
+    reloadTree();
+  });
+
+  /** A copy beside the original, under the first name of the form "name copy", "name copy 2", … that is free. */
+  const duplicate = (entry: FileEntry, parent: FileEntry | null) => attempt(async () => {
+    if (!workspaceId) return;
+    const isFolder = entry.kind === 'folder';
+    const fileId = isFolder ? null : (await registerEntry(workspaceId, entry.entryId)).fileId;
+    for (let nth = 1; nth <= 50; nth++) {
+      const name = copyNameOf(entry.name, t('workspace.copySuffix'), nth, isFolder);
+      try {
+        if (fileId) await copyFile(fileId, parent?.entryId, name, newOperationId());
+        else await copyFolder(workspaceId, entry.entryId, parent?.entryId, name, newOperationId());
+        reloadTree();
+        return;
+      } catch (e) {
+        if (!(e instanceof WorkspaceError) || e.code !== 'exists') throw e;
+      }
+    }
+    throw new WorkspaceError('no-free-name', 'no free name was found for the copy');
   });
 
   const relink = (entry: FileEntry) => attempt(async () => {
@@ -144,6 +220,11 @@ export default function WorkspaceExplorer({ placeAt }: Props) {
         const copy = await copyAcrossWorkspaces(data.resourceRef.fileId, data.resourceHint.name, { workspaceId, ...(parentId ? { parentId } : {}) });
         toast('success', fmt(t('workspace.copiedIn'), { name: copy.relativePath ?? '' }));
       }
+    } else if (payload.kind === 'folder-ref') {
+      // a folder goes into a folder of the same workspace; folders are not carried between workspaces
+      if (payload.workspaceId !== workspaceId || payload.entryId === parentId) return;
+      await moveFolder(workspaceId, payload.entryId, parentId, payload.name, newOperationId());
+      toast('success', fmt(t('workspace.moved'), { path: target ? `${target.name}/${payload.name}` : payload.name }));
     } else if (payload.workspaceId === workspaceId) {
       const from = await registerEntry(workspaceId, payload.entryId);
       const moved = await moveFile(from.fileId, parentId, payload.name, newOperationId());
@@ -184,69 +265,101 @@ export default function WorkspaceExplorer({ placeAt }: Props) {
     <div className="text-2xs text-ink-faint py-1 pr-2 leading-snug" style={{ paddingLeft: 12 + depth * 14 + 18 }}>{text}</div>
   );
 
+  const act = 'w-5 h-5 rounded flex items-center justify-center text-ink-faint hover:text-accent';
+  const stop = (run: () => void) => (e: { stopPropagation(): void }) => { e.stopPropagation(); run(); };
+
   const rows = (parent: FileEntry | null, depth: number): ReactNode => {
     const listing = listings[parent?.entryId ?? ROOT];
-    if (listing === undefined || listing === 'loading') return note(depth, t('workspace.loading'));
+    const pad = { paddingLeft: 12 + depth * 14 };
+    const newFolderHere = naming?.mode === 'new-folder' && (naming.parent?.entryId ?? ROOT) === (parent?.entryId ?? ROOT);
+    const newFolderRow = newFolderHere && (
+      <div key="new-folder" style={{ paddingLeft: pad.paddingLeft + 18 }} className="pr-2 py-1 flex items-center gap-1.5" data-tree-new-folder-row>
+        <Folder size={14} strokeWidth={1.75} className="text-ink-muted shrink-0" />
+        <NameBox initial="" placeholder={t('workspace.namePlaceholder')} onDone={(name) => { setNaming(null); if (name) void makeFolder(parent, name); }} />
+      </div>
+    );
+    if (listing === undefined || listing === 'loading') return <>{newFolderRow}{note(depth, t('workspace.loading'))}</>;
     if (!Array.isArray(listing)) return note(depth, fmt(t('workspace.listFailed'), { why: listing.error }));
-    if (listing.length === 0) return note(depth, t('workspace.emptyFolder'));
-    return listing.map((entry) => {
-      const pad = { paddingLeft: 12 + depth * 14 };
-      if (entry.kind === 'folder') {
-        const open = expanded.has(entry.entryId);
-        return (
-          <Fragment key={entry.entryId}>
-            <button
-              onClick={(e) => { e.stopPropagation(); toggle(entry); }}
-              {...dropHandlers(entry)}
-              style={pad}
-              data-tree-folder={entry.name}
-              className={`w-full pr-2 py-1 flex items-center gap-1.5 text-xs text-ink text-left transition-colors ${
-                dropOn === entry.entryId ? 'bg-accent/15' : folder?.entryId === entry.entryId ? 'bg-wash' : 'hover:bg-wash'
-              }`}
+    if (listing.length === 0) return <>{newFolderRow}{!newFolderHere && note(depth, t('workspace.emptyFolder'))}</>;
+    const renaming = (entry: FileEntry) => naming?.mode === 'rename' && naming.entry.entryId === entry.entryId;
+    const nameOf = (entry: FileEntry) => (renaming(entry)
+      ? <NameBox initial={entry.name} placeholder={t('workspace.namePlaceholder')} onDone={(name) => { setNaming(null); if (name) void rename(entry, parent, name); }} />
+      : <span className="truncate flex-1 min-w-0" title={entry.name}>{entry.name}</span>);
+    const changes = (entry: FileEntry) => (
+      <>
+        {can('move') && <button onClick={stop(() => setNaming({ mode: 'rename', entry, parent }))} title={t('workspace.rename')} data-tree-rename className={act}><Pencil size={12} strokeWidth={1.75} /></button>}
+        {can('create') && <button onClick={stop(() => void duplicate(entry, parent))} title={t('workspace.duplicate')} data-tree-duplicate className={act}><Copy size={12} strokeWidth={1.75} /></button>}
+        {can('trash') && <button onClick={stop(() => void trash(entry))} title={t('workspace.trash')} data-tree-trash className="w-5 h-5 rounded flex items-center justify-center text-ink-faint hover:text-red-500"><Trash2 size={12} strokeWidth={1.75} /></button>}
+      </>
+    );
+    const drag = (entry: FileEntry, kind: 'file-ref' | 'folder-ref') => (e: DragEvent) => {
+      if (!workspaceId) return;
+      e.stopPropagation();
+      e.dataTransfer.setData(RESOURCE_DRAG_TYPE, JSON.stringify({ kind, workspaceId, entryId: entry.entryId, name: entry.name } satisfies DragPayload));
+      e.dataTransfer.effectAllowed = 'copyMove';
+    };
+    return (
+      <>
+        {newFolderRow}
+        {listing.map((entry) => {
+          if (entry.kind === 'folder') {
+            const open = expanded.has(entry.entryId);
+            return (
+              <Fragment key={entry.entryId}>
+                <div
+                  role="button"
+                  draggable={can('move') && !renaming(entry)}
+                  onDragStart={drag(entry, 'folder-ref')}
+                  onClick={(e) => { e.stopPropagation(); toggle(entry); }}
+                  {...dropHandlers(entry)}
+                  style={pad}
+                  data-tree-folder={entry.name}
+                  className={`group w-full pr-1.5 py-1 flex items-center gap-1.5 text-xs text-ink cursor-pointer transition-colors ${
+                    dropOn === entry.entryId ? 'bg-accent/15' : folder?.entryId === entry.entryId ? 'bg-wash' : 'hover:bg-wash'
+                  }`}
+                >
+                  {open ? <ChevronDown size={13} strokeWidth={1.75} className="text-ink-faint shrink-0" /> : <ChevronRight size={13} strokeWidth={1.75} className="text-ink-faint shrink-0" />}
+                  <Folder size={14} strokeWidth={1.75} className="text-ink-muted shrink-0" />
+                  {nameOf(entry)}
+                  {!relinkNodeId && !renaming(entry) && (
+                    <span className="shrink-0 hidden group-hover:flex focus-within:flex items-center gap-0.5">{changes(entry)}</span>
+                  )}
+                </div>
+                {open && rows(entry, depth + 1)}
+              </Fragment>
+            );
+          }
+          const isFile = entry.kind === 'file';
+          return (
+            <div
+              key={entry.entryId}
+              draggable={isFile && !renaming(entry)}
+              onDragStart={drag(entry, 'file-ref')}
+              onClick={(e) => { e.stopPropagation(); setFolder(parent); }}
+              onDoubleClick={() => { if (isFile && !relinkNodeId && !renaming(entry)) void addToCanvas(entry); }}
+              style={{ paddingLeft: pad.paddingLeft + 18 }}
+              data-tree-file={entry.name}
+              className={`group pr-1.5 py-1 flex items-center gap-1.5 text-xs hover:bg-wash transition-colors ${isFile ? 'text-ink cursor-grab' : 'text-ink-faint'}`}
             >
-              {open ? <ChevronDown size={13} strokeWidth={1.75} className="text-ink-faint shrink-0" /> : <ChevronRight size={13} strokeWidth={1.75} className="text-ink-faint shrink-0" />}
-              <Folder size={14} strokeWidth={1.75} className="text-ink-muted shrink-0" />
-              <span className="truncate">{entry.name}</span>
-            </button>
-            {open && rows(entry, depth + 1)}
-          </Fragment>
-        );
-      }
-      const isFile = entry.kind === 'file';
-      return (
-        <div
-          key={entry.entryId}
-          draggable={isFile}
-          onDragStart={(e) => {
-            if (!workspaceId) return;
-            e.dataTransfer.setData(RESOURCE_DRAG_TYPE, JSON.stringify({ kind: 'file-ref', workspaceId, entryId: entry.entryId, name: entry.name } satisfies DragPayload));
-            e.dataTransfer.effectAllowed = 'copyMove';
-          }}
-          onClick={(e) => { e.stopPropagation(); setFolder(parent); }}
-          onDoubleClick={() => { if (isFile && !relinkNodeId) void addToCanvas(entry); }}
-          style={{ paddingLeft: pad.paddingLeft + 18 }}
-          data-tree-file={entry.name}
-          className={`group pr-1.5 py-1 flex items-center gap-1.5 text-xs hover:bg-wash transition-colors ${isFile ? 'text-ink cursor-grab' : 'text-ink-faint'}`}
-        >
-          <FileIcon size={13} strokeWidth={1.75} className="text-ink-faint shrink-0" />
-          <span className="truncate flex-1 min-w-0" title={entry.name}>{entry.name}</span>
-          {isFile && relinkNodeId && (
-            <button onClick={() => void relink(entry)} data-tree-relink className="shrink-0 text-2xs text-accent bg-accent/10 hover:bg-accent/20 rounded-full px-2 py-0.5 transition-colors">
-              {t('resource.relinkHere')}
-            </button>
-          )}
-          {isFile && !relinkNodeId && (
-            <span className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-              <button onClick={() => void addToCanvas(entry)} title={t('workspace.addToCanvas')} data-tree-add className="w-5 h-5 rounded flex items-center justify-center text-ink-faint hover:text-accent"><Plus size={13} strokeWidth={1.75} /></button>
-              <button onClick={() => void reveal(entry)} title={t('workspace.reveal')} data-tree-reveal className="w-5 h-5 rounded flex items-center justify-center text-ink-faint hover:text-accent"><FolderOpen size={12} strokeWidth={1.75} /></button>
-              {can('trash') && (
-                <button onClick={() => void trash(entry)} title={t('workspace.trash')} data-tree-trash className="w-5 h-5 rounded flex items-center justify-center text-ink-faint hover:text-red-500"><Trash2 size={12} strokeWidth={1.75} /></button>
+              <FileIcon size={13} strokeWidth={1.75} className="text-ink-faint shrink-0" />
+              {nameOf(entry)}
+              {isFile && relinkNodeId && (
+                <button onClick={() => void relink(entry)} data-tree-relink className="shrink-0 text-2xs text-accent bg-accent/10 hover:bg-accent/20 rounded-full px-2 py-0.5 transition-colors">
+                  {t('resource.relinkHere')}
+                </button>
               )}
-            </span>
-          )}
-        </div>
-      );
-    });
+              {isFile && !relinkNodeId && !renaming(entry) && (
+                <span className="shrink-0 hidden group-hover:flex focus-within:flex items-center gap-0.5">
+                  <button onClick={stop(() => void addToCanvas(entry))} title={t('workspace.addToCanvas')} data-tree-add className={act}><Plus size={13} strokeWidth={1.75} /></button>
+                  <button onClick={stop(() => void reveal(entry))} title={t('workspace.reveal')} data-tree-reveal className={act}><FolderOpen size={12} strokeWidth={1.75} /></button>
+                  {changes(entry)}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </>
+    );
   };
 
   const tool = 'w-7 h-7 rounded-lg flex items-center justify-center text-ink-muted hover:bg-wash disabled:opacity-40 disabled:hover:bg-transparent transition-colors';
@@ -274,10 +387,19 @@ export default function WorkspaceExplorer({ placeAt }: Props) {
               title={fmt(t('workspace.newFileIn'), { dir: folder?.name ?? workspace.displayName })} data-tree-new-file>
               <FilePlus size={15} strokeWidth={1.75} />
             </button>
+            <button className={tool} disabled={!can('create')}
+              onClick={() => { setView('tree'); if (folder) setExpanded((prev) => new Set(prev).add(folder.entryId)); setNaming({ mode: 'new-folder', parent: folder }); }}
+              title={fmt(t('workspace.newFolderIn'), { dir: folder?.name ?? workspace.displayName })} data-tree-new-folder>
+              <FolderPlus size={15} strokeWidth={1.75} />
+            </button>
             <button className={tool} disabled={!can('create')} onClick={() => setImporting('other')} title={t('workspace.importCopy')} data-tree-import><ClipboardPaste size={15} strokeWidth={1.75} /></button>
             <button className={tool} onClick={reloadTree} title={t('workspace.refresh')} data-tree-refresh><RefreshCw size={14} strokeWidth={1.75} /></button>
+            <button className={`${tool} ${view === 'recovery' ? 'bg-wash text-accent' : ''}`} onClick={() => setView(view === 'recovery' ? 'tree' : 'recovery')}
+              title={view === 'recovery' ? t('workspace.backToFiles') : t('workspace.recovery')} data-tree-recovery>
+              <ArchiveRestore size={15} strokeWidth={1.75} />
+            </button>
             <button className={tool} onClick={() => setMenu(menu === 'open' ? null : 'open')} title={t('workspace.open')} data-tree-open><FolderOpen size={15} strokeWidth={1.75} /></button>
-            <span className="text-2xs text-ink-faint truncate min-w-0 pl-1.5" data-tree-target>{folder ? folder.name : t('workspace.root')}</span>
+            <span className="text-2xs text-ink-faint truncate min-w-0 pl-1.5" data-tree-target>{view === 'recovery' ? t('workspace.recoveryTitle') : folder ? folder.name : t('workspace.root')}</span>
           </div>
         ) : <div className="pb-1" />}
         {menu === 'open' && <div className="absolute left-2 right-2 top-full mt-1 z-30 bg-card border border-line rounded-xl shadow-lg py-1" data-open-menu>{openers}</div>}
@@ -310,6 +432,10 @@ export default function WorkspaceExplorer({ placeAt }: Props) {
         <div className="py-2" data-workspace-empty>
           <p className="px-3 py-2 text-xs text-ink-muted">{t('workspace.empty')}</p>
           {openers}
+        </div>
+      ) : view === 'recovery' ? (
+        <div className="flex-1 min-h-0 overflow-y-auto" data-tree-recovery-view>
+          <RecoveryList workspaceId={workspace.workspaceId} canRestore={can('create')} />
         </div>
       ) : (
         <div className={`flex-1 min-h-0 overflow-y-auto py-1 ${dropOn === ROOT ? 'bg-accent/5' : ''}`} onClick={() => setFolder(null)} {...dropHandlers(null)} data-tree>

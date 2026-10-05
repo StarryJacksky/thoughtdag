@@ -90,6 +90,11 @@ function createJournal({ rootPath, readOnly = false, now = () => new Date().toIS
       return full;
     }),
 
+    /** Every operation the journal knows, with the entries of its latest attempt and its 'done' entry if it finished. */
+    async all() {
+      return [...(await load()).entries()].map(([opId, op]) => ({ opId, kind: op.kind, entries: op.entries, done: op.done }));
+    },
+
     /** The 'done' entry of an operation that already finished, or null. */
     async completed(opId) {
       return (await load()).get(opId)?.done ?? null;

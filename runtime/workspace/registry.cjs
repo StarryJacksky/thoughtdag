@@ -200,6 +200,38 @@ function createRegistry({ rootPath, workspaceId, rootGrantId, readOnly = false, 
     }),
 
     /**
+     * Change several records in one step, stored once: what a folder that
+     * is moved or trashed does to every file in it. `change(record,
+     * observed)` returns the patch for a record (or `{ patch, observed }`),
+     * or null to leave it. Resolves with the records that changed; if they
+     * cannot be stored, none of them is changed.
+     */
+    updateMany: (change) => serial(async () => {
+      await load();
+      const before = new Map();
+      const changed = [];
+      try {
+        for (const [fileId, entry] of [...state.resources]) {
+          const answer = change(entry.record, entry.observed);
+          if (!answer) continue;
+          const patch = answer.patch ?? answer;
+          const record = { ...entry.record, ...patch, fileId };
+          if (typeof patch.relativePath === 'string') record.locator = { ...entry.record.locator, relativePath: patch.relativePath };
+          const checked = contracts.validateDTO('ResourceRecord', record);
+          if (!checked.ok) throw new RegistryError('invalid-record', 'a changed record does not fit the contract: ' + checked.errors.map((e) => `${e.path} ${e.message}`).join('; '));
+          before.set(fileId, entry);
+          state.resources.set(fileId, { record, observed: answer.patch && answer.observed !== undefined ? answer.observed : entry.observed });
+          changed.push(record);
+        }
+        if (changed.length > 0 && state.access === 'read-write') await save();
+      } catch (e) {
+        for (const [fileId, entry] of before) state.resources.set(fileId, entry);
+        throw e;
+      }
+      return changed;
+    }),
+
+    /**
      * Change a registered file's record: where it is, what its content
      * hashes to, whether it is still there. The fileId never changes. A new
      * `relativePath` moves the locator with it. Resolves with the new record.

@@ -27,7 +27,7 @@ const path = require('node:path');
 const { createHash, randomUUID } = require('node:crypto');
 const { assertAllowedPath, assertPortableName, WorkspaceAccessError } = require('./path-policy.cjs');
 const { mediaTypeOf } = require('./media-types.cjs');
-const { keepPreviousVersion, moveToRecoveryTrash } = require('./recovery.cjs');
+const { keepPreviousVersion, readPreviousVersion, listPreviousVersions, moveToRecoveryTrash, listRecoveryTrash, clearRecoveryReceipt } = require('./recovery.cjs');
 
 /** Text above this size is not opened for editing. */
 const MAX_EDITABLE_BYTES = 8 * 1024 * 1024;
@@ -95,6 +95,33 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
     return run;
   };
   const atPath = (relativePath, fn) => locked(`path:${relativePath.toLowerCase()}`, fn);
+
+  // A folder that is moved or trashed takes every file in it along. While
+  // that happens nothing else changes the workspace: whatever was under way
+  // finishes first, and whatever is asked meanwhile waits for the folder.
+  // `changing` wraps every operation that changes a file; `rearranging`
+  // wraps the ones that move a folder. (The per-key locks above are taken
+  // inside a `changing` operation and never wait on a folder themselves.)
+  const underWayNow = new Set();
+  let folderWork = Promise.resolve();
+  const changing = (fn) => {
+    const gate = folderWork;
+    const run = (async () => { await gate.catch(() => {}); return fn(); })();
+    underWayNow.add(run);
+    const over = () => underWayNow.delete(run);
+    run.then(over, over);
+    return run;
+  };
+  const rearranging = (fn) => {
+    const others = [...underWayNow];
+    const before = folderWork;
+    const run = (async () => { await before.catch(() => {}); await Promise.allSettled(others); return fn(); })();
+    folderWork = run;
+    return run;
+  };
+  const under = (relativePath, folder) => relativePath === folder || relativePath.startsWith(`${folder}/`);
+  const parentOf = (relativePath) => (relativePath.includes('/') ? relativePath.slice(0, relativePath.lastIndexOf('/')) : '');
+  const nameOf = (relativePath) => relativePath.slice(relativePath.lastIndexOf('/') + 1);
 
   // The same request sent again before the first answer is the same request:
   // both callers wait for the one piece of work.
@@ -222,95 +249,46 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
     }
   }
 
-  const api = {
-    /**
-     * Create a file. `request` is a CreateFileRequest with `parentId` already
-     * resolved to `parentRelativePath`. A graph-origin file goes to the
-     * workspace's Graph Files folder whatever the caller named. With
-     * `content` the file starts with it (an import); with `name` it is
-     * called that, and numbered only if the name is taken.
-     */
-    async createFile({ extension, origin, idempotencyKey, parentRelativePath = '' }, { content = null, name = null, importedFrom = null } = {}) {
-      await refuseReadOnly();
-      if (await finished(idempotencyKey, 'create')) return recordOf((await journal.completed(idempotencyKey)).fileId);
-      return once(`create:${idempotencyKey}`, async () => {
-        const done = await finished(idempotencyKey, 'create');
-        if (done) return recordOf(done.fileId);
-        if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$/.test(String(extension))) throw new WorkspaceAccessError('invalid-name', 'that is not a file extension');
-        if (name !== null) assertPortableName(`${name}.${extension}`);
+  /** The registered files that were in a folder are now in the folder it became: same files, new places. */
+  const followFolder = (from, to) => registry.updateMany((record) => {
+    if (isLost(record) || !under(record.relativePath, from) || record.relativePath === from) return null;
+    const relativePath = to + record.relativePath.slice(from.length);
+    return { relativePath, mediaType: mediaTypeOf(relativePath) };
+  });
 
-        let parent = parentRelativePath;
-        if (origin === 'graph') {
-          parent = GRAPH_FILES_DIR;
-          const dir = await assertAllowedPath(grant, 'create', GRAPH_FILES_DIR);
-          if (!dir.exists) await io.mkdir(dir.absolute).catch((e) => { if (e.code !== 'EEXIST') throw e; });
-        }
-        const text = content ?? templateFor(extension, { newId });
-        const bytes = Buffer.from(text, 'utf8');
-        const revision = hashOf(bytes);
-        const recordOrigin = importedFrom ? 'import' : origin;
-        // the intent says what the file will hold, and each name is noted before it is tried:
-        // a crash at any point leaves enough to tell whether a file at that name is this one
-        await journal.append({ opId: idempotencyKey, kind: 'create', phase: 'intent', parent, extension, origin, recordOrigin, revision, ...(importedFrom ? { importedFrom } : {}) });
+  /**
+   * The records of what came back from the recovery area: a file's own
+   * record, or those of the files a folder held when it was trashed. A
+   * record is taken up again only if it is still lost and its file is there.
+   */
+  async function backFromRecovery(item, note) {
+    const wanted = new Map();
+    if (item.kind === 'file' && item.fileId) wanted.set(item.fileId, item.relativePath);
+    for (const f of Array.isArray(note?.files) ? note.files : []) if (typeof f?.fileId === 'string' && typeof f.relativePath === 'string') wanted.set(f.fileId, f.relativePath);
+    const there = new Map();
+    for (const [fileId, relativePath] of wanted) {
+      const stat = await io.stat(path.join(grant.rootPath, ...relativePath.split('/'))).catch(() => null);
+      if (stat?.isFile()) there.set(fileId, { relativePath, stat });
+    }
+    const live = (await readOnly()) ? 'readonly' : 'ready';
+    return registry.updateMany((record) => {
+      const back = there.get(record.fileId);
+      if (!back || !isLost(record)) return null;
+      return { patch: { status: live, relativePath: back.relativePath, mediaType: mediaTypeOf(back.relativePath) }, observed: observedOf(back.stat) };
+    });
+  }
 
-        const candidates = name !== null ? named(name, extension) : numbered(extension.toLowerCase() === 'tdmap' ? 'Mindmap' : 'Untitled', extension);
-        let created;
-        try {
-          created = await createExclusive(parent, candidates, bytes, 0o644, (relativePath) => journal.append({ opId: idempotencyKey, kind: 'create', phase: 'attempt', relativePath }));
-        } catch (e) {
-          await journal.append({ opId: idempotencyKey, kind: 'create', phase: 'failed' });
-          throw e;
-        }
-        // from here the file exists: whatever fails next, it is kept and found again
-        await journal.append({ opId: idempotencyKey, kind: 'create', phase: 'created', relativePath: created.target.relativePath, origin: recordOrigin, revision, ...(importedFrom ? { importedFrom } : {}) });
-        const record = await registry.create({
-          relativePath: created.target.relativePath,
-          mediaType: mediaTypeOf(created.target.relativePath),
-          origin: recordOrigin,
-          observed: observedOf(created.stat),
-          revision,
-          ...(importedFrom ? { importedFrom } : {}),
-        });
-        await journal.append({ opId: idempotencyKey, kind: 'create', phase: 'done', fileId: record.fileId });
-        return record;
-      });
-    },
-
-    /** The file's text and the revision a later save must name. */
-    async readText(fileId) {
-      const record = await liveRecordOf(fileId);
-      const target = await assertAllowedPath(grant, 'read', record.relativePath);
-      const { bytes, stat } = await readChecked(target.absolute, MAX_EDITABLE_BYTES);
-      const decoded = decodeText(bytes);
-      const revision = hashOf(bytes);
-      await noteRead(record, revision, stat);
-      return { text: decoded.text, revision, encoding: decoded.encoding, newline: decoded.newline };
-    },
-
-    /**
-     * The file's bytes and their hash, whatever they are. With `maxBytes`, a
-     * larger file is refused (`too-large`) from its size alone: none of it
-     * is read.
-     */
-    async readBytes(fileId, { maxBytes = Infinity } = {}) {
-      const record = await liveRecordOf(fileId);
-      const target = await assertAllowedPath(grant, 'read', record.relativePath);
-      const { bytes, stat } = await readChecked(target.absolute, maxBytes);
-      const revision = hashOf(bytes);
-      await noteRead(record, revision, stat);
-      return { bytes, revision };
-    },
-
-    /**
-     * Replace the file's text, if it still holds what the caller read
-     * (`baseRevision`). Resolves with a SaveResult; it does not reject for a
-     * conflict, a read-only file or a full disk.
-     */
-    saveText: (fileId, baseRevision, text, opId) => locked(fileId, async () => {
+  /**
+   * Replace a file's content, if it still holds what the caller saw
+   * (`baseRevision`). `nextOf(current)` says what to put there:
+   * `{ bytes }`, or `{ result }` to answer without writing. Resolves with a
+   * SaveResult; it does not reject for a conflict, a read-only file or a
+   * full disk. What the file held is kept in the recovery area first.
+   */
+  const replaceContent = (fileId, baseRevision, opId, nextOf) => changing(() => locked(fileId, async () => {
       const done = await finished(opId, 'save');
       if (done) return { status: 'saved', revision: done.revision, sourceRevision: null };
       if (await readOnly()) return { status: 'readonly', reason: 'this workspace is read-only' };
-      if (typeof text !== 'string') return { status: 'error', reason: 'the content is not text' };
       const record = await recordOf(fileId);
       if (isLost(record)) return { status: 'conflict', currentRevision: null };
 
@@ -334,12 +312,9 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
           }
           return { status: 'conflict', currentRevision };
         }
-        // text in another encoding is never overwritten with a guess at what it said
-        try { decodeText(current.bytes); } catch { return { status: 'error', reason: 'the file is not UTF-8 text; it is not overwritten' }; }
-
-        // the file keeps its encoding mark; only UTF-8 is ever written
-        const hadBom = current.bytes.length >= 3 && current.bytes.subarray(0, 3).equals(UTF8_BOM);
-        const next = hadBom ? Buffer.concat([UTF8_BOM, Buffer.from(text, 'utf8')]) : Buffer.from(text, 'utf8');
+        const wanted = await nextOf(current);
+        if (wanted.result) return wanted.result;
+        const next = wanted.bytes;
         const revision = hashOf(next);
         if (revision === currentRevision) return { status: 'saved', revision, sourceRevision: null };
 
@@ -379,10 +354,121 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
         if (e.code === 'ENOSPC') return { status: 'error', reason: 'the disk is full' };
         return { status: 'error', reason: 'the save did not complete' };
       }
+  }));
+
+  const api = {
+    /**
+     * Create a file. `request` is a CreateFileRequest with `parentId` already
+     * resolved to `parentRelativePath`. A graph-origin file goes to the
+     * workspace's Graph Files folder whatever the caller named. With
+     * `content` the file starts with it (an import); with `name` it is
+     * called that, and numbered only if the name is taken.
+     */
+    async createFile({ extension, origin, idempotencyKey, parentRelativePath = '' }, { content = null, name = null, importedFrom = null } = {}) {
+      await refuseReadOnly();
+      if (await finished(idempotencyKey, 'create')) return recordOf((await journal.completed(idempotencyKey)).fileId);
+      return once(`create:${idempotencyKey}`, () => changing(async () => {
+        const done = await finished(idempotencyKey, 'create');
+        if (done) return recordOf(done.fileId);
+        if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$/.test(String(extension))) throw new WorkspaceAccessError('invalid-name', 'that is not a file extension');
+        if (name !== null) assertPortableName(`${name}.${extension}`);
+
+        let parent = parentRelativePath;
+        if (origin === 'graph') {
+          parent = GRAPH_FILES_DIR;
+          const dir = await assertAllowedPath(grant, 'create', GRAPH_FILES_DIR);
+          if (!dir.exists) await io.mkdir(dir.absolute).catch((e) => { if (e.code !== 'EEXIST') throw e; });
+        }
+        const text = content ?? templateFor(extension, { newId });
+        const bytes = Buffer.from(text, 'utf8');
+        const revision = hashOf(bytes);
+        const recordOrigin = importedFrom ? 'import' : origin;
+        // the intent says what the file will hold, and each name is noted before it is tried:
+        // a crash at any point leaves enough to tell whether a file at that name is this one
+        await journal.append({ opId: idempotencyKey, kind: 'create', phase: 'intent', parent, extension, origin, recordOrigin, revision, ...(importedFrom ? { importedFrom } : {}) });
+
+        const candidates = name !== null ? named(name, extension) : numbered(extension.toLowerCase() === 'tdmap' ? 'Mindmap' : 'Untitled', extension);
+        let created;
+        try {
+          created = await createExclusive(parent, candidates, bytes, 0o644, (relativePath) => journal.append({ opId: idempotencyKey, kind: 'create', phase: 'attempt', relativePath }));
+        } catch (e) {
+          await journal.append({ opId: idempotencyKey, kind: 'create', phase: 'failed' });
+          throw e;
+        }
+        // from here the file exists: whatever fails next, it is kept and found again
+        await journal.append({ opId: idempotencyKey, kind: 'create', phase: 'created', relativePath: created.target.relativePath, origin: recordOrigin, revision, ...(importedFrom ? { importedFrom } : {}) });
+        const record = await registry.create({
+          relativePath: created.target.relativePath,
+          mediaType: mediaTypeOf(created.target.relativePath),
+          origin: recordOrigin,
+          observed: observedOf(created.stat),
+          revision,
+          ...(importedFrom ? { importedFrom } : {}),
+        });
+        await journal.append({ opId: idempotencyKey, kind: 'create', phase: 'done', fileId: record.fileId });
+        return record;
+      }));
+    },
+
+    /** The file's text and the revision a later save must name. */
+    async readText(fileId) {
+      const record = await liveRecordOf(fileId);
+      const target = await assertAllowedPath(grant, 'read', record.relativePath);
+      const { bytes, stat } = await readChecked(target.absolute, MAX_EDITABLE_BYTES);
+      const decoded = decodeText(bytes);
+      const revision = hashOf(bytes);
+      await noteRead(record, revision, stat);
+      return { text: decoded.text, revision, encoding: decoded.encoding, newline: decoded.newline };
+    },
+
+    /**
+     * The file's bytes and their hash, whatever they are. With `maxBytes`, a
+     * larger file is refused (`too-large`) from its size alone: none of it
+     * is read.
+     */
+    async readBytes(fileId, { maxBytes = Infinity } = {}) {
+      const record = await liveRecordOf(fileId);
+      const target = await assertAllowedPath(grant, 'read', record.relativePath);
+      const { bytes, stat } = await readChecked(target.absolute, maxBytes);
+      const revision = hashOf(bytes);
+      await noteRead(record, revision, stat);
+      return { bytes, revision };
+    },
+
+    /**
+     * Replace the file's text, if it still holds what the caller read
+     * (`baseRevision`). Resolves with a SaveResult; it does not reject for a
+     * conflict, a read-only file or a full disk.
+     */
+    saveText: (fileId, baseRevision, text, opId) => {
+      if (typeof text !== 'string') return Promise.resolve({ status: 'error', reason: 'the content is not text' });
+      return replaceContent(fileId, baseRevision, opId, (current) => {
+        // text in another encoding is never overwritten with a guess at what it said
+        try { decodeText(current.bytes); } catch { return { result: { status: 'error', reason: 'the file is not UTF-8 text; it is not overwritten' } }; }
+        // the file keeps its encoding mark; only UTF-8 is ever written
+        const hadBom = current.bytes.length >= 3 && current.bytes.subarray(0, 3).equals(UTF8_BOM);
+        return { bytes: hadBom ? Buffer.concat([UTF8_BOM, Buffer.from(text, 'utf8')]) : Buffer.from(text, 'utf8') };
+      });
+    },
+
+    /** What the file held before each save that replaced it, newest first. */
+    async listVersions(fileId) {
+      await recordOf(fileId);
+      return (await listPreviousVersions(grant.rootPath, fileId, io)).map((version) => ({ fileId, ...version }));
+    },
+
+    /**
+     * Put an earlier version of the file back in place of what it holds
+     * now, if it still holds what the caller saw. It is a save like any
+     * other: what it replaces is kept as a version in turn.
+     */
+    restoreVersion: (fileId, revision, baseRevision, opId) => replaceContent(fileId, baseRevision, opId, async () => {
+      const bytes = await readPreviousVersion(grant.rootPath, fileId, revision, io);
+      return bytes ? { bytes } : { result: { status: 'error', reason: 'that version is not kept in the recovery area' } };
     }),
 
     /** Move or rename a file inside the workspace. It keeps its fileId, and it never replaces another file. */
-    moveFile: (fileId, targetParentRelativePath, newName, opId) => locked(fileId, async () => {
+    moveFile: (fileId, targetParentRelativePath, newName, opId) => changing(() => locked(fileId, async () => {
       await refuseReadOnly();
       const done = await finished(opId, 'move');
       if (done) return recordOf(fileId);
@@ -409,10 +495,10 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
         await journal.append({ opId, kind: 'move', phase: 'done', fileId });
         return moved;
       });
-    }),
+    })),
 
     /** Copy a file inside the workspace. The copy is a new file with a new fileId. */
-    copyFile: (fileId, targetParentRelativePath, newName, opId) => locked(fileId, async () => {
+    copyFile: (fileId, targetParentRelativePath, newName, opId) => changing(() => locked(fileId, async () => {
       await refuseReadOnly();
       const done = await finished(opId, 'copy');
       if (done) return recordOf(done.fileId);
@@ -429,14 +515,14 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
       const copy = await registry.create({ relativePath: destination.relativePath, mediaType: mediaTypeOf(destination.relativePath), origin: 'workspace', observed: observedOf(stat), revision: hashOf(bytes) });
       await journal.append({ opId, kind: 'copy', phase: 'done', fileId: copy.fileId });
       return copy;
-    }),
+    })),
 
     /**
      * Take a file out of the workspace without destroying it: to the system
      * trash when there is one, else to the workspace's recovery area. The
      * record stays, marked missing, so what refers to the file still knows it.
      */
-    trashFile: (fileId, opId) => locked(fileId, async () => {
+    trashFile: (fileId, opId) => changing(() => locked(fileId, async () => {
       await refuseReadOnly();
       const done = await finished(opId, 'trash');
       if (done) return done.receipt;
@@ -449,7 +535,9 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
         if (trash) {
           try { await trash(source.absolute); location = 'system-trash'; } catch { /* no system trash here: keep it in the workspace instead */ }
         }
-        if (location === 'project-recovery') await moveToRecoveryTrash(grant.rootPath, receiptId, source.absolute, io);
+        if (location === 'project-recovery') {
+          await moveToRecoveryTrash(grant.rootPath, receiptId, source.absolute, io, { receiptId, kind: 'file', name: nameOf(source.relativePath), relativePath: source.relativePath, trashedAt: now(), fileId });
+        }
       } catch (e) {
         await journal.append({ opId, kind: 'trash', phase: 'failed' });
         throw e;
@@ -458,16 +546,178 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
       const receipt = { receiptId, fileId, opId, location, restorable: true };
       await journal.append({ opId, kind: 'trash', phase: 'done', fileId, receipt });
       return receipt;
-    }),
+    })),
 
     /** Create a folder. Asking again for a folder that is there is not an error. */
-    async createFolder(parentRelativePath, name) {
+    createFolder: (parentRelativePath, name) => changing(async () => {
       await refuseReadOnly();
       const target = await assertAllowedPath(grant, 'create', join(parentRelativePath, name));
       if (target.exists && target.kind !== 'directory') throw new WorkspaceAccessError('exists', 'a file is already at that name');
-      if (!target.exists) await io.mkdir(target.absolute);
+      if (!target.exists) await io.mkdir(target.absolute).catch((e) => { if (e.code !== 'EEXIST') throw e; });
       return target.relativePath;
+    }),
+
+    /**
+     * Move or rename a folder. Every registered file in it keeps its
+     * identity and is known at its new place. Nothing is replaced: a name
+     * that is taken is refused. Resolves with `{ relativePath, moved }`: where
+     * the folder is now and the records of the files that went with it.
+     */
+    moveFolder: (folderRelativePath, targetParentRelativePath, newName, opId) => rearranging(async () => {
+      await refuseReadOnly();
+      const done = await finished(opId, 'move-folder');
+      if (done) return { relativePath: done.to, moved: [] };
+      const source = await assertAllowedPath(grant, 'move-from', folderRelativePath);
+      if (source.kind !== 'directory') throw new WorkspaceAccessError('not-a-directory', 'that is not a folder');
+      const destination = await assertAllowedPath(grant, 'move-to', join(targetParentRelativePath, newName));
+      if (destination.relativePath === source.relativePath) return { relativePath: source.relativePath, moved: [] };
+      if (under(destination.relativePath, source.relativePath)) throw new WorkspaceAccessError('invalid-move', 'a folder cannot be moved into itself');
+      if (destination.exists) {
+        // the same folder under a name that differs only in case is a rename, not a collision
+        const [a, b] = await Promise.all([io.stat(source.absolute), io.stat(destination.absolute)]);
+        if (!sameFile(a, b)) throw new WorkspaceAccessError('exists', 'something is already at that name');
+      }
+      await journal.append({ opId, kind: 'move-folder', phase: 'intent', from: source.relativePath, to: destination.relativePath });
+      try { await io.rename(source.absolute, destination.absolute); } catch (e) {
+        await journal.append({ opId, kind: 'move-folder', phase: 'failed' });
+        if (e.code === 'EXDEV') throw new WorkspaceAccessError('cross-device', 'the folder cannot be moved to another disk this way');
+        if (e.code === 'ENOTEMPTY' || e.code === 'EEXIST') throw new WorkspaceAccessError('exists', 'something is already at that name');
+        throw e;
+      }
+      const moved = await followFolder(source.relativePath, destination.relativePath);
+      await journal.append({ opId, kind: 'move-folder', phase: 'done', to: destination.relativePath });
+      return { relativePath: destination.relativePath, moved };
+    }),
+
+    /**
+     * Copy a folder and everything in it. The copy is new files: they get
+     * identities of their own when they are first used. It is built beside
+     * its place and put there whole, so a copy that fails leaves nothing
+     * half-made under the name. Resolves with where the copy is.
+     */
+    copyFolder: (folderRelativePath, targetParentRelativePath, newName, opId) => changing(async () => {
+      await refuseReadOnly();
+      const done = await finished(opId, 'copy-folder');
+      if (done) return done.to;
+      const source = await assertAllowedPath(grant, 'list', folderRelativePath);
+      const wanted = await assertAllowedPath(grant, 'create', join(targetParentRelativePath, newName));
+      if (under(wanted.relativePath, source.relativePath)) throw new WorkspaceAccessError('invalid-move', 'a folder cannot be copied into itself');
+      return atPath(wanted.relativePath, async () => {
+        const destination = await assertAllowedPath(grant, 'create', join(targetParentRelativePath, newName));
+        if (destination.exists) throw new WorkspaceAccessError('exists', 'something is already at that name');
+        const temp = path.join(path.dirname(destination.absolute), `.${path.basename(destination.absolute)}.tdag-copy-${newId().slice(0, 8)}`);
+        await journal.append({ opId, kind: 'copy-folder', phase: 'intent', from: source.relativePath, to: destination.relativePath, temp: path.basename(temp) });
+        try {
+          // this application's own temp files are not part of what a person copies
+          await io.cp(source.absolute, temp, { recursive: true, errorOnExist: true, force: false, filter: (from) => !path.basename(from).includes('.tdag-') });
+          if (await io.stat(destination.absolute).then(() => true, () => false)) throw new WorkspaceAccessError('exists', 'something is already at that name');
+          await io.rename(temp, destination.absolute);
+        } catch (e) {
+          await io.rm(temp, { recursive: true, force: true }).catch(() => {});
+          await journal.append({ opId, kind: 'copy-folder', phase: 'failed' });
+          throw e;
+        }
+        await journal.append({ opId, kind: 'copy-folder', phase: 'done', to: destination.relativePath });
+        return destination.relativePath;
+      });
+    }),
+
+    /**
+     * Take a folder and everything in it out of the workspace without
+     * destroying it: to the system trash when there is one, else to the
+     * workspace's recovery area. The records of the files in it stay,
+     * marked missing. Resolves with `{ item, lost }`: what is now in the
+     * recovery area (null when the system trash took it: bringing it back
+     * is then the system's to do) and the records of the files that went.
+     */
+    trashFolder: (folderRelativePath, opId) => rearranging(async () => {
+      await refuseReadOnly();
+      const done = await finished(opId, 'trash-folder');
+      if (done) return { item: done.item ?? null, lost: [] };
+      const source = await assertAllowedPath(grant, 'trash', folderRelativePath);
+      if (source.kind !== 'directory') throw new WorkspaceAccessError('not-a-directory', 'that is not a folder');
+      const inside = (await registry.all()).filter((r) => !isLost(r) && under(r.relativePath, source.relativePath));
+      const receiptId = `trash_${newId()}`;
+      const item = { receiptId, kind: 'folder', name: nameOf(source.relativePath), relativePath: source.relativePath, trashedAt: now() };
+      await journal.append({ opId, kind: 'trash-folder', phase: 'intent', relativePath: source.relativePath, receiptId });
+      let location = 'project-recovery';
+      try {
+        if (trash) {
+          try { await trash(source.absolute); location = 'system-trash'; } catch { /* no system trash here: keep it in the workspace instead */ }
+        }
+        if (location === 'project-recovery') {
+          await moveToRecoveryTrash(grant.rootPath, receiptId, source.absolute, io, { ...item, files: inside.map((r) => ({ fileId: r.fileId, relativePath: r.relativePath })) });
+        }
+      } catch (e) {
+        await journal.append({ opId, kind: 'trash-folder', phase: 'failed' });
+        throw e;
+      }
+      const ids = new Set(inside.map((r) => r.fileId));
+      const lost = await registry.updateMany((record) => (ids.has(record.fileId) ? { status: 'missing' } : null)).catch(() => []);
+      const kept = location === 'project-recovery' ? item : null;
+      await journal.append({ opId, kind: 'trash-folder', phase: 'done', item: kept, location });
+      return { item: kept, lost };
+    }),
+
+    /** What is in the workspace's recovery area: files and folders that were trashed there and can be put back. Newest first. */
+    async listRecovery() {
+      const found = await listRecoveryTrash(grant.rootPath, io);
+      const items = [];
+      let fromJournal = null;
+      for (const entry of found) {
+        let note = entry.note;
+        if (!note) {
+          // trashed before the recovery area kept its own notes: the journal still says what it was
+          fromJournal ??= await journal.all();
+          const intent = fromJournal.flatMap((op) => op.entries).find((e) => e.phase === 'intent' && e.receiptId === entry.receiptId);
+          if (!intent || typeof intent.relativePath !== 'string') continue;
+          note = { receiptId: entry.receiptId, kind: intent.kind === 'trash-folder' ? 'folder' : 'file', name: entry.name, relativePath: intent.relativePath, trashedAt: intent.at, ...(intent.fileId ? { fileId: intent.fileId } : {}) };
+        }
+        items.push({ receiptId: entry.receiptId, kind: note.kind === 'folder' ? 'folder' : 'file', name: String(note.name ?? entry.name), relativePath: String(note.relativePath), trashedAt: String(note.trashedAt), ...(typeof note.fileId === 'string' ? { fileId: note.fileId } : {}) });
+      }
+      return items.sort((a, b) => (a.trashedAt < b.trashedAt ? 1 : a.trashedAt > b.trashedAt ? -1 : 0));
     },
+
+    /**
+     * Put something back from the recovery area where it was. Nothing is
+     * replaced: if its place is taken it stays in the recovery area. The
+     * folder it was in is made again if it is gone. The files that come
+     * back are the files they were. Resolves with `{ relativePath, kind,
+     * restored }`.
+     */
+    restoreFromRecovery: (receiptId, opId) => rearranging(async () => {
+      await refuseReadOnly();
+      const done = await finished(opId, 'restore');
+      if (done) return { relativePath: done.to, kind: done.itemKind, restored: [] };
+      const entry = (await listRecoveryTrash(grant.rootPath, io)).find((e) => e.receiptId === receiptId);
+      const item = entry && (await api.listRecovery()).find((i) => i.receiptId === receiptId);
+      if (!entry || !item) throw new WorkspaceAccessError('not-found', 'that is not in the recovery area');
+
+      // the folder it was in may be gone: it is made again, step by step, each step checked
+      const steps = parentOf(item.relativePath).split('/').filter(Boolean);
+      for (let depth = 1; depth <= steps.length; depth++) {
+        const dir = await assertAllowedPath(grant, 'create', steps.slice(0, depth).join('/'));
+        if (dir.exists && dir.kind !== 'directory') throw new WorkspaceAccessError('not-a-directory', 'the place it was in is not a folder any more');
+        if (!dir.exists) await io.mkdir(dir.absolute).catch((e) => { if (e.code !== 'EEXIST') throw e; });
+      }
+      return atPath(item.relativePath, async () => {
+        const target = await assertAllowedPath(grant, 'move-to', item.relativePath);
+        if (target.exists) throw new WorkspaceAccessError('exists', 'something has taken its place; it stays in the recovery area');
+        await journal.append({ opId, kind: 'restore', phase: 'intent', receiptId, to: target.relativePath, itemKind: item.kind });
+        try {
+          if (item.kind === 'file') await putAtNewName(entry.content, target.absolute, false);
+          else await io.rename(entry.content, target.absolute);
+        } catch (e) {
+          await journal.append({ opId, kind: 'restore', phase: 'failed' });
+          if (e.code === 'ENOTEMPTY' || e.code === 'EEXIST') throw new WorkspaceAccessError('exists', 'something has taken its place; it stays in the recovery area');
+          throw e;
+        }
+        const restored = await backFromRecovery(item, entry.note);
+        await clearRecoveryReceipt(grant.rootPath, receiptId, io);
+        await journal.append({ opId, kind: 'restore', phase: 'done', to: target.relativePath, itemKind: item.kind });
+        return { relativePath: target.relativePath, kind: item.kind, restored };
+      });
+    }),
 
     /**
      * Settle the operations a crash cut short. Nothing is deleted except this
@@ -531,6 +781,41 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
               await registry.update(intent.fileId, { status: 'missing' });
               // where it went was not recorded before the crash; it is not claimed to be restorable
               await journal.append({ opId: op.opId, kind: 'trash', phase: 'done', fileId: intent.fileId, receipt: { receiptId: intent.receiptId, fileId: intent.fileId, opId: op.opId, location: 'project-recovery', restorable: false } });
+              outcome = 'completed';
+            }
+          } else if (op.kind === 'move-folder' && intent) {
+            const [from, to] = await Promise.all([intent.from, intent.to].map((p) => io.stat(path.join(grant.rootPath, ...p.split('/'))).then((s) => s, () => null)));
+            // the folder is under its new name and no longer under its old one: the files in it are known there
+            if (!from && to?.isDirectory()) {
+              await followFolder(intent.from, intent.to);
+              await journal.append({ opId: op.opId, kind: 'move-folder', phase: 'done', to: intent.to });
+              outcome = 'completed';
+            }
+          } else if (op.kind === 'copy-folder' && intent) {
+            // the copy is put under its name in one step: either it is there whole, or only this module's temp folder is
+            const dir = path.dirname(path.join(grant.rootPath, ...intent.to.split('/')));
+            const tempThere = await io.stat(path.join(dir, intent.temp)).then(() => true, () => false);
+            if (tempThere) await io.rm(path.join(dir, intent.temp), { recursive: true, force: true });
+            else if (await io.stat(path.join(grant.rootPath, ...intent.to.split('/'))).then((s) => s.isDirectory(), () => false)) {
+              await journal.append({ opId: op.opId, kind: 'copy-folder', phase: 'done', to: intent.to });
+              outcome = 'completed';
+            }
+          } else if (op.kind === 'trash-folder' && intent) {
+            const there = await io.stat(path.join(grant.rootPath, ...intent.relativePath.split('/'))).then(() => true, () => false);
+            if (!there) {
+              // the folder is gone from its place: the files that were in it are lost until it is put back
+              await registry.updateMany((record) => (!isLost(record) && under(record.relativePath, intent.relativePath) ? { status: 'missing' } : null));
+              const kept = (await api.listRecovery()).find((i) => i.receiptId === intent.receiptId) ?? null;
+              await journal.append({ opId: op.opId, kind: 'trash-folder', phase: 'done', item: kept, location: kept ? 'project-recovery' : 'system-trash' });
+              outcome = 'completed';
+            }
+          } else if (op.kind === 'restore' && intent) {
+            const back = await io.stat(path.join(grant.rootPath, ...intent.to.split('/'))).then(() => true, () => false);
+            const stillKept = (await listRecoveryTrash(grant.rootPath, io)).some((e) => e.receiptId === intent.receiptId);
+            if (back && !stillKept) {
+              // it is back in its place and no longer in the recovery area: its files are found by looking (see reconcile.cjs)
+              await clearRecoveryReceipt(grant.rootPath, intent.receiptId, io);
+              await journal.append({ opId: op.opId, kind: 'restore', phase: 'done', to: intent.to, itemKind: intent.itemKind });
               outcome = 'completed';
             }
           }

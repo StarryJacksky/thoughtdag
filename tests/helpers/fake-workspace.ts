@@ -4,7 +4,7 @@
 // door be tested without a disk or a shell. It checks nothing about paths:
 // the real policy is tested where it lives (tests/host).
 
-import type { CreateFileRequest, FileEntry, ResourceRecord, SourceCapabilities, WorkspaceEvent, WorkspaceRecord } from '../../src/lib/workspace/contracts';
+import type { CreateFileRequest, FileEntry, FileVersion, RecoveryItem, ResourceRecord, SourceCapabilities, WorkspaceEvent, WorkspaceRecord } from '../../src/lib/workspace/contracts';
 
 interface FakeFile { fileId: string; workspaceId: string; relativePath: string; content: string; status: ResourceRecord['status']; origin: ResourceRecord['origin']; importedFrom?: ResourceRecord['importedFrom']; /** set for a file that is not text: what a read gives instead of `content` */ bytes?: Uint8Array }
 
@@ -62,6 +62,10 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
   const done = new Map<string, unknown>();
   // the canvases' own folders: one per canvas, made the first time it is asked for
   const own = new Map<string, WorkspaceRecord>();
+  // the recovery area: what was trashed (with the files that went), and what each file held before a save
+  const recovery = new Map<string, { item: RecoveryItem; fileIds: string[] }>();
+  const versions = new Map<string, string[]>();
+  const under = (relativePath: string, folder: string) => relativePath.startsWith(folder + '/');
   let serial = 0;
 
   const byPath = (workspace_: string, relativePath: string) => [...files.values()].find((f) => f.workspaceId === workspace_ && f.relativePath === relativePath);
@@ -166,6 +170,7 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
     saveText: door('saveText', 3, (fileId: string, baseRevision: string, text: string, opId: string) => {
       const f = files.get(fileId)!;
       if (fakeRevision(f.content) !== baseRevision) return { status: 'conflict' as const, currentRevision: fakeRevision(f.content) };
+      versions.set(fileId, [f.content, ...(versions.get(fileId) ?? [])]);
       f.content = text;
       emit(event(fileId, 'content', opId));
       return { status: 'saved' as const, revision: fakeRevision(text), sourceRevision: null };
@@ -183,9 +188,55 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
       return record(add(f.workspaceId, pathOf(targetParentId) ? `${pathOf(targetParentId)}/${newName}` : newName, f.content, 'workspace'));
     }),
     trashFile: door('trashFile', 1, (fileId: string, opId: string) => {
+      const trashed = files.get(fileId)!;
+      recovery.set(`trash_${fileId}`, { item: { receiptId: `trash_${fileId}`, kind: 'file', name: trashed.relativePath.split('/').pop()!, relativePath: trashed.relativePath, trashedAt: '2026-10-05T00:00:00Z', fileId }, fileIds: [fileId] });
       files.get(fileId)!.status = 'missing';
       emit(event(fileId, 'missing', opId));
       return { receiptId: `trash_${fileId}`, fileId, opId, location: 'project-recovery' as const, restorable: true };
+    }),
+    moveFolder: door('moveFolder', 4, (workspace_: string, entryId: string, targetParentId: string | undefined, newName: string, opId: string) => {
+      const from = pathOf(entryId);
+      const to = pathOf(targetParentId) ? `${pathOf(targetParentId)}/${newName}` : newName;
+      if ([...files.values()].some((f) => f.workspaceId === workspace_ && (f.relativePath === to || under(f.relativePath, to)))) throw new Error('exists: something is already at that name');
+      for (const f of files.values()) {
+        if (f.workspaceId !== workspace_ || !under(f.relativePath, from) || f.status === 'missing') continue;
+        f.relativePath = to + f.relativePath.slice(from.length);
+        emit(event(f.fileId, 'moved', opId));
+      }
+      return entryIdOf(to);
+    }),
+    copyFolder: door('copyFolder', 4, (workspace_: string, entryId: string, targetParentId: string | undefined, newName: string) => {
+      const from = pathOf(entryId);
+      const to = pathOf(targetParentId) ? `${pathOf(targetParentId)}/${newName}` : newName;
+      for (const f of [...files.values()]) if (f.workspaceId === workspace_ && under(f.relativePath, from) && f.status !== 'missing') add(workspace_, to + f.relativePath.slice(from.length), f.content, 'workspace');
+      return entryIdOf(to);
+    }),
+    trashFolder: door('trashFolder', 2, (workspace_: string, entryId: string, opId: string) => {
+      const folder = pathOf(entryId);
+      const inside = [...files.values()].filter((f) => f.workspaceId === workspace_ && under(f.relativePath, folder) && f.status !== 'missing');
+      const item: RecoveryItem = { receiptId: `trash_${folder}`, kind: 'folder', name: folder.split('/').pop()!, relativePath: folder, trashedAt: '2026-10-05T00:00:00Z' };
+      recovery.set(item.receiptId, { item, fileIds: inside.map((f) => f.fileId) });
+      for (const f of inside) { f.status = 'missing'; emit(event(f.fileId, 'missing', opId)); }
+      return item;
+    }),
+    listRecovery: door('listRecovery', null, (workspace_: string) => [...recovery.values()].filter((r) => r.fileIds.every((id) => files.get(id)?.workspaceId === workspace_)).map((r) => r.item)),
+    restore: door('restore', 2, (_workspace: string, receiptId: string, opId: string) => {
+      const kept = recovery.get(receiptId);
+      if (!kept) throw new Error('not-found: that is not in the recovery area');
+      recovery.delete(receiptId);
+      for (const id of kept.fileIds) { files.get(id)!.status = 'ready'; emit(event(id, 'restored', opId)); }
+      return entryIdOf(kept.item.relativePath);
+    }),
+    listVersions: door('listVersions', null, (fileId: string): FileVersion[] => (versions.get(fileId) ?? []).map((content) => ({ fileId, revision: fakeRevision(content), keptAt: '2026-10-05T00:00:00Z', size: content.length }))),
+    restoreVersion: door('restoreVersion', 3, (fileId: string, revision: string, baseRevision: string, opId: string) => {
+      const f = files.get(fileId)!;
+      if (fakeRevision(f.content) !== baseRevision) return { status: 'conflict' as const, currentRevision: fakeRevision(f.content) };
+      const content = (versions.get(fileId) ?? []).find((c) => fakeRevision(c) === revision);
+      if (content === undefined) return { status: 'error' as const, reason: 'that version is not kept in the recovery area' };
+      versions.set(fileId, [f.content, ...(versions.get(fileId) ?? [])]);
+      f.content = content;
+      emit(event(fileId, 'content', opId));
+      return { status: 'saved' as const, revision: fakeRevision(content), sourceRevision: null };
     }),
     reconcile: door('reconcile', null, (fileId: string) => record(fileId)),
     rescan: door('rescan', null, () => []),

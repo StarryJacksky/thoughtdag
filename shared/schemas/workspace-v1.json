@@ -329,6 +329,34 @@
       }
     },
 
+    "RecoveryItem": {
+      "description": "Something kept in a workspace's recovery area after it was trashed there: a file or a whole folder, with where it was. `relativePath` is for display and for putting it back; it is never an identity.",
+      "type": "object",
+      "required": ["receiptId", "kind", "name", "relativePath", "trashedAt"],
+      "additionalProperties": false,
+      "properties": {
+        "receiptId": { "$ref": "#/$defs/OpaqueId" },
+        "kind": { "enum": ["file", "folder"] },
+        "name": { "type": "string", "minLength": 1 },
+        "relativePath": { "type": "string", "minLength": 1 },
+        "trashedAt": { "type": "string", "minLength": 1 },
+        "fileId": { "$ref": "#/$defs/OpaqueId" }
+      }
+    },
+
+    "FileVersion": {
+      "description": "Content a file held before a save replaced it, kept whole in the recovery area under the hash of that content.",
+      "type": "object",
+      "required": ["fileId", "revision", "keptAt", "size"],
+      "additionalProperties": false,
+      "properties": {
+        "fileId": { "$ref": "#/$defs/OpaqueId" },
+        "revision": { "$ref": "#/$defs/ContentHash" },
+        "keptAt": { "type": "string", "minLength": 1 },
+        "size": { "type": "integer", "minimum": 0 }
+      }
+    },
+
     "SourceRead": {
       "description": "Content as a source returned it. `derived` content (a page rendered to text) is for reading; it is never written back as the original.",
       "type": "object",

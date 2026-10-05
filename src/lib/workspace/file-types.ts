@@ -63,3 +63,15 @@ export function isEditableText(name: string): boolean {
   const dot = name.lastIndexOf('.');
   return !NOT_TEXT.has(dot > 0 ? name.slice(dot + 1).toLowerCase() : '');
 }
+
+/**
+ * The name for the nth copy of something: `notes copy`, `notes copy 2`, and
+ * for a file the extension stays at the end (`a copy.md`). `word` is the
+ * word for "copy" in the language being shown.
+ */
+export function copyNameOf(name: string, word: string, nth: number, isFolder: boolean): string {
+  const dot = isFolder ? -1 : name.lastIndexOf('.');
+  const stem = dot > 0 ? name.slice(0, dot) : name;
+  const extension = dot > 0 ? name.slice(dot) : '';
+  return `${stem} ${word}${nth > 1 ? ` ${nth}` : ''}${extension}`;
+}

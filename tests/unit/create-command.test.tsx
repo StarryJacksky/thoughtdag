@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useStore } from '../../src/store';
 import { useProjects } from '../../src/store/projects';
 import { addNodeFor, createDocument } from '../../src/lib/workspace/create-command';
-import { QUICK_FILE_TYPES, fileTypeOf, isValidExtension, lastFileType } from '../../src/lib/workspace/file-types';
+import { QUICK_FILE_TYPES, copyNameOf, fileTypeOf, isEditableText, isValidExtension, lastFileType } from '../../src/lib/workspace/file-types';
 import { installFakeWorkspace, type FakeWorkspace } from '../helpers/fake-workspace';
 
 // Creating a file from the two places it can be asked for, against a
@@ -116,5 +116,27 @@ describe('the file types on offer', () => {
   it('accept a plain extension and refuse a dot, a path or nothing', () => {
     for (const ok of ['md', 'toml', 'R', 'h5', 'tar_gz']) expect(isValidExtension(ok), ok).toBe(true);
     for (const bad of ['', '.md', 'a.b', '../sh', 'a/b', 'a b', 'x'.repeat(17)]) expect(isValidExtension(bad), bad).toBe(false);
+  });
+});
+
+describe('the name of a copy', () => {
+  it('keeps a file\'s extension at the end and numbers the copies after the first', () => {
+    expect(copyNameOf('a.md', 'copy', 1, false)).toBe('a copy.md');
+    expect(copyNameOf('a.md', 'copy', 3, false)).toBe('a copy 3.md');
+    expect(copyNameOf('archive.tar.gz', 'copy', 1, false)).toBe('archive.tar copy.gz');
+    expect(copyNameOf('README', 'copy', 1, false)).toBe('README copy');
+    expect(copyNameOf('.gitignore', 'copy', 1, false)).toBe('.gitignore copy');
+  });
+
+  it('treats a folder\'s name as one name, dots and all', () => {
+    expect(copyNameOf('v1.2 notes', 'copy', 1, true)).toBe('v1.2 notes copy');
+    expect(copyNameOf('notes', '副本', 2, true)).toBe('notes 副本 2');
+  });
+});
+
+describe('which files are opened for typing', () => {
+  it('are the ones that are text, whatever their extension, and never a document format that only looks like one', () => {
+    for (const name of ['a.md', 'main.tex', 'run.py', 'data.csv', 'Makefile', 'notes.unknownext', 'map.tdmap']) expect(isEditableText(name), name).toBe(true);
+    for (const name of ['paper.pdf', 'scan.PNG', 'draft.docx', 'sheet.xlsx', 'bundle.zip']) expect(isEditableText(name), name).toBe(false);
   });
 });

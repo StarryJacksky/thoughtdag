@@ -488,6 +488,62 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
       return receipt;
     },
 
+    // ── folders ────────────────────────────────────────────────────────
+
+    /** Move or rename a folder. Every registered file in it keeps its identity; each is announced at its new place. Resolves with the folder's new entry id. */
+    async moveFolder(workspaceId, entryId, targetParentId, newName, opId) {
+      const grant = await grantOf(workspaceId);
+      const { relativePath, moved } = await (await operationsOf(grant)).moveFolder(relativePathOf(entryId), parentPathOf(targetParentId), newName, opId);
+      for (const record of moved) emit(grant.workspaceId, record, 'moved', opId);
+      return entryIdOf(relativePath);
+    },
+
+    /** Copy a folder and everything in it under a new name. Resolves with the copy's entry id. */
+    async copyFolder(workspaceId, entryId, targetParentId, newName, opId) {
+      const grant = await grantOf(workspaceId);
+      return entryIdOf(await (await operationsOf(grant)).copyFolder(relativePathOf(entryId), parentPathOf(targetParentId), newName, opId));
+    },
+
+    /**
+     * Trash a folder and everything in it. Resolves with what is now in the
+     * workspace's recovery area, or null when the system trash took it.
+     */
+    async trashFolder(workspaceId, entryId, opId) {
+      const grant = await grantOf(workspaceId);
+      const { item, lost } = await (await operationsOf(grant)).trashFolder(relativePathOf(entryId), opId);
+      for (const record of lost) emit(grant.workspaceId, record, 'missing', opId);
+      return item;
+    },
+
+    // ── the way back ───────────────────────────────────────────────────
+
+    /** What is in a workspace's recovery area and can be put back. */
+    async listRecovery(workspaceId) {
+      return (await operationsOf(await grantOf(workspaceId))).listRecovery();
+    },
+
+    /** Put something back from the recovery area where it was. Resolves with its entry id. */
+    async restoreFromRecovery(workspaceId, receiptId, opId) {
+      const grant = await grantOf(workspaceId);
+      const { relativePath, restored } = await (await operationsOf(grant)).restoreFromRecovery(String(receiptId), opId);
+      for (const record of restored) emit(grant.workspaceId, record, 'restored', opId);
+      return entryIdOf(relativePath);
+    },
+
+    /** What a file held before each save that replaced it, newest first. */
+    async listVersions(fileId) {
+      return (await operationsOf(await grantOfFile(fileId))).listVersions(fileId);
+    },
+
+    /** Put an earlier version of a file back, if the file still holds what the caller saw. Resolves with a SaveResult. */
+    async restoreVersion(fileId, revision, baseRevision, opId) {
+      const grant = await grantOfFile(fileId);
+      const before = (await (await registryOf(grant)).get(fileId))?.revision ?? null;
+      const result = await (await operationsOf(grant)).restoreVersion(fileId, revision, baseRevision, opId);
+      if (result.status === 'saved' && result.revision !== before) emit(grant.workspaceId, await (await registryOf(grant)).get(fileId), 'content', opId);
+      return result;
+    },
+
     /**
      * Hear about changes to a workspace's registered files: this
      * application's own, and other programs'. The first subscriber starts

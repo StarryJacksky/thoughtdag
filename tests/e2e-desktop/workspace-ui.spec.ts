@@ -267,6 +267,122 @@ test.describe.serial('workspace files on the canvas, in the desktop shell', () =
   });
 });
 
+test.describe.serial('folders in the file panel, in the desktop shell', () => {
+  let folderBase: string;
+  let folderProject: string;
+  let folderApp: ElectronApplication;
+  let p: Page;
+  const disk = (...parts: string[]) => path.join(folderProject, ...parts);
+  const file = (name: string) => p.locator(`[data-tree-file="${name}"]`);
+  const dir = (name: string) => p.locator(`[data-tree-folder="${name}"]`);
+  const fileNode = (name: string) => p.locator('[data-resource-node]', { has: p.locator('[data-resource-name]', { hasText: exact(name) }) });
+  /** Type a name into the tree's text box and keep it. */
+  const typeName = async (name: string) => { await p.locator('[data-tree-name-box]').fill(name); await p.keyboard.press('Enter'); };
+
+  test.beforeAll(async () => {
+    folderBase = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'tdag-desktop-folders-')));
+    folderProject = path.join(folderBase, 'research-project');
+    fs.mkdirSync(path.join(folderProject, 'notes'), { recursive: true });
+    fs.writeFileSync(disk('notes', 'a.md'), 'FIRST_TEXT_B3\n');
+    folderApp = await electron.launch({
+      executablePath: electronBinary,
+      args: [path.join(REPO, 'desktop'), `--user-data-dir=${path.join(folderBase, 'profile')}`],
+      cwd: REPO,
+      env: { ...process.env, TD_SESSION_ROOTS: '{}' },
+    });
+    await folderApp.evaluate(({ dialog, shell }, chosen) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [chosen] });
+      shell.trashItem = async () => { throw new Error('the system trash is off in tests'); };
+    }, folderProject);
+    p = await folderApp.firstWindow();
+    await p.waitForURL(/^http:\/\/127\.0\.0\.1:\d+\//, { timeout: 60_000 });
+    await markLessonSeen(p);
+    await p.reload();
+    await p.locator('[data-workspace-toggle]').click();
+    await p.locator('[data-open-folder]').click();
+    await dir('notes').click();
+    await file('a.md').dblclick();
+    await expect(fileNode('a.md')).toHaveAttribute('data-resource-node', 'ready');
+  });
+
+  test.afterAll(async () => {
+    await folderApp?.close();
+    if (folderBase) fs.rmSync(folderBase, { recursive: true, force: true });
+  });
+
+  test('a folder is made where the person is in the tree, under the name they type', async () => {
+    await p.locator('[data-tree]').click({ position: { x: 200, y: 400 } }); // the top of the folder
+    await p.locator('[data-tree-new-folder]').click();
+    await typeName('archive');
+    await expect(dir('archive')).toBeVisible();
+    expect(fs.statSync(disk('archive')).isDirectory()).toBe(true);
+  });
+
+  test('a file renamed in the tree is the same file under its new name, and the node that references it says so', async () => {
+    await file('a.md').hover();
+    await file('a.md').locator('[data-tree-rename]').click();
+    await typeName('reading.md');
+    await expect(file('reading.md')).toBeVisible();
+    expect(fs.readFileSync(disk('notes', 'reading.md'), 'utf8')).toBe('FIRST_TEXT_B3\n');
+    expect(fs.existsSync(disk('notes', 'a.md'))).toBe(false);
+    await expect(fileNode('reading.md').locator('[data-resource-path]')).toHaveText('notes/reading.md');
+    await expect(fileNode('reading.md')).toHaveAttribute('data-resource-node', 'ready');
+  });
+
+  test('a copy made in the tree is a second file beside the first; the first is untouched', async () => {
+    await file('reading.md').hover();
+    await file('reading.md').locator('[data-tree-duplicate]').click();
+    await expect(p.locator('[data-tree] [data-tree-file]')).toHaveCount(2);
+    const made = fs.readdirSync(disk('notes')).filter((name) => name !== 'reading.md');
+    expect(made.length).toBe(1);
+    expect(made[0].endsWith('.md')).toBe(true);
+    expect(fs.readFileSync(disk('notes', made[0]), 'utf8')).toBe('FIRST_TEXT_B3\n');
+  });
+
+  test('a folder renamed in the tree takes its files with it, and their nodes follow', async () => {
+    await dir('notes').hover();
+    await dir('notes').locator('[data-tree-rename]').click();
+    await typeName('reading-notes');
+    await expect(dir('reading-notes')).toBeVisible();
+    expect(fs.existsSync(disk('notes'))).toBe(false);
+    expect(fs.readFileSync(disk('reading-notes', 'reading.md'), 'utf8')).toBe('FIRST_TEXT_B3\n');
+    await expect(fileNode('reading.md').locator('[data-resource-path]')).toHaveText('reading-notes/reading.md');
+  });
+
+  test('a folder dragged onto another goes inside it, files and all', async () => {
+    const [from, to] = [await dir('reading-notes').elementHandle(), await dir('archive').elementHandle()];
+    await p.evaluate(([src, dst]) => {
+      const dom = globalThis as unknown as PageGlobals;
+      const [start, end] = [src as unknown as PageElement, dst as unknown as PageElement];
+      const data = new dom.DataTransfer();
+      const box = end.getBoundingClientRect();
+      const at = { clientX: box.left + box.width / 2, clientY: box.top + box.height / 2 };
+      for (const [el, type] of [[start, 'dragstart'], [end, 'dragover'], [end, 'drop'], [start, 'dragend']] as const) el.dispatchEvent(new dom.DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: data, ...at }));
+    }, [from, to] as const);
+    await expect(fileNode('reading.md').locator('[data-resource-path]')).toHaveText('archive/reading-notes/reading.md');
+    expect(fs.readFileSync(disk('archive', 'reading-notes', 'reading.md'), 'utf8')).toBe('FIRST_TEXT_B3\n');
+    expect(fs.existsSync(disk('reading-notes'))).toBe(false);
+  });
+
+  test('a trashed folder is kept in the recovery area, its file\'s node says the file is missing, and putting it back brings both back', async () => {
+    await dir('archive').hover();
+    await dir('archive').locator('[data-tree-trash]').click();
+    await p.locator('button.bg-red-500').click(); // the confirmation
+    await expect(fileNode('reading.md')).toHaveAttribute('data-resource-node', 'missing');
+    expect(fs.existsSync(disk('archive'))).toBe(false);
+
+    await p.locator('[data-tree-recovery]').click();
+    const item = p.locator('[data-recovery-item="archive"]');
+    await expect(item).toBeVisible();
+    await item.locator('[data-recovery-restore]').click();
+    await expect(p.locator('[data-recovery-empty]')).toBeVisible();
+    expect(fs.readFileSync(disk('archive', 'reading-notes', 'reading.md'), 'utf8')).toBe('FIRST_TEXT_B3\n');
+    await expect(fileNode('reading.md')).toHaveAttribute('data-resource-node', 'ready');
+    await p.locator('[data-tree-recovery]').click();
+    await expect(dir('archive')).toBeVisible();
+  });
+});
+
 test.describe.serial('a new canvas that starts from a file', () => {
   let freshBase: string;
   let freshApp: ElectronApplication;

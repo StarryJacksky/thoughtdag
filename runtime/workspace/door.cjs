@@ -139,6 +139,38 @@ function createWorkspaceDoor({ service, providers, canvasFolder, showInFileManag
       return extra(provider, 'trash')(scope, String(fileId), String(opId));
     },
 
+    'workspace:move-folder': async (_context, workspaceId, entryId, targetParentId, newName, opId) => {
+      const { scope, provider } = await ofWorkspace(workspaceId, 'move');
+      return extra(provider, 'moveFolder')(scope, String(entryId), optional(targetParentId), String(newName), String(opId));
+    },
+    'workspace:copy-folder': async (_context, workspaceId, entryId, targetParentId, newName, opId) => {
+      const { scope, provider } = await ofWorkspace(workspaceId, 'create');
+      return extra(provider, 'copyFolder')(scope, String(entryId), optional(targetParentId), String(newName), String(opId));
+    },
+    'workspace:trash-folder': async (_context, workspaceId, entryId, opId) => {
+      const { scope, provider } = await ofWorkspace(workspaceId, 'trash');
+      return extra(provider, 'trashFolder')(scope, String(entryId), String(opId));
+    },
+
+    /** What was trashed into the workspace's own recovery area and can be put back. */
+    'workspace:list-recovery': async (_context, workspaceId) => {
+      const { scope, provider } = await ofWorkspace(workspaceId, 'list');
+      return extra(provider, 'listRecovery')(scope);
+    },
+    'workspace:restore': async (_context, workspaceId, receiptId, opId) => {
+      const { scope, provider } = await ofWorkspace(workspaceId, 'create');
+      return extra(provider, 'restore')(scope, String(receiptId), String(opId));
+    },
+    /** What a file held before each save that replaced it. */
+    'workspace:list-versions': async (_context, fileId) => {
+      const { scope, provider } = await ofFile(fileId, 'read');
+      return extra(provider, 'listVersions')(scope, String(fileId));
+    },
+    'workspace:restore-version': async (_context, fileId, revision, baseRevision, opId) => {
+      const { scope, provider } = await ofFile(fileId, 'update');
+      return extra(provider, 'restoreVersion')(scope, String(fileId), String(revision), String(baseRevision), String(opId));
+    },
+
     'workspace:reconcile': async (_context, fileId) => {
       const { scope, provider } = await providers.providerForFile(String(fileId));
       return extra(provider, 'reconcile')(scope, String(fileId));

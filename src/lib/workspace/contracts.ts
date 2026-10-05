@@ -149,6 +149,26 @@ export interface TrashReceipt {
   restorable: boolean;
 }
 
+/** Something kept in a workspace's recovery area after it was trashed there. */
+export interface RecoveryItem {
+  receiptId: string;
+  kind: 'file' | 'folder';
+  name: string;
+  /** where it was: for display and for putting it back, never an identity */
+  relativePath: string;
+  trashedAt: string;
+  /** a file's identity, when it had one */
+  fileId?: string;
+}
+
+/** Content a file held before a save replaced it, kept whole in the recovery area. */
+export interface FileVersion {
+  fileId: string;
+  revision: ContentHash;
+  keptAt: string;
+  size: number;
+}
+
 /** Content as a source returned it. `derived` content is for reading; it is
  *  never written back as the original. */
 export interface SourceRead {
@@ -261,6 +281,8 @@ export interface WorkspaceDTOs {
   TextRevision: TextRevision;
   SaveResult: SaveResult;
   TrashReceipt: TrashReceipt;
+  RecoveryItem: RecoveryItem;
+  FileVersion: FileVersion;
   SourceRead: SourceRead;
   SourceWrite: SourceWrite;
   SourceWriteResult: SourceWriteResult;

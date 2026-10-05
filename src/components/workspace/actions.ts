@@ -73,7 +73,8 @@ export async function createInGraph(extension: string, at: Point): Promise<void>
 export async function dropOnCanvas(payload: DragPayload, at: Point): Promise<void> {
   try {
     const canvasId = useProjects.getState().activeId;
-    if (!canvasId || payload.kind === 'graph-node') return;
+    // a node is already on the canvas, and a folder is not something a node references
+    if (!canvasId || payload.kind === 'graph-node' || payload.kind === 'folder-ref') return;
     if (payload.kind === 'file-ref') await attachEntry(canvasId, payload.workspaceId, payload.entryId, at);
     else await attachResource(canvasId, payload.ref, at, await reconcileFile(payload.ref.fileId));
   } catch (e) {

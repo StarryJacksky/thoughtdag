@@ -100,6 +100,15 @@ function createLocalProvider(service, { pageSize = PAGE_SIZE } = {}) {
       if (request.workspaceId !== scope.workspaceId) throw new WorkspaceAccessError('wrong-source', 'the request is for another workspace');
       return service.importText(request, options);
     },
+    async moveFolder(scope, entryId, targetParentId, newName, opId) { assertLocal(scope); return service.moveFolder(scope.workspaceId, entryId, targetParentId, newName, opId); },
+    async copyFolder(scope, entryId, targetParentId, newName, opId) { assertLocal(scope); return service.copyFolder(scope.workspaceId, entryId, targetParentId, newName, opId); },
+    async trashFolder(scope, entryId, opId) { assertLocal(scope); return service.trashFolder(scope.workspaceId, entryId, opId); },
+    /** What was trashed into this source's own recovery area and can be put back. */
+    async listRecovery(scope) { assertLocal(scope); return service.listRecovery(scope.workspaceId); },
+    async restore(scope, receiptId, opId) { assertLocal(scope); return service.restoreFromRecovery(scope.workspaceId, receiptId, opId); },
+    /** What a file held before each save that replaced it. */
+    async listVersions(scope, fileId) { assertLocal(scope); return service.listVersions(fileId); },
+    async restoreVersion(scope, fileId, revision, baseRevision, opId) { assertLocal(scope); return service.restoreVersion(fileId, revision, baseRevision, opId); },
     /** Give the entry its identity in this source, or return the one it has. */
     async register(scope, entryId) { assertLocal(scope); return service.registerEntry(scope.workspaceId, entryId); },
     async reconcile(scope, fileId) { assertLocal(scope); return service.reconcile(fileId); },

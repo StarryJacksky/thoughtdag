@@ -4,7 +4,7 @@
 // other code sees it, so a shell and a page of different versions fail
 // loudly here instead of quietly somewhere else.
 
-import { validateDTO, type ContentHash, type CreateFileRequest, type FileEntry, type ImportProvenance, type ResourceRecord, type SaveResult, type SourceCapabilities, type SourceRead, type TextRevision, type TrashReceipt, type WorkspaceDTOs, type WorkspaceRecord } from './contracts';
+import { validateDTO, type ContentHash, type CreateFileRequest, type FileEntry, type FileVersion, type ImportProvenance, type RecoveryItem, type ResourceRecord, type SaveResult, type SourceCapabilities, type SourceRead, type TextRevision, type TrashReceipt, type WorkspaceDTOs, type WorkspaceRecord } from './contracts';
 
 /** A workspace call the shell refused or could not complete. `code` is
  *  stable (traversal, escapes-root, read-only, no-grant, …); the message is
@@ -167,6 +167,46 @@ export async function readSource(fileId: string): Promise<SourceRead> {
   if (!bytes) return result;
   const view = result.payload as unknown as ArrayBufferView;
   return { ...result, payload: new Uint8Array(view.buffer as ArrayBuffer, view.byteOffset, view.byteLength) };
+}
+
+/** Move or rename a folder. The files in it keep their identities. Resolves with the folder's new entry id. */
+export function moveFolder(workspaceId: string, entryId: string, targetParentId: string | undefined, newName: string, opId: string): Promise<string> {
+  return call((b) => b.moveFolder(workspaceId, entryId, targetParentId, newName, opId));
+}
+
+/** Copy a folder and everything in it under a new name. Resolves with the copy's entry id. */
+export function copyFolder(workspaceId: string, entryId: string, targetParentId: string | undefined, newName: string, opId: string): Promise<string> {
+  return call((b) => b.copyFolder(workspaceId, entryId, targetParentId, newName, opId));
+}
+
+/** Trash a folder. Resolves with what is now in the workspace's recovery area, or null when the system trash took it. */
+export async function trashFolder(workspaceId: string, entryId: string, opId: string): Promise<RecoveryItem | null> {
+  const item = await call((b) => b.trashFolder(workspaceId, entryId, opId));
+  return item === null ? null : checked('RecoveryItem', item);
+}
+
+/** What was trashed into a workspace's recovery area and can be put back. */
+export async function listRecovery(workspaceId: string): Promise<RecoveryItem[]> {
+  const items = await call((b) => b.listRecovery(workspaceId));
+  if (!Array.isArray(items)) throw new WorkspaceError('contract', 'the shell answered with something that is not a list');
+  return items.map((item) => checked('RecoveryItem', item));
+}
+
+/** Put something back from the recovery area where it was. Resolves with its entry id. */
+export function restoreFromRecovery(workspaceId: string, receiptId: string, opId: string): Promise<string> {
+  return call((b) => b.restore(workspaceId, receiptId, opId));
+}
+
+/** What a file held before each save that replaced it, newest first. */
+export async function listVersions(fileId: string): Promise<FileVersion[]> {
+  const versions = await call((b) => b.listVersions(fileId));
+  if (!Array.isArray(versions)) throw new WorkspaceError('contract', 'the shell answered with something that is not a list');
+  return versions.map((version) => checked('FileVersion', version));
+}
+
+/** Put an earlier version of a file back, if the file still holds `baseRevision`. */
+export async function restoreVersion(fileId: string, revision: ContentHash, baseRevision: ContentHash, opId: string): Promise<SaveResult> {
+  return checked('SaveResult', await call((b) => b.restoreVersion(fileId, revision, baseRevision, opId)));
 }
 
 /** Whether a subscribed workspace's changes are noticed on their own. False means only an explicit rescan finds them. */

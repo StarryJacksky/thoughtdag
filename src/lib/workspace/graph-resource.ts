@@ -37,6 +37,7 @@ export const RESOURCE_DRAG_TYPE = 'application/thoughtdag-resource';
 /** What is being dragged. Ids only: a payload never carries a path. */
 export type DragPayload =
   | { kind: 'file-ref'; workspaceId: string; entryId: string; name: string }
+  | { kind: 'folder-ref'; workspaceId: string; entryId: string; name: string }
   | { kind: 'selection-ref'; workspaceId: string; name: string; ref: ResourceRef }
   | { kind: 'graph-node'; nodeId: string };
 
@@ -50,8 +51,8 @@ export function parseDragPayload(raw: string): DragPayload | null {
   try { o = JSON.parse(raw); } catch { return null; }
   if (!o || typeof o !== 'object' || Array.isArray(o)) return null;
   const p = o as Record<string, unknown>;
-  if (p.kind === 'file-ref' && hasOnly(p, ['kind', 'workspaceId', 'entryId', 'name']) && isId(p.workspaceId) && isId(p.entryId) && typeof p.name === 'string') {
-    return { kind: 'file-ref', workspaceId: p.workspaceId, entryId: p.entryId, name: p.name };
+  if ((p.kind === 'file-ref' || p.kind === 'folder-ref') && hasOnly(p, ['kind', 'workspaceId', 'entryId', 'name']) && isId(p.workspaceId) && isId(p.entryId) && typeof p.name === 'string') {
+    return { kind: p.kind, workspaceId: p.workspaceId, entryId: p.entryId, name: p.name };
   }
   if (p.kind === 'selection-ref' && hasOnly(p, ['kind', 'workspaceId', 'name', 'ref']) && isId(p.workspaceId) && typeof p.name === 'string' && validateDTO('ResourceRef', p.ref).ok) {
     return { kind: 'selection-ref', workspaceId: p.workspaceId, name: p.name, ref: p.ref as ResourceRef };

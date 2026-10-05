@@ -211,6 +211,7 @@ describe('what a drag carries', () => {
   it('is a file, a selection or a graph node, by id', () => {
     expect(parseDragPayload(JSON.stringify({ kind: 'file-ref', workspaceId: 'ws_1', entryId: 'e_notes/a.md', name: 'a.md' }))).toEqual({ kind: 'file-ref', workspaceId: 'ws_1', entryId: 'e_notes/a.md', name: 'a.md' });
     expect(parseDragPayload(JSON.stringify({ kind: 'graph-node', nodeId: 'n1' }))).toEqual({ kind: 'graph-node', nodeId: 'n1' });
+    expect(parseDragPayload(JSON.stringify({ kind: 'folder-ref', workspaceId: 'ws_1', entryId: 'e_notes', name: 'notes' }))).toEqual({ kind: 'folder-ref', workspaceId: 'ws_1', entryId: 'e_notes', name: 'notes' });
     const ref = { fileId: 'file_1', selector: { kind: 'text', quote: 'the trimmed mean', prefix: '', suffix: '' }, version: { kind: 'live' }, payload: 'text' };
     expect(parseDragPayload(JSON.stringify({ kind: 'selection-ref', workspaceId: 'ws_1', name: 'a.md', ref }))?.kind).toBe('selection-ref');
   });
@@ -220,6 +221,7 @@ describe('what a drag carries', () => {
       { kind: 'file-ref', workspaceId: 'ws_1', entryId: 'e_a', name: 'a.md', path: '/etc/passwd' },
       { kind: 'file-ref', workspaceId: 'ws_1', name: 'a.md' },
       { kind: 'file-path', path: '/synthetic/project/a.md' },
+      { kind: 'folder-ref', workspaceId: 'ws_1', entryId: 'e_notes', name: 'notes', path: '/synthetic/project/notes' },
       { kind: 'graph-node', nodeId: '' },
       { kind: 'selection-ref', workspaceId: 'ws_1', name: 'a.md', ref: { fileId: 'file_1', selector: { kind: 'lines', from: 1, to: 2 }, version: { kind: 'live' }, payload: 'text' } },
       ['file-ref'], 'file-ref', null,

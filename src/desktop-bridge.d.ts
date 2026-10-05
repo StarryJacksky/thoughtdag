@@ -246,6 +246,20 @@ interface DesktopWorkspaceBridge {
   rescan(workspaceId: string): Promise<import('./lib/workspace/contracts').ResourceRecord[]>;
   /** the person says a lost file is this entry */
   relink(fileId: string, entryId: string): Promise<import('./lib/workspace/contracts').ResourceRecord>;
+  /** move or rename a folder; resolves with its new entry id. The files in it keep their identities */
+  moveFolder(workspaceId: string, entryId: string, targetParentId: string | undefined, newName: string, opId: string): Promise<string>;
+  /** copy a folder and everything in it; resolves with the copy's entry id */
+  copyFolder(workspaceId: string, entryId: string, targetParentId: string | undefined, newName: string, opId: string): Promise<string>;
+  /** trash a folder; resolves with what is now in the workspace's recovery area, or null when the system trash took it */
+  trashFolder(workspaceId: string, entryId: string, opId: string): Promise<import('./lib/workspace/contracts').RecoveryItem | null>;
+  /** what was trashed into the workspace's recovery area and can be put back */
+  listRecovery(workspaceId: string): Promise<import('./lib/workspace/contracts').RecoveryItem[]>;
+  /** put something back from the recovery area where it was; resolves with its entry id */
+  restore(workspaceId: string, receiptId: string, opId: string): Promise<string>;
+  /** what a file held before each save that replaced it, newest first */
+  listVersions(fileId: string): Promise<import('./lib/workspace/contracts').FileVersion[]>;
+  /** put an earlier version back, if the file still holds `baseRevision` */
+  restoreVersion(fileId: string, revision: string, baseRevision: string, opId: string): Promise<import('./lib/workspace/contracts').SaveResult>;
   /** a file's content as its source gives it (text, or bytes), with the hash of what was read; a file too large to send is refused unread */
   readSource(fileId: string): Promise<import('./lib/workspace/contracts').SourceRead>;
   /** what the source of a workspace supports: what to offer is decided from this, never from the kind of source */

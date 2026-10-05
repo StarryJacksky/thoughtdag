@@ -59,7 +59,7 @@ describe('the TypeScript types and the schema', () => {
   const workspaceKinds: Record<keyof WorkspaceDTOs, true> = {
     ResourceLocator: true, WorkspaceRecord: true, ResourceRecord: true, ImportProvenance: true, WorkspaceEvent: true, ResourceSelector: true, ResourceVersion: true, ResourceRef: true,
     CreateFileRequest: true, SourceCapabilities: true, FileEntry: true, ResourcePage: true, TextRevision: true, SaveResult: true,
-    TrashReceipt: true, SourceRead: true, SourceWrite: true, SourceWriteResult: true, SurfaceState: true, SpaceCapabilityReport: true,
+    TrashReceipt: true, RecoveryItem: true, FileVersion: true, SourceRead: true, SourceWrite: true, SourceWriteResult: true, SurfaceState: true, SpaceCapabilityReport: true,
   };
   const runKinds: Record<keyof RunDTOs, true> = {
     EnvelopeMessage: true, InputSource: true, ResolvedInput: true, ExclusionRecord: true, Budget: true, ExecutionPolicy: true,

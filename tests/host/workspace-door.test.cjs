@@ -100,6 +100,22 @@ test('a local folder answers every call of the door as it did before the door wa
   assert.equal((await ask('trash-file', made.fileId, 'op-trash')).fileId, made.fileId);
   assert.equal((await ask('reconcile', made.fileId)).status, 'missing');
   assert.deepEqual(await ask('rescan', workspace.workspaceId), []);
+
+  // folders, the recovery area and earlier versions, through the same door
+  assert.equal(await ask('move-folder', workspace.workspaceId, folder, null, 'outlines', 'op-move-folder'), entryIdOf('outlines'));
+  assert.equal(await ask('copy-folder', workspace.workspaceId, entryIdOf('outlines'), null, 'outlines-2', 'op-copy-folder'), entryIdOf('outlines-2'));
+  assert.equal(fs.readFileSync(at('outlines-2/a-copy.md'), 'utf8'), 'SECOND_TEXT_D5\n');
+  const kept = await ask('list-recovery', workspace.workspaceId);
+  assert.deepEqual(kept.map((item) => [item.kind, item.name, item.relativePath]), [['file', 'draft.md', 'drafts/draft.md']]);
+  assert.ok(kept.every((item) => validateDTO('RecoveryItem', item).ok));
+  const gone = await ask('trash-folder', workspace.workspaceId, entryIdOf('outlines-2'), 'op-trash-folder');
+  assert.equal(gone.kind, 'folder');
+  assert.equal(await ask('restore', workspace.workspaceId, gone.receiptId, 'op-restore'), entryIdOf('outlines-2'));
+  assert.ok(fs.existsSync(at('outlines-2/a-copy.md')));
+  const versions = await ask('list-versions', a.fileId);
+  assert.deepEqual(versions.map((v) => v.revision), [sha('FIRST_TEXT_B3\n')]);
+  assert.equal((await ask('restore-version', a.fileId, versions[0].revision, sha('SECOND_TEXT_D5\n'), 'op-version')).status, 'saved');
+  assert.equal(fs.readFileSync(at('notes/a.md'), 'utf8'), 'FIRST_TEXT_B3\n');
 });
 
 test('a file too large to send to the page is refused from its size, and none of it is read', async () => {
@@ -154,6 +170,10 @@ test('what a source does not say it supports is refused at the door and never at
   await assert.rejects(ask('import-text', { workspaceId: 'ws_space', extension: 'md', origin: 'workspace', idempotencyKey: 'op-3' }, { text: 'x', provenance: { source: 'other' } }), { code: 'unsupported' });
   await assert.rejects(ask('move-file', 'obj_notes', null, 'renamed', 'op-4'), { code: 'unsupported' });
   await assert.rejects(ask('trash-file', 'obj_notes', 'op-5'), { code: 'unsupported' });
+  await assert.rejects(ask('move-folder', 'ws_space', 'obj_folder', null, 'renamed', 'op-6'), { code: 'unsupported' });
+  await assert.rejects(ask('trash-folder', 'ws_space', 'obj_folder', 'op-7'), { code: 'unsupported' });
+  await assert.rejects(ask('copy-folder', 'ws_space', 'obj_folder', null, 'copy', 'op-8'), { code: 'unsupported' });
+  await assert.rejects(ask('restore', 'ws_space', 'trash_1', 'op-9'), { code: 'unsupported' });
   await assert.rejects(ask('subscribe', 'ws_space'), { code: 'unsupported' });
   assert.deepEqual(standIn.calls.filter(([name]) => ['write', 'create'].includes(name)), []);
   assert.equal(standIn.pages.get('obj_notes').text, 'REMOTE_PAGE_N1\n');

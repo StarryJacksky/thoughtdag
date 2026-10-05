@@ -848,6 +848,8 @@ function setupAgents() {
 // native picker; the page then names it by an opaque id and never sends a
 // path. Every call is accepted from the app's own top frame alone.
 const { createWorkspaceService } = require(path.join(RUNTIME_DIR, 'workspace', 'index.cjs'));
+const { createProviderRegistry } = require(path.join(RUNTIME_DIR, 'workspace', 'providers', 'provider-registry.cjs'));
+const { createWorkspaceDoor, watchingThrough } = require(path.join(RUNTIME_DIR, 'workspace', 'door.cjs'));
 const { checkSender, senderOf } = require(path.join(RUNTIME_DIR, 'workspace', 'ipc-guard.cjs'));
 const { createSubscriptionHub, releaseWithPage } = require(path.join(RUNTIME_DIR, 'workspace', 'subscriptions.cjs'));
 let appOrigin = null; // set by boot() once the bundled server has its port
@@ -860,38 +862,8 @@ function setupWorkspace() {
     },
     trash: (absolute) => shell.trashItem(absolute),
   });
-  const door = (channel, fn) => ipcMain.handle(channel, async (event, ...args) => {
-    const verdict = checkSender(senderOf(event), { origin: appOrigin, webContentsId: win?.webContents.id ?? null });
-    if (!verdict.trusted) throw new Error('refused: ' + verdict.reason);
-    try { return await fn(...args); } catch (e) {
-      // the page gets the reason's code and its words, never a stack or a path
-      throw new Error(e && typeof e.code === 'string' ? `${e.code}: ${e.message}` : 'failed: the workspace call failed');
-    }
-  });
-  door('workspace:choose-root', () => service.chooseRoot());
-  door('workspace:list-workspaces', () => service.listWorkspaces());
-  door('workspace:close', (workspaceId) => service.closeWorkspace(String(workspaceId)));
-  door('workspace:list-children', (workspaceId, parentId) => service.listChildren(String(workspaceId), parentId == null ? undefined : String(parentId)));
-  door('workspace:register-entry', (workspaceId, entryId) => service.registerEntry(String(workspaceId), String(entryId)));
-
-  const optional = (id) => (id == null ? undefined : String(id));
-  door('workspace:create-file', (request) => service.createFile(request));
-  door('workspace:import-text', (request, options) => service.importText(request, options && typeof options === 'object' ? options : {}));
-  door('workspace:create-folder', (workspaceId, parentId, name) => service.createFolder(String(workspaceId), optional(parentId), String(name)));
-  door('workspace:read-text', (fileId) => service.readText(String(fileId)));
-  door('workspace:save-text', (fileId, baseRevision, text, opId) => service.saveText(String(fileId), String(baseRevision), text, String(opId)));
-  door('workspace:move-file', (fileId, targetParentId, newName, opId) => service.moveFile(String(fileId), optional(targetParentId), String(newName), String(opId)));
-  door('workspace:copy-file', (fileId, targetParentId, newName, opId) => service.copyFile(String(fileId), optional(targetParentId), String(newName), String(opId)));
-  door('workspace:trash-file', (fileId, opId) => service.trashFile(String(fileId), String(opId)));
-  door('workspace:reconcile', (fileId) => service.reconcile(String(fileId)));
-  door('workspace:rescan', (workspaceId) => service.rescanWorkspace(String(workspaceId)));
-  door('workspace:relink', (fileId, entryId) => service.relink(String(fileId), String(entryId)));
-  door('workspace:read-bytes', (fileId) => service.readBytes(String(fileId)));
-  // a canvas's own folder, the one its agents already run in: opened without
-  // a picker because the shell, not the page, decides where it is
-  door('workspace:open-default', async (canvasId) => service.openManaged(await workspaceFor(String(canvasId))));
-  // shown in the system file manager, never opened: a file here may be a script
-  door('workspace:reveal', async (fileId) => { shell.showItemInFolder(await service.locate(String(fileId))); return true; });
+  // every workspace is reached through its provider: a local folder today, any other source the same way
+  const providers = createProviderRegistry({ service });
 
   // Changes to registered files, pushed to the page. They go only to the
   // app itself: a window that was sent somewhere else is told nothing.
@@ -904,16 +876,29 @@ function setupWorkspace() {
   // What a page subscribed to lives as long as that page: closing the window
   // (the app stays running on macOS), a reload or a dead renderer releases it,
   // and the folders stop being watched. They stay granted.
-  const hub = createSubscriptionHub({ service, send: push });
+  const hub = createSubscriptionHub({ service: watchingThrough(providers), send: push });
   app.on('web-contents-created', (_event, contents) => releaseWithPage(hub, contents));
-  ipcMain.handle('workspace:subscribe', async (event, workspaceId) => {
-    const verdict = checkSender(senderOf(event), { origin: appOrigin, webContentsId: win?.webContents.id ?? null });
-    if (!verdict.trusted) throw new Error('refused: ' + verdict.reason);
-    try { return await hub.subscribe(String(workspaceId), event.sender.id); } catch (e) {
-      throw new Error(e && typeof e.code === 'string' ? `${e.code}: ${e.message}` : 'failed: the workspace call failed');
-    }
+
+  // What the page may ask is one table (runtime/workspace/door.cjs). In front
+  // of every entry: the call must come from the app's own top frame.
+  const door = createWorkspaceDoor({
+    service,
+    providers,
+    // a canvas's own folder, the one its agents already run in: the shell, not the page, decides where it is
+    canvasFolder: (canvasId) => workspaceFor(canvasId),
+    showInFileManager: (absolute) => shell.showItemInFolder(absolute),
+    hub,
   });
-  door('workspace:unsubscribe', (workspaceId) => hub.unsubscribe(String(workspaceId)));
+  for (const [channel, answer] of Object.entries(door)) {
+    ipcMain.handle(channel, async (event, ...args) => {
+      const verdict = checkSender(senderOf(event), { origin: appOrigin, webContentsId: win?.webContents.id ?? null });
+      if (!verdict.trusted) throw new Error('refused: ' + verdict.reason);
+      try { return await answer({ senderId: event.sender.id }, ...args); } catch (e) {
+        // the page gets the reason's code and its words, never a stack or a path
+        throw new Error(e && typeof e.code === 'string' ? `${e.code}: ${e.message}` : 'failed: the workspace call failed');
+      }
+    });
+  }
   // the watcher can miss a change made while the app was in the background
   app.on('browser-window-focus', () => hub.rescanAll());
 }

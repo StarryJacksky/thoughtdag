@@ -128,7 +128,7 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
     try {
       const stat = await handle.stat();
       if (!stat.isFile()) throw new WorkspaceAccessError('not-a-file', 'only a regular file can be read');
-      if (stat.size > limit) throw new WorkspaceAccessError('too-large', 'the file is too large to open for editing');
+      if (stat.size > limit) throw new WorkspaceAccessError('too-large', 'the file is too large to be read here');
       return { bytes: await handle.readFile(), stat };
     } finally {
       await handle.close();
@@ -287,11 +287,15 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
       return { text: decoded.text, revision, encoding: decoded.encoding, newline: decoded.newline };
     },
 
-    /** The file's bytes and their hash, whatever they are. */
-    async readBytes(fileId) {
+    /**
+     * The file's bytes and their hash, whatever they are. With `maxBytes`, a
+     * larger file is refused (`too-large`) from its size alone: none of it
+     * is read.
+     */
+    async readBytes(fileId, { maxBytes = Infinity } = {}) {
       const record = await liveRecordOf(fileId);
       const target = await assertAllowedPath(grant, 'read', record.relativePath);
-      const { bytes, stat } = await readChecked(target.absolute);
+      const { bytes, stat } = await readChecked(target.absolute, maxBytes);
       const revision = hashOf(bytes);
       await noteRead(record, revision, stat);
       return { bytes, revision };

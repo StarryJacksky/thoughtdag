@@ -375,6 +375,8 @@ export interface ThoughtData extends Record<string, unknown> {
     revision: string | null;
     /** the file came in as a copy of something elsewhere and is not kept in step with it */
     imported?: boolean;
+    /** set when the node holds no copy of the content because the file is too large or is not a kind that can be read: it is a reference only */
+    uncopied?: 'too-large' | 'unreadable';
   };
   excludedAttachmentIds: string[]; // upstream attachment IDs to exclude from context
   includedAttachmentIds: string[]; // override ancestor exclusions (re-include)

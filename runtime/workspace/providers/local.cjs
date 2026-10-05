@@ -52,9 +52,10 @@ function createLocalProvider(service, { pageSize = PAGE_SIZE } = {}) {
       return { entries, nextCursor: next, completeness: 'complete' };
     },
 
-    async read(scope, fileId) {
+    /** `options.maxBytes` refuses a larger file from its size, before any of it is read. */
+    async read(scope, fileId, options = {}) {
       assertLocal(scope);
-      const { bytes, revision } = await service.readBytes(fileId);
+      const { bytes, revision } = await service.readBytes(fileId, { maxBytes: options.maxBytes });
       let text = null;
       if (bytes.length <= MAX_EDITABLE_BYTES) { try { text = decodeText(bytes).text; } catch { /* not text */ } }
       return {
@@ -86,6 +87,30 @@ function createLocalProvider(service, { pageSize = PAGE_SIZE } = {}) {
       if (request.workspaceId !== scope.workspaceId) throw new WorkspaceAccessError('wrong-source', 'the request is for another workspace');
       return service.createFile(request);
     },
+
+    // What a folder can do beyond the five calls every source answers. The
+    // door asks for one of these only after the matching capability said
+    // `supported`; a source that has no such method is refused there.
+    async move(scope, fileId, targetParentId, newName, opId) { assertLocal(scope); return service.moveFile(fileId, targetParentId, newName, opId); },
+    async copy(scope, fileId, targetParentId, newName, opId) { assertLocal(scope); return service.copyFile(fileId, targetParentId, newName, opId); },
+    async trash(scope, fileId, opId) { assertLocal(scope); return service.trashFile(fileId, opId); },
+    async createFolder(scope, parentId, name) { assertLocal(scope); return service.createFolder(scope.workspaceId, parentId, name); },
+    async importText(scope, request, options) {
+      assertLocal(scope);
+      if (request.workspaceId !== scope.workspaceId) throw new WorkspaceAccessError('wrong-source', 'the request is for another workspace');
+      return service.importText(request, options);
+    },
+    /** Give the entry its identity in this source, or return the one it has. */
+    async register(scope, entryId) { assertLocal(scope); return service.registerEntry(scope.workspaceId, entryId); },
+    async reconcile(scope, fileId) { assertLocal(scope); return service.reconcile(fileId); },
+    async rescan(scope) { assertLocal(scope); return service.rescanWorkspace(scope.workspaceId); },
+    async relink(scope, fileId, entryId) { assertLocal(scope); return service.relink(fileId, entryId); },
+    /** Where the file is on this machine, for showing it in the file manager. Never handed to the page. */
+    async locate(scope, fileId) { assertLocal(scope); return service.locate(fileId); },
+    /** Whether changes to this folder are noticed on their own (some volumes cannot be watched; a rescan still works). */
+    async watching(scope) { assertLocal(scope); return service.watching(scope.workspaceId); },
+    /** Hear about changes; resolves with the function that stops it. */
+    async subscribe(scope, listener) { assertLocal(scope); return service.subscribeWorkspace(scope.workspaceId, listener); },
   };
 }
 

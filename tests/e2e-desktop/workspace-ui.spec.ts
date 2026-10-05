@@ -250,6 +250,66 @@ test.describe.serial('workspace files on the canvas, in the desktop shell', () =
     fs.writeFileSync(onDisk('notes', 'b.md'), 'AFTER_RELOAD_P4\n');
     await expect(nodeOf('b.md').locator('[data-resource-preview]')).toContainText('AFTER_RELOAD_P4', { timeout: 20_000 });
   });
+
+  test('a file too large to copy in, and one that is no kind that can be read, are nodes that say so and hold no content', async () => {
+    fs.writeFileSync(onDisk('notes', 'huge.csv'), Buffer.alloc(8 * 1024 * 1024 + 1, 'a'));
+    fs.writeFileSync(onDisk('notes', 'blob.bin'), Buffer.from([0xff, 0xfe, 0x00, 0x80]));
+    await treeFolder('notes').click(); // the tree starts closed after the reload
+    await expect(treeFile('blob.bin')).toBeVisible();
+    for (const [name, why] of [['huge.csv', 'too-large'], ['blob.bin', 'unreadable']] as const) {
+      await treeFile(name).dblclick();
+      const node = nodeOf(name);
+      await expect(node.locator('[data-resource-no-copy]')).toHaveAttribute('data-resource-no-copy', why);
+      await expect(node.locator('[data-resource-edit]')).toHaveCount(0);
+      await node.locator('[data-resource-remove]').click();
+    }
+    expect(fs.statSync(onDisk('notes', 'huge.csv')).size).toBe(8 * 1024 * 1024 + 1);
+  });
+});
+
+test.describe.serial('a new canvas that starts from a file', () => {
+  let freshBase: string;
+  let freshApp: ElectronApplication;
+  let freshPage: Page;
+
+  test.beforeAll(async () => {
+    freshBase = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'tdag-desktop-fresh-')));
+    freshApp = await electron.launch({
+      executablePath: electronBinary,
+      args: [path.join(REPO, 'desktop'), `--user-data-dir=${path.join(freshBase, 'profile')}`],
+      cwd: REPO,
+      env: { ...process.env, TD_SESSION_ROOTS: '{}' },
+    });
+    await freshApp.evaluate(({ dialog }) => { dialog.showOpenDialog = async () => { throw new Error('no picker is expected here'); }; });
+    freshPage = await freshApp.firstWindow();
+    await freshPage.waitForURL(/^http:\/\/127\.0\.0\.1:\d+\//, { timeout: 60_000 });
+    await markLessonSeen(freshPage);
+    await freshPage.reload();
+    await freshPage.locator('[data-empty-canvas-palette]').waitFor();
+  });
+
+  test.afterAll(async () => {
+    await freshApp?.close();
+    if (freshBase) fs.rmSync(freshBase, { recursive: true, force: true });
+  });
+
+  test('with nothing on the canvas and no folder chosen, a file is created in the canvas\'s own folder, its node appears, and what is typed lands on disk', async () => {
+    await expect(freshPage.locator('.react-flow__node')).toHaveCount(0);
+    await freshPage.locator('[data-empty-canvas-palette] [data-palette-new-file]').click();
+    await freshPage.locator('[data-create-file-menu] [data-file-type="md"]').click();
+    const node = freshPage.locator('[data-resource-node]');
+    await expect(node).toHaveCount(1);
+    await expect(node.locator('[data-resource-path]')).toHaveText('Graph Files/Untitled-001.md');
+
+    await node.locator('[data-resource-edit]').click();
+    await node.locator('[data-resource-editor]').fill('FIRST_WORDS_Y3\n');
+    await node.locator('[data-resource-save]').click();
+    const workspaces = path.join(freshBase, 'profile', 'workspaces');
+    const where = () => fs.readdirSync(workspaces, { recursive: true, encoding: 'utf8' }).filter((p) => p.endsWith(path.join('Graph Files', 'Untitled-001.md')));
+    await expect.poll(() => where().length).toBe(1);
+    await expect.poll(() => fs.readFileSync(path.join(workspaces, where()[0]), 'utf8')).toBe('FIRST_WORDS_Y3\n');
+    await expect(freshPage.locator('.react-flow__edge')).toHaveCount(0);
+  });
 });
 
 test.describe.serial('a canvas with no folder of its own yet', () => {

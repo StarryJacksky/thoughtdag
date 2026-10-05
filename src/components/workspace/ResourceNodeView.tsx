@@ -214,11 +214,13 @@ function ResourceCard({ id, data, selected }: Props) {
               </span>
             </div>
           </div>
-        ) : !copy && revision === null ? (
+        ) : !copy && !hint?.uncopied && revision === null ? (
           // the file has not been read yet: its copy is on its way
           <p className="text-2xs text-ink-faint" data-resource-reading>{t('workspace.loading')}</p>
         ) : !copy ? (
-          <p className="text-2xs text-ink-faint leading-snug" data-resource-no-copy>{t('resource.noCopy')}</p>
+          <p className="text-2xs text-ink-faint leading-snug" data-resource-no-copy={hint?.uncopied ?? 'unknown'}>
+            {t(hint?.uncopied === 'too-large' ? 'resource.noCopyLarge' : hint?.uncopied === 'unreadable' ? 'resource.noCopyKind' : 'resource.noCopy')}
+          </p>
         ) : isImage ? (
           <img src={copy.thumbnailUrl} alt={copy.name} className="max-w-full rounded-md" draggable={false} />
         ) : copy.isExtracting ? (

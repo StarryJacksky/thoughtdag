@@ -4,7 +4,7 @@
 // other code sees it, so a shell and a page of different versions fail
 // loudly here instead of quietly somewhere else.
 
-import { validateDTO, type ContentHash, type CreateFileRequest, type FileEntry, type ImportProvenance, type ResourceRecord, type SaveResult, type TextRevision, type TrashReceipt, type WorkspaceDTOs, type WorkspaceRecord } from './contracts';
+import { validateDTO, type ContentHash, type CreateFileRequest, type FileEntry, type ImportProvenance, type ResourceRecord, type SaveResult, type SourceCapabilities, type SourceRead, type TextRevision, type TrashReceipt, type WorkspaceDTOs, type WorkspaceRecord } from './contracts';
 
 /** A workspace call the shell refused or could not complete. `code` is
  *  stable (traversal, escapes-root, read-only, no-grant, …); the message is
@@ -153,12 +153,30 @@ export async function relinkFile(fileId: string, entryId: string): Promise<Resou
 }
 
 /** A file's bytes and their content hash, whatever the file is. */
-export async function readBytes(fileId: string): Promise<{ bytes: Uint8Array; revision: ContentHash }> {
-  const result = await call((b) => b.readBytes(fileId));
+/**
+ * A file's content as its source gives it: text, or bytes for what is not
+ * text, with the hash of what was read. The shell refuses a file too large
+ * to send (`too-large`) without reading it.
+ */
+export async function readSource(fileId: string): Promise<SourceRead> {
+  const result = await call((b) => b.readSource(fileId));
   // the bytes cross a context boundary, so they are recognised by what they are, not by whose constructor made them
-  if (!result || !ArrayBuffer.isView(result.bytes) || !validateDTO('ContentHash', result.revision).ok) throw new WorkspaceError('contract', 'the shell answered with something that is not file content');
-  const view = result.bytes as ArrayBufferView;
-  return { bytes: new Uint8Array(view.buffer as ArrayBuffer, view.byteOffset, view.byteLength), revision: result.revision };
+  const text = result?.representation === 'text' && typeof result.payload === 'string';
+  const bytes = result?.representation === 'bytes' && ArrayBuffer.isView(result.payload);
+  if (!result || !(text || bytes) || !validateDTO('ContentHash', result.contentHash).ok) throw new WorkspaceError('contract', 'the shell answered with something that is not file content');
+  if (!bytes) return result;
+  const view = result.payload as unknown as ArrayBufferView;
+  return { ...result, payload: new Uint8Array(view.buffer as ArrayBuffer, view.byteOffset, view.byteLength) };
+}
+
+/** Whether a subscribed workspace's changes are noticed on their own. False means only an explicit rescan finds them. */
+export async function workspaceWatched(workspaceId: string): Promise<boolean> {
+  return (await call((b) => b.watching(workspaceId))) === true;
+}
+
+/** What the source of a workspace supports. What to offer the person is decided from this, never from the kind of source. */
+export async function workspaceCapabilities(workspaceId: string): Promise<SourceCapabilities> {
+  return checked('SourceCapabilities', await call((b) => b.capabilities(workspaceId)));
 }
 
 /** The canvas's own managed folder, opened as a workspace. No picker: the shell decides where it is. */

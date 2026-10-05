@@ -4,9 +4,9 @@
 // door be tested without a disk or a shell. It checks nothing about paths:
 // the real policy is tested where it lives (tests/host).
 
-import type { CreateFileRequest, FileEntry, ResourceRecord, WorkspaceEvent, WorkspaceRecord } from '../../src/lib/workspace/contracts';
+import type { CreateFileRequest, FileEntry, ResourceRecord, SourceCapabilities, WorkspaceEvent, WorkspaceRecord } from '../../src/lib/workspace/contracts';
 
-interface FakeFile { fileId: string; workspaceId: string; relativePath: string; content: string; status: ResourceRecord['status']; origin: ResourceRecord['origin']; importedFrom?: ResourceRecord['importedFrom'] }
+interface FakeFile { fileId: string; workspaceId: string; relativePath: string; content: string; status: ResourceRecord['status']; origin: ResourceRecord['origin']; importedFrom?: ResourceRecord['importedFrom']; /** set for a file that is not text: what a read gives instead of `content` */ bytes?: Uint8Array }
 
 const encoder = new TextEncoder();
 /** A stable stand-in for a content hash: distinct for distinct content, shaped like the real thing. */
@@ -20,6 +20,8 @@ const pathOf = (entryId: string | undefined | null) => (entryId ? entryId.slice(
 
 export interface FakeWorkspace {
   workspace: WorkspaceRecord;
+  /** what the workspace's source says it supports; change a field to stand in for a source that cannot do something */
+  capabilities: SourceCapabilities;
   /** every call the door received, by method name, oldest first */
   calls: { method: string; args: unknown[] }[];
   files: Map<string, FakeFile>;
@@ -46,6 +48,7 @@ let listener: ((event: WorkspaceEvent) => void) | null = null;
 
 export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
   const workspace: WorkspaceRecord = { workspaceId, displayName: 'research-project', readOnly: false, kind: 'local', rootGrantId: 'grant_1' };
+  const capabilities: SourceCapabilities = { list: 'supported', read: 'supported', create: 'supported', update: 'supported', move: 'supported', trash: 'supported', conditionalWrite: 'supported', pagePatch: 'unsupported', changes: 'supported', uploadCustomType: 'supported' };
   const files = new Map<string, FakeFile>();
   const calls: { method: string; args: unknown[] }[] = [];
   const failures = new Map<string, Error>();
@@ -150,11 +153,16 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
       const lf = (f.content.match(/\n/g) ?? []).length - crlf;
       return { text: f.content, revision: fakeRevision(f.content), encoding: 'utf-8', newline: crlf && lf ? 'mixed' as const : crlf ? 'crlf' as const : 'lf' as const };
     }),
-    readBytes: door('readBytes', null, (fileId: string) => {
+    readSource: door('readSource', null, (fileId: string) => {
       const f = files.get(fileId);
       if (!f || f.status === 'missing' || f.status === 'ambiguous') throw new Error('lost: the file is lost; it has to be found again first');
-      return { bytes: encoder.encode(f.content), revision: fakeRevision(f.content) };
+      const bytes = f.bytes ?? null;
+      if ((bytes?.length ?? encoder.encode(f.content).length) > 8 * 1024 * 1024) throw new Error("Error invoking remote method 'workspace:read-source': Error: too-large: the file is too large to be read here");
+      return bytes
+        ? { fileId, sourceRevision: null, contentHash: fakeRevision(String.fromCharCode(...bytes.subarray(0, 64)) + bytes.length), representation: 'bytes' as const, payload: bytes, fidelity: 'original' as const }
+        : { fileId, sourceRevision: null, contentHash: fakeRevision(f.content), representation: 'text' as const, payload: f.content, fidelity: 'original' as const };
     }),
+    capabilities: door('capabilities', null, () => capabilities),
     saveText: door('saveText', 3, (fileId: string, baseRevision: string, text: string, opId: string) => {
       const f = files.get(fileId)!;
       if (fakeRevision(f.content) !== baseRevision) return { status: 'conflict' as const, currentRevision: fakeRevision(f.content) };
@@ -193,6 +201,7 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
     }),
     reveal: door('reveal', null, () => true),
     subscribe: door('subscribe', null, () => true),
+    watching: door('watching', null, () => true),
     unsubscribe: door('unsubscribe', null, () => true),
     onEvent: (cb) => { listener = cb; },
   };
@@ -201,7 +210,7 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
   window.desktopWorkspace = bridge;
 
   return {
-    workspace, calls, files,
+    workspace, capabilities, calls, files,
     seed: (relativePath, content, workspace_ = workspaceId) => { add(workspace_, relativePath, content, 'workspace'); return entryIdOf(relativePath); },
     entryId: entryIdOf,
     record,

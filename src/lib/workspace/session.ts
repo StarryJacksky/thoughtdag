@@ -7,7 +7,7 @@
 import { create } from 'zustand';
 import { useStore } from '../../store';
 import { setProjectWorkspace, useProjects } from '../../store/projects';
-import { chooseRoot, listWorkspaces, openDefaultWorkspace, workspaceAvailable, WorkspaceError } from './client';
+import { chooseRoot, listWorkspaces, openDefaultWorkspace, workspaceAvailable, WorkspaceError, workspaceWatched } from './client';
 import type { WorkspaceRecord } from './contracts';
 import { subscribeWorkspace } from './events';
 import { canvasVisit } from './canvas-visit';
@@ -26,9 +26,11 @@ interface WorkspacePanelState {
   treeVersion: number;
   /** a file is being created from the graph: where its type menu shows, and where its node will go */
   createAt: { screen: { x: number; y: number }; at: { x: number; y: number } } | null;
+  /** workspaces that are subscribed to but whose changes are not noticed on their own: the person has to refresh */
+  unwatched: string[];
 }
 
-export const useWorkspacePanel = create<WorkspacePanelState>(() => ({ open: false, workspace: null, canvasId: null, relinkNodeId: null, treeVersion: 0, createAt: null }));
+export const useWorkspacePanel = create<WorkspacePanelState>(() => ({ open: false, workspace: null, canvasId: null, relinkNodeId: null, treeVersion: 0, createAt: null, unwatched: [] }));
 
 export const reloadTree = (): void => useWorkspacePanel.setState((s) => ({ treeVersion: s.treeVersion + 1 }));
 
@@ -135,5 +137,8 @@ export async function watchWorkspaces(workspaceIds: string[]): Promise<() => voi
     applyWorkspaceEvent(event);
     if (useWorkspacePanel.getState().workspace?.workspaceId === event.workspaceId) reloadTree();
   }).catch(() => () => {})));
+  // a folder that cannot be watched is said to be so, instead of looking as if nothing ever changes in it
+  void Promise.all(workspaceIds.map(async (id) => ((await workspaceWatched(id).catch(() => true)) ? null : id)))
+    .then((ids) => useWorkspacePanel.setState({ unwatched: ids.filter((id): id is string => id !== null) }));
   return () => { for (const stop of stops) stop(); };
 }

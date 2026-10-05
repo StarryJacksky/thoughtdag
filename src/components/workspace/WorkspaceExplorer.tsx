@@ -2,8 +2,9 @@ import { Fragment, useEffect, useRef, useState, type DragEvent, type ReactNode }
 import { ChevronDown, ChevronRight, ClipboardPaste, File as FileIcon, FilePlus, Folder, FolderOpen, Plus, RefreshCw, Trash2, X } from 'lucide-react';
 import { useStore } from '../../store';
 import { useProjects } from '../../store/projects';
-import { listChildren, moveFile, newOperationId, registerEntry, revealFile, trashFile, workspaceAvailable } from '../../lib/workspace/client';
-import type { FileEntry } from '../../lib/workspace/contracts';
+import { listChildren, moveFile, newOperationId, registerEntry, revealFile, trashFile, workspaceAvailable, workspaceCapabilities } from '../../lib/workspace/client';
+import type { FileEntry, SourceCapabilities } from '../../lib/workspace/contracts';
+import { canDo } from '../../lib/workspace/provider-contracts';
 import { createDocument } from '../../lib/workspace/create-command';
 import { RESOURCE_DRAG_TYPE, applyRecord, attachEntry, copyAcrossWorkspaces, moveReferencedFile, parseDragPayload, relinkNode, type DragPayload } from '../../lib/workspace/graph-resource';
 import { openCanvasFolder, pickWorkspaceFolder, reloadTree, useWorkspacePanel } from '../../lib/workspace/session';
@@ -16,6 +17,10 @@ import ImportCopyDialog from './ImportCopyDialog';
 // named here by the ids the shell gave them; a path is only ever shown.
 // What a drag carries out of here, and what may be dropped in, is a
 // structured payload of ids (lib/workspace/graph-resource).
+//
+// What the panel offers (create, move, trash) is what the workspace's
+// source says it supports. The panel never asks what kind of source it is,
+// and offers nothing until the source has answered.
 
 type Listing = FileEntry[] | 'loading' | { error: string };
 const ROOT = '';
@@ -33,6 +38,7 @@ export default function WorkspaceExplorer({ placeAt }: Props) {
   const workspace = useWorkspacePanel((s) => s.workspace);
   const treeVersion = useWorkspacePanel((s) => s.treeVersion);
   const relinkNodeId = useWorkspacePanel((s) => s.relinkNodeId);
+  const unwatched = useWorkspacePanel((s) => !!s.workspace && s.unwatched.includes(s.workspace.workspaceId));
   const relinkName = useStore((s) => (relinkNodeId ? s.nodes.find((n) => n.id === relinkNodeId)?.data.resourceHint?.name ?? null : null));
   const workspaceId = workspace?.workspaceId ?? null;
 
@@ -44,6 +50,15 @@ export default function WorkspaceExplorer({ placeAt }: Props) {
   const [importing, setImporting] = useState<null | 'chatgpt-space' | 'other'>(null);
   const [spaceNotice, setSpaceNotice] = useState(false);
   const [dropOn, setDropOn] = useState<string | null>(null);
+  const [capabilities, setCapabilities] = useState<SourceCapabilities | null>(null);
+  const can = (operation: keyof SourceCapabilities) => canDo(capabilities, operation);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+    let stale = false;
+    workspaceCapabilities(workspaceId).then((answer) => { if (!stale) setCapabilities(answer); }, () => { /* nothing is offered */ });
+    return () => { stale = true; };
+  }, [workspaceId]);
   const expandedNow = useRef(expanded);
   useEffect(() => { expandedNow.current = expanded; }, [expanded]);
 
@@ -147,7 +162,7 @@ export default function WorkspaceExplorer({ placeAt }: Props) {
     const key = target?.entryId ?? ROOT;
     return {
       onDragOver: (e: DragEvent) => {
-        if (!e.dataTransfer.types.includes(RESOURCE_DRAG_TYPE) || workspace?.readOnly) return;
+        if (!e.dataTransfer.types.includes(RESOURCE_DRAG_TYPE) || !can('move')) return;
         e.preventDefault();
         e.stopPropagation();
         e.dataTransfer.dropEffect = 'move';
@@ -157,7 +172,7 @@ export default function WorkspaceExplorer({ placeAt }: Props) {
       onDrop: (e: DragEvent) => {
         const payload = parseDragPayload(e.dataTransfer.getData(RESOURCE_DRAG_TYPE));
         setDropOn(null);
-        if (!payload || workspace?.readOnly) return;
+        if (!payload || !can('move')) return;
         e.preventDefault();
         e.stopPropagation();
         void dropInto(target, payload);
@@ -224,7 +239,7 @@ export default function WorkspaceExplorer({ placeAt }: Props) {
             <span className="shrink-0 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
               <button onClick={() => void addToCanvas(entry)} title={t('workspace.addToCanvas')} data-tree-add className="w-5 h-5 rounded flex items-center justify-center text-ink-faint hover:text-accent"><Plus size={13} strokeWidth={1.75} /></button>
               <button onClick={() => void reveal(entry)} title={t('workspace.reveal')} data-tree-reveal className="w-5 h-5 rounded flex items-center justify-center text-ink-faint hover:text-accent"><FolderOpen size={12} strokeWidth={1.75} /></button>
-              {!workspace?.readOnly && (
+              {can('trash') && (
                 <button onClick={() => void trash(entry)} title={t('workspace.trash')} data-tree-trash className="w-5 h-5 rounded flex items-center justify-center text-ink-faint hover:text-red-500"><Trash2 size={12} strokeWidth={1.75} /></button>
               )}
             </span>
@@ -249,17 +264,17 @@ export default function WorkspaceExplorer({ placeAt }: Props) {
       <div className="relative border-b border-line/70 shrink-0">
         <div className="flex items-center gap-1.5 pl-3 pr-1.5 pt-1.5">
           <span className="text-xs font-medium text-ink truncate flex-1 min-w-0" title={workspace?.displayName} data-workspace-name>{workspace?.displayName ?? t('workspace.title')}</span>
-          {workspace?.readOnly && <span className="text-2xs text-ink-faint bg-wash px-1.5 py-0.5 rounded-full shrink-0">{t('workspace.readOnly')}</span>}
+          {capabilities && !can('update') && <span className="text-2xs text-ink-faint bg-wash px-1.5 py-0.5 rounded-full shrink-0" data-workspace-readonly>{t('workspace.readOnly')}</span>}
           <button className={tool} onClick={() => useWorkspacePanel.setState({ open: false })} title={t('workspace.close')} data-tree-close><X size={15} strokeWidth={1.75} /></button>
         </div>
         {workspace ? (
           <div className="flex items-center gap-0.5 px-1.5 pb-1">
-            <button className={tool} disabled={workspace.readOnly}
+            <button className={tool} disabled={!can('create')}
               onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setCreateAt({ left: r.left, top: r.bottom + 4 }); setMenu(menu === 'create' ? null : 'create'); }}
               title={fmt(t('workspace.newFileIn'), { dir: folder?.name ?? workspace.displayName })} data-tree-new-file>
               <FilePlus size={15} strokeWidth={1.75} />
             </button>
-            <button className={tool} disabled={workspace.readOnly} onClick={() => setImporting('other')} title={t('workspace.importCopy')} data-tree-import><ClipboardPaste size={15} strokeWidth={1.75} /></button>
+            <button className={tool} disabled={!can('create')} onClick={() => setImporting('other')} title={t('workspace.importCopy')} data-tree-import><ClipboardPaste size={15} strokeWidth={1.75} /></button>
             <button className={tool} onClick={reloadTree} title={t('workspace.refresh')} data-tree-refresh><RefreshCw size={14} strokeWidth={1.75} /></button>
             <button className={tool} onClick={() => setMenu(menu === 'open' ? null : 'open')} title={t('workspace.open')} data-tree-open><FolderOpen size={15} strokeWidth={1.75} /></button>
             <span className="text-2xs text-ink-faint truncate min-w-0 pl-1.5" data-tree-target>{folder ? folder.name : t('workspace.root')}</span>
@@ -267,6 +282,10 @@ export default function WorkspaceExplorer({ placeAt }: Props) {
         ) : <div className="pb-1" />}
         {menu === 'open' && <div className="absolute left-2 right-2 top-full mt-1 z-30 bg-card border border-line rounded-xl shadow-lg py-1" data-open-menu>{openers}</div>}
       </div>
+
+      {workspaceId && unwatched && (
+        <p className="px-3 py-1.5 bg-wash border-b border-line/70 text-2xs text-ink-muted leading-snug shrink-0" data-tree-unwatched>{t('workspace.notWatched')}</p>
+      )}
 
       {relinkNodeId && (
         <div className="px-3 py-2 bg-amber-50 border-b border-amber-200 text-2xs text-amber-800 leading-snug flex items-start gap-2 shrink-0" data-relink-banner>
@@ -279,7 +298,7 @@ export default function WorkspaceExplorer({ placeAt }: Props) {
         <div className="px-3 py-2 bg-wash border-b border-line/70 text-2xs text-ink-muted leading-snug shrink-0" data-space-notice>
           <p>{t('workspace.spaceBlocked')}</p>
           <div className="flex gap-3 mt-1.5">
-            {workspace && !workspace.readOnly && <button onClick={() => { setSpaceNotice(false); setImporting('chatgpt-space'); }} className="text-accent hover:underline" data-space-import>{t('workspace.importCopy')}</button>}
+            {workspace && can('create') && <button onClick={() => { setSpaceNotice(false); setImporting('chatgpt-space'); }} className="text-accent hover:underline" data-space-import>{t('workspace.importCopy')}</button>}
             <button onClick={() => setSpaceNotice(false)} className="hover:underline">{t('common.close')}</button>
           </div>
         </div>

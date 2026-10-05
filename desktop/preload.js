@@ -76,10 +76,12 @@ contextBridge.exposeInMainWorld('desktopWorkspace', {
   reconcile: (fileId) => ipcRenderer.invoke('workspace:reconcile', fileId),
   rescan: (workspaceId) => ipcRenderer.invoke('workspace:rescan', workspaceId),
   relink: (fileId, entryId) => ipcRenderer.invoke('workspace:relink', fileId, entryId),
-  readBytes: (fileId) => ipcRenderer.invoke('workspace:read-bytes', fileId),
+  readSource: (fileId) => ipcRenderer.invoke('workspace:read-source', fileId),
+  capabilities: (workspaceId) => ipcRenderer.invoke('workspace:capabilities', workspaceId),
   openDefault: (canvasId) => ipcRenderer.invoke('workspace:open-default', canvasId),
   reveal: (fileId) => ipcRenderer.invoke('workspace:reveal', fileId),
   subscribe: (workspaceId) => ipcRenderer.invoke('workspace:subscribe', workspaceId),
+  watching: (workspaceId) => ipcRenderer.invoke('workspace:watching', workspaceId),
   unsubscribe: (workspaceId) => ipcRenderer.invoke('workspace:unsubscribe', workspaceId),
   onEvent: (cb) => { ipcRenderer.on('workspace:event', (_e, event) => cb(event)); },
 });

@@ -16,7 +16,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import 'highlight.js/styles/github.css';
-import { ArrowRight, BookOpen, Bot, Brain, CircleHelp, Download, Drama, Eye, FilePlus, FileText, FolderSync, Frame, GitBranch, Hand, Highlighter, History as HistoryIcon, ImageDown, KeyRound, LayoutGrid, ListRestart, Loader2, MessageCircleQuestion, Minimize2, MoreHorizontal, Paperclip, Redo2, Rewind, Scissors, Search, Share2, SquareTerminal, Star, Stethoscope, StickyNote, Trash2, Undo2, Workflow, X } from 'lucide-react';
+import { ArrowRight, BookOpen, Bot, Brain, CircleHelp, Download, Drama, Eye, FileText, FolderSync, Frame, GitBranch, Hand, Highlighter, History as HistoryIcon, ImageDown, KeyRound, LayoutGrid, ListRestart, Loader2, MessageCircleQuestion, Minimize2, MoreHorizontal, Paperclip, Redo2, Rewind, Scissors, Search, Share2, SquareTerminal, Star, Stethoscope, StickyNote, Trash2, Undo2, Workflow, X } from 'lucide-react';
 import './index.css';
 import ThoughtNode from './components/ThoughtNode';
 import ParadigmNode from './components/ParadigmNode';
@@ -37,7 +37,8 @@ import MaterialReader from './components/MaterialReader';
 import ProjectSwitcher from './components/ProjectSwitcher';
 import ResourceNodeView from './components/workspace/ResourceNodeView';
 import WorkspaceLayer from './components/workspace/WorkspaceLayer';
-import { dropOnCanvas, freeSpot } from './components/workspace/actions';
+import NewFileButton from './components/workspace/NewFileButton';
+import { dropOnCanvas } from './components/workspace/actions';
 import { workspaceAvailable } from './lib/workspace/client';
 import { RESOURCE_DRAG_TYPE, parseDragPayload } from './lib/workspace/graph-resource';
 import { useWorkspacePanel } from './lib/workspace/session';
@@ -1563,19 +1564,7 @@ function Canvas() {
           >
             <Paperclip size={17} strokeWidth={1.75} />
           </button>
-          {workspaceAvailable() && (
-            <button
-              onPointerDown={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                paletteDrag(e, (screen) => useWorkspacePanel.setState({ createAt: { screen: screen ?? { x: rect.right + 10, y: rect.top }, at: screen ? flowPosAt(screen) : freeSpot(flowPosAt(null)) } }));
-              }}
-              title={t('palette.newFileTitle')}
-              data-palette-new-file
-              className="w-9 h-9 rounded-lg flex items-center justify-center text-ink-muted hover:bg-wash transition-colors"
-            >
-              <FilePlus size={17} strokeWidth={1.75} />
-            </button>
-          )}
+          <NewFileButton arm={paletteDrag} flowPosAt={flowPosAt} />
           <button
             onPointerDown={(e) => paletteDrag(e, (screen) => spawnFrame(flowPosAt(screen)))}
             title={t('palette.frameTitle')}
@@ -1583,6 +1572,14 @@ function Canvas() {
           >
             <Frame size={17} strokeWidth={1.75} />
           </button>
+        </div>
+      )}
+
+      {/* An empty canvas has no palette, but it can start from a real file:
+          the one button that makes a file and its node, in the palette's place. */}
+      {!hasNodes && !isParadigm && !isViewerMode && workspaceAvailable() && (
+        <div className="absolute top-[38%] -translate-y-1/2 z-10 flex flex-col gap-1.5 bg-card/90 backdrop-blur border border-line rounded-xl p-1.5 shadow-sm transition-[left] duration-200" style={{ left: explorerOpen ? 300 : 16 }} data-empty-canvas-palette>
+          <NewFileButton arm={paletteDrag} flowPosAt={flowPosAt} />
         </div>
       )}
 

@@ -430,8 +430,13 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
       return (await operationsOf(await grantOfFile(fileId))).readText(fileId);
     },
 
-    async readBytes(fileId) {
-      return (await operationsOf(await grantOfFile(fileId))).readBytes(fileId);
+    async readBytes(fileId, options) {
+      return (await operationsOf(await grantOfFile(fileId))).readBytes(fileId, options);
+    },
+
+    /** Whether a subscribed workspace's folder is being watched. A volume that cannot be watched still answers explicit rescans. */
+    watching(workspaceId) {
+      return watchers.get(workspaceId)?.watching() ?? false;
     },
 
     /** Where a registered file is on disk. Host-only: for showing it in the

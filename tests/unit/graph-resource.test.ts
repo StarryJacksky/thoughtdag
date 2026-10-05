@@ -86,15 +86,30 @@ describe('a node that references a workspace file', () => {
     expect(useStore.getState().nodes).toEqual([]);
   });
 
-  it('keeps the reference and takes no copy of a file that is not text', async () => {
-    const entry = shell.seed('data/blob.bin', '�');
+  it('keeps the reference and takes no copy of a file that is no kind it can read, and says so', async () => {
+    const entry = shell.seed('data/blob.bin', '');
     const fileId = [...shell.files.keys()][0];
-    const original = window.desktopWorkspace!.readBytes;
-    window.desktopWorkspace!.readBytes = async () => ({ bytes: new Uint8Array([0xff, 0xfe, 0x00, 0x80]), revision: fakeRevision('binary') });
+    shell.files.get(fileId)!.bytes = new Uint8Array([0xff, 0xfe, 0x00, 0x80]);
     const id = await place(entry);
-    window.desktopWorkspace!.readBytes = original;
     expect(node(id).data.resourceRef!.fileId).toBe(fileId);
     expect(node(id).data.attachments).toEqual([]);
+    expect(node(id).data.resourceHint!.uncopied).toBe('unreadable');
+    expect(node(id).data.resourceHint!.revision).not.toBeNull();
+  });
+
+  it('is not sent a file that is too large: the shell refuses it unread, and the node is a reference that says so', async () => {
+    const entry = shell.seed('data/huge.csv', '');
+    const fileId = [...shell.files.keys()][0];
+    shell.files.get(fileId)!.bytes = new Uint8Array(8 * 1024 * 1024 + 1);
+    const id = await place(entry);
+    expect(node(id).data.attachments).toEqual([]);
+    expect(node(id).data.resourceHint).toMatchObject({ uncopied: 'too-large', status: 'ready' });
+    // when the file is small enough again the node takes its copy and stops saying so
+    shell.files.get(fileId)!.bytes = undefined;
+    shell.files.get(fileId)!.content = 'a,b\n1,2\n';
+    applyWorkspaceEvent({ workspaceId: 'ws_1', fileId, change: 'content', observedRevision: fakeRevision('a,b\n1,2\n'), opId: null, record: shell.record(fileId) });
+    await vi.waitFor(() => expect(copyOf(id)).toEqual(['a,b\n1,2\n']));
+    expect(node(id).data.resourceHint!.uncopied).toBeUndefined();
   });
 });
 
@@ -372,9 +387,9 @@ describe('a read that comes back after the canvas was switched', () => {
     onB[0].data.resourceHint = { ...onB[0].data.resourceHint!, name: 'other.md', relativePath: 'papers/other.md', revision: fakeRevision('FILE_TWO_R2\n') };
     onB[0].data.attachments = [{ ...onB[0].data.attachments[0], name: 'other.md', content: 'FILE_TWO_R2\n' }];
 
-    const slow = shell.holdNext('readBytes');
+    const slow = shell.holdNext('readSource');
     const reading = refreshResourceNode(id);
-    await expect.poll(() => calls('readBytes').length).toBe(2);
+    await expect.poll(() => calls('readSource').length).toBe(2);
     switchTo('canvas-2', onB);
     slow.release();
     await reading;
@@ -387,9 +402,9 @@ describe('a read that comes back after the canvas was switched', () => {
     const id = await place(shell.seed('notes/a.md', 'OLD_READ_R1\n'));
     const fileId = node(id).data.resourceRef!.fileId;
     // a read is under way and will answer with what the file held when it was asked
-    const slow = shell.delayNext('readBytes');
+    const slow = shell.delayNext('readSource');
     const reading = refreshResourceNode(id);
-    await expect.poll(() => calls('readBytes').length).toBe(2);
+    await expect.poll(() => calls('readSource').length).toBe(2);
     // meanwhile: away to another canvas, the file changes, and back, where the canvas already holds the newer copy
     const newer = structuredClone(useStore.getState().nodes);
     newer[0].data.attachments = [{ ...newer[0].data.attachments[0], content: 'NEWER_COPY_R2\n' }];

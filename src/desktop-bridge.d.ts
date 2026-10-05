@@ -246,13 +246,17 @@ interface DesktopWorkspaceBridge {
   rescan(workspaceId: string): Promise<import('./lib/workspace/contracts').ResourceRecord[]>;
   /** the person says a lost file is this entry */
   relink(fileId: string, entryId: string): Promise<import('./lib/workspace/contracts').ResourceRecord>;
-  /** a file's bytes and their content hash, whatever the file is */
-  readBytes(fileId: string): Promise<{ bytes: Uint8Array; revision: string }>;
+  /** a file's content as its source gives it (text, or bytes), with the hash of what was read; a file too large to send is refused unread */
+  readSource(fileId: string): Promise<import('./lib/workspace/contracts').SourceRead>;
+  /** what the source of a workspace supports: what to offer is decided from this, never from the kind of source */
+  capabilities(workspaceId: string): Promise<import('./lib/workspace/contracts').SourceCapabilities>;
   /** the canvas's own managed folder, opened as a workspace without a picker */
   openDefault(canvasId: string): Promise<import('./lib/workspace/contracts').WorkspaceRecord>;
   /** show the file in the system file manager; it is never opened or run */
   reveal(fileId: string): Promise<boolean>;
   subscribe(workspaceId: string): Promise<boolean>;
+  /** whether a subscribed workspace's changes are noticed on their own; false means only an explicit rescan finds them */
+  watching(workspaceId: string): Promise<boolean>;
   unsubscribe(workspaceId: string): Promise<boolean>;
   /** every change to a registered file of a subscribed workspace */
   onEvent(cb: (event: import('./lib/workspace/contracts').WorkspaceEvent) => void): void;

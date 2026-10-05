@@ -25,7 +25,7 @@ import { buildContentNode } from '../content';
 import { processFile } from '../attachments';
 import { moveVaulted } from '../attachment-vault';
 import { canvasVisit } from './canvas-visit';
-import { importText, moveFile, newOperationId, readBytes, readText, reconcileFile, registerEntry, relinkFile, WorkspaceError } from './client';
+import { importText, moveFile, newOperationId, readSource, readText, reconcileFile, registerEntry, relinkFile, WorkspaceError } from './client';
 import { validateDTO, type ResourceRecord, type ResourceRef, type WorkspaceEvent } from './contracts';
 
 type Position = { x: number; y: number };
@@ -87,7 +87,7 @@ const refreshSerial = new Map<string, number>();
 // history. It is what a node is brought back to after an undo or a redo
 // put an older picture of the canvas in the store. It belongs to one visit
 // of one canvas and is dropped when that changes.
-interface LiveFile { hint?: ResourceHint; revision?: string; copy?: Attachment | null }
+interface LiveFile { hint?: ResourceHint; revision?: string | null; copy?: Attachment | null; uncopied?: ResourceHint['uncopied'] }
 const live = new Map<string, LiveFile>();
 let liveVisit = -1;
 function liveOf(fileId: string): LiveFile {
@@ -95,6 +95,13 @@ function liveOf(fileId: string): LiveFile {
   let known = live.get(fileId);
   if (!known) { known = {}; live.set(fileId, known); }
   return known;
+}
+
+/** A hint that no longer says the node is a reference without a copy. */
+function withCopy(hint: ResourceHint): ResourceHint {
+  const next = { ...hint };
+  delete next.uncopied;
+  return next;
 }
 
 /**
@@ -112,14 +119,16 @@ function sameAttachment(held: Attachment | undefined, fresh: Attachment): Attach
  * content of the copy it held. The node keeps its place, its edges, its
  * identity, and the identity of its copy. A file that cannot be read leaves
  * the node as a reference without a copy. The copy and the revision it was
- * taken at change together, in one step, once the new copy is whole.
+ * taken at change together, in one step, once the new copy is whole. A file
+ * the shell will not send (too large) or that is no kind the pipeline reads
+ * leaves the node a reference with no copy, and the node says which.
  *
  * The read belongs to the canvas, the visit, the node and the file it was
  * started for. If any of those is different when it comes back (another
  * canvas was opened, this one was opened anew, the node now references
  * another file, a newer read was started) it writes nothing.
  */
-export async function refreshResourceNode(nodeId: string): Promise<void> {
+export async function refreshResourceNode(nodeId: string, knownRevision: string | null = null): Promise<void> {
   const node = useStore.getState().nodes.find((n) => n.id === nodeId);
   const ref = node?.data.resourceRef;
   const hint = node?.data.resourceHint;
@@ -133,8 +142,23 @@ export async function refreshResourceNode(nodeId: string): Promise<void> {
   const stillWanted = () => canvasVisit() === visit && useProjects.getState().activeId === canvasId
     && refreshSerial.get(nodeId) === serial && nodeNow()?.data.resourceRef?.fileId === fileId;
 
-  const { bytes, revision } = await readBytes(fileId);
+  /** Leave the node as a reference with no copy of the content, and say why. */
+  const referenceOnly = (uncopied: NonNullable<ResourceHint['uncopied']>, revision: string | null) => {
+    useStore.setState((st) => ({
+      nodes: st.nodes.map((n) => (n.id === nodeId && n.data.resourceHint ? { ...n, data: { ...n.data, attachments: [], resourceHint: { ...n.data.resourceHint, revision, uncopied } } } : n)),
+    }));
+    Object.assign(liveOf(fileId), { revision, copy: null, uncopied });
+  };
+
+  let read;
+  try { read = await readSource(fileId); } catch (e) {
+    // too large to be sent to the page: none of it was read, so its revision is whatever was already known
+    if (e instanceof WorkspaceError && e.code === 'too-large' && stillWanted()) { referenceOnly('too-large', knownRevision ?? nodeNow()?.data.resourceHint?.revision ?? null); return; }
+    throw e;
+  }
   if (!stillWanted()) return;
+  const revision = read.contentHash;
+  const bytes = typeof read.payload === 'string' ? new TextEncoder().encode(read.payload) : read.payload as Uint8Array;
   const name = nodeNow()?.data.resourceHint?.name ?? hint.name;
   const type = copyableAs(name, bytes);
   let fresh: Attachment | null = null;
@@ -147,17 +171,19 @@ export async function refreshResourceNode(nodeId: string): Promise<void> {
   }
   if (!stillWanted()) return;
   const made = fresh as Attachment | null;
+  if (!made) { referenceOnly(type === null && bytes.length > MAX_COPY_BYTES ? 'too-large' : 'unreadable', revision); return; }
   const held = nodeNow()?.data.attachments?.[0];
-  const copy = made ? sameAttachment(held, made) : null;
+  const copy = sameAttachment(held, made);
   // a payload kept outside the node is kept under the attachment's id: it follows the id
-  if (made?.contentInVault && copy && copy.id !== made.id) await moveVaulted(made.id, copy.id);
+  if (made.contentInVault && copy.id !== made.id) await moveVaulted(made.id, copy.id);
   if (!stillWanted()) return;
   useStore.setState((st) => ({
-    nodes: st.nodes.map((n) => (n.id === nodeId && n.data.resourceHint
-      ? { ...n, data: { ...n.data, attachments: copy ? [copy] : [], resourceHint: { ...n.data.resourceHint, revision } } }
-      : n)),
+    nodes: st.nodes.map((n) => {
+      if (n.id !== nodeId || !n.data.resourceHint) return n;
+      return { ...n, data: { ...n.data, attachments: [copy], resourceHint: { ...withCopy(n.data.resourceHint), revision } } };
+    }),
   }));
-  Object.assign(liveOf(fileId), { revision, copy });
+  Object.assign(liveOf(fileId), { revision, copy, uncopied: undefined });
 }
 
 /**
@@ -181,7 +207,9 @@ function bringCopiesUpToDate(): void {
       if (known.revision !== undefined && known.revision !== hint.revision) {
         // a payload kept outside the node belongs to the node that read it: this one reads its own
         if (known.copy?.contentInVault) stale.push(n.id);
-        else data = { ...data, attachments: known.copy ? [sameAttachment(n.data.attachments?.[0], known.copy)] : [], resourceHint: { ...data.resourceHint!, revision: known.revision } };
+        else {
+          data = { ...data, attachments: known.copy ? [sameAttachment(n.data.attachments?.[0], known.copy)] : [], resourceHint: { ...withCopy(data.resourceHint!), revision: known.revision, ...(known.uncopied ? { uncopied: known.uncopied } : {}) } };
+        }
       }
       return data === n.data ? n : { ...n, data };
     }),
@@ -255,10 +283,10 @@ export function applyRecord(record: ResourceRecord): void {
   liveOf(record.fileId).hint = hintOf(record, null);
   const affected = nodesOfFile(record.fileId);
   if (affected.length === 0) return;
-  patchNodes(record.fileId, (data) => ({ resourceHint: hintOf(record, data.resourceHint?.revision ?? null) }));
+  patchNodes(record.fileId, (data) => ({ resourceHint: { ...hintOf(record, data.resourceHint?.revision ?? null), ...(data.resourceHint?.uncopied ? { uncopied: data.resourceHint.uncopied } : {}) } }));
   const readable = record.status === 'ready' || record.status === 'readonly';
   for (const node of affected) {
-    if (readable && node.data.resourceHint?.revision !== record.revision) void refreshResourceNode(node.id).catch(() => {});
+    if (readable && node.data.resourceHint?.revision !== record.revision) void refreshResourceNode(node.id, record.revision).catch(() => {});
   }
 }
 

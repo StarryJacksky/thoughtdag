@@ -1484,4 +1484,13 @@ export const zh: Record<keyof typeof en, string> = {
   'surface.restore': '回到原来的位置',
   'surface.close': '关闭这个视图。文件保留。',
   'surface.open': '打开阅读和输入',
+  'surface.mdEdit': '文本',
+  'surface.mdSplit': '文本和排版效果并排',
+  'surface.mdPreview': '排版效果',
+  'surface.derivedText': '这里显示的是从文档里提取出来的文字，供阅读。它不是文件本身，也不能在这里编辑。',
+  'surface.tooLargeToShow': '文件太大，这里显示不了',
+  'surface.tooLargeToEdit': '这个文件超过 8 MB，不在这里打开输入。可以在文件管理器中显示它，再用别的程序打开。',
+  'surface.notText': '这个文件不是可以在这里输入的文本。',
+  'surface.quote': '引用',
+  'surface.quoteTitle': '把选中的内容（或当前页）作为一条引用放到画布上',
 };

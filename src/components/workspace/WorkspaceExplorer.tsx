@@ -6,7 +6,7 @@ import { copyFile, copyFolder, createFolder, listChildren, moveFile, moveFolder,
 import type { FileEntry, SourceCapabilities } from '../../lib/workspace/contracts';
 import { canDo } from '../../lib/workspace/provider-contracts';
 import { createDocument } from '../../lib/workspace/create-command';
-import { copyNameOf, isEditableText } from '../../lib/workspace/file-types';
+import { copyNameOf } from '../../lib/workspace/file-types';
 import { openFileSurface } from '../../lib/documents/surface-store';
 import { RESOURCE_DRAG_TYPE, applyRecord, attachEntry, copyAcrossWorkspaces, moveReferencedFile, parseDragPayload, relinkNode, type DragPayload } from '../../lib/workspace/graph-resource';
 import { openCanvasFolder, pickWorkspaceFolder, reloadTree, useWorkspacePanel } from '../../lib/workspace/session';
@@ -345,8 +345,8 @@ export default function WorkspaceExplorer({ placeAt }: Props) {
               draggable={isFile && !renaming(entry)}
               onDragStart={drag(entry, 'file-ref')}
               onClick={(e) => { e.stopPropagation(); setFolder(parent); }}
-              // text opens to be typed into; what cannot be typed into goes on the canvas, where it can be read
-              onDoubleClick={() => { if (isFile && !relinkNodeId && !renaming(entry)) void (isEditableText(entry.name) ? openFile(entry) : addToCanvas(entry)); }}
+              // a file opens beside the canvas: to be typed into if it is text, to be read if it is not
+              onDoubleClick={() => { if (isFile && !relinkNodeId && !renaming(entry)) void openFile(entry); }}
               style={{ paddingLeft: pad.paddingLeft + 18 }}
               data-tree-file={entry.name}
               className={`group relative pr-1.5 py-1 flex items-center gap-1.5 text-xs hover:bg-wash transition-colors ${isFile ? 'text-ink cursor-grab' : 'text-ink-faint'}`}

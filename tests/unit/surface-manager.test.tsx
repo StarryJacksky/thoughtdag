@@ -1,9 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { EditorView } from '@codemirror/view';
 import SurfaceManager from '../../src/components/surfaces/SurfaceManager';
 import { documents } from '../../src/lib/documents/document-service';
 import { MIN_SURFACE, TITLE_BAR_HEIGHT, closeSurface, fitRect, focusSurface, openFileSurface, openSurface, restoreLayout, restoreSurface, saveLayout, setContainer, setPlacement, shownRect, updateRect, useSurfaces } from '../../src/lib/documents/surface-store';
 import { installFakeWorkspace, type FakeWorkspace } from '../helpers/fake-workspace';
-import { during, keyHeardByWindow, mount, pointer, type Mounted } from '../helpers/render';
+import { during, keyHeardByWindow, mount, pointer, withoutLayout, type Mounted } from '../helpers/render';
 
 // Surfaces: the movable, non-modal frames a document is shown in. What is
 // checked is where a frame may be, what maximizing, minimizing and docking
@@ -15,6 +16,11 @@ const CONTAINER = { width: 1200, height: 800 };
 const surface = (id: string) => useSurfaces.getState().surfaces.find((s) => s.surfaceId === id)!;
 const fileIdOf = (relativePath: string) => [...shell.files.values()].find((f) => f.relativePath === relativePath)!.fileId;
 
+/** The editor a frame shows, and what it holds. */
+const editorOf = (frame: ParentNode) => EditorView.findFromDOM(frame.querySelector<HTMLElement>('.cm-editor')!)!;
+const textIn = (frame: ParentNode) => editorOf(frame).state.doc.toString();
+
+beforeAll(() => withoutLayout());
 beforeEach(() => {
   shell = installFakeWorkspace();
   for (const name of ['a.md', 'b.tex', 'c.py', 'd.txt']) shell.seed(`notes/${name}`, `content of ${name}\n`);
@@ -124,7 +130,7 @@ describe('a surface holds no text', () => {
   it('knows which document it shows and where it sits, and nothing of what the document says', async () => {
     const id = await openFileSurface(fileIdOf('notes/a.md'));
     const state = surface(id);
-    expect(Object.keys(state).sort()).toEqual(['back', 'documentId', 'fileId', 'kind', 'placement', 'rect', 'surfaceId', 'title'].sort());
+    expect(Object.keys(state).sort()).toEqual(['back', 'documentId', 'fileId', 'kind', 'notice', 'placement', 'reading', 'rect', 'surfaceId', 'title'].sort());
     expect(JSON.stringify(useSurfaces.getState())).not.toContain('content of a.md');
     expect(documents.get(state.documentId)!.text).toBe('content of a.md\n');
   });
@@ -168,7 +174,7 @@ describe('surfaces on screen', () => {
   it('show four documents at once, each in its own frame with its own text', async () => {
     await during(async () => { await openAll(); });
     expect(frames().length).toBe(4);
-    expect(frames().map((f) => f.querySelector<HTMLTextAreaElement>('[data-surface-text]')!.value)).toEqual(['content of a.md\n', 'content of b.tex\n', 'content of c.py\n', 'content of d.txt\n']);
+    expect(frames().map(textIn)).toEqual(['content of a.md\n', 'content of b.tex\n', 'content of c.py\n', 'content of d.txt\n']);
   });
 
   it('bring a frame to the front when it is touched, and send typing only to the document that has the focus', async () => {
@@ -178,13 +184,8 @@ describe('surfaces on screen', () => {
       await during(() => pointer(frameOf(id), 'pointerdown', { x: 10, y: 10 }));
       expect(useSurfaces.getState().order.at(-1)).toBe(id);
     }
-    const front = frameOf(ids[1]);
-    const box = front.querySelector<HTMLTextAreaElement>('[data-surface-text]')!;
-    await during(() => {
-      const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
-      setValue.call(box, 'content of b.tex\nTYPED_INTO_B_N3\n');
-      box.dispatchEvent(new Event('input', { bubbles: true }));
-    });
+    const front = editorOf(frameOf(ids[1]));
+    await during(() => front.dispatch({ changes: { from: front.state.doc.length, insert: 'TYPED_INTO_B_N3\n' }, userEvent: 'input.type' }));
     expect(documents.documentOf(fileIdOf('notes/b.tex'))!.text).toBe('content of b.tex\nTYPED_INTO_B_N3\n');
     for (const other of ['a.md', 'c.py', 'd.txt']) expect(documents.documentOf(fileIdOf(`notes/${other}`))!.text).toBe(`content of ${other}\n`);
   });
@@ -192,7 +193,7 @@ describe('surfaces on screen', () => {
   it('keep what is typed in a surface away from the canvas: its delete, undo and letter shortcuts never hear it', async () => {
     let ids: string[] = [];
     await during(async () => { ids = await openAll(); });
-    const box = frameOf(ids[0]).querySelector<HTMLTextAreaElement>('[data-surface-text]')!;
+    const box = editorOf(frameOf(ids[0])).contentDOM;
     for (const key of [{ key: 'Delete' }, { key: 'Backspace' }, { key: 'z', metaKey: true }, { key: 'z', ctrlKey: true }, { key: 'r' }, { key: ' ' }, { key: 'ArrowUp' }, { key: 'Enter' }, { key: 'Escape' }]) {
       expect(keyHeardByWindow(box, key), JSON.stringify(key)).toBe(false);
     }

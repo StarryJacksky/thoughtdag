@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
+import { docxWith, onePixelPng, pdfWithPages } from './helpers/synthetic-files';
 
 // The file panel and file nodes in the real desktop shell, driven the way a
 // person drives them: the panel, the tree, the two ways of creating a file,
@@ -31,6 +32,23 @@ const nodes = () => page.locator('[data-resource-node]');
 /** The surface that shows the file of this name, on a page. */
 const surfaceOn = (on: Page, name: string): Locator => on.locator('[data-surface]', { has: on.locator('[data-surface-title]', { hasText: exact(name) }) });
 const surfaceOf = (name: string): Locator => surfaceOn(page, name);
+/** What the editor in a surface holds, line by line. */
+const textIn = (surface: Locator): Promise<string> => surface.locator('.cm-content').evaluate((el) => {
+  const lines = (el as unknown as { querySelectorAll(selector: string): Iterable<{ textContent: string | null }> }).querySelectorAll('.cm-line');
+  return [...lines].map((line) => line.textContent ?? '').join('\n');
+});
+/** Replace everything in a surface's editor with `text`, typed the way a person types it: text, and Enter between lines. */
+async function typeIn(surface: Locator, text: string): Promise<void> {
+  const on = surface.page();
+  await surface.locator('.cm-content').click();
+  await on.keyboard.press('ControlOrMeta+a');
+  await on.keyboard.press('Backspace');
+  const lines = text.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i]) await on.keyboard.insertText(lines[i]);
+    if (i < lines.length - 1) await on.keyboard.press('Enter');
+  }
+}
 
 // This file is compiled without the browser's types (it runs in Node), so
 // the little of the page it touches from inside is described here.
@@ -116,7 +134,7 @@ test.describe.serial('workspace files on the canvas, in the desktop shell', () =
     // it opens to be typed into at once, beside the canvas, and what is typed lands in the file
     const surface = surfaceOf('Untitled-001.tex');
     await expect(surface).toBeVisible();
-    await surface.locator('[data-surface-text]').fill('\\section{Typed from the tree}\n');
+    await typeIn(surface, '\\section{Typed from the tree}\n');
     await expect(surface.locator('[data-surface-state]')).toHaveAttribute('data-surface-state', 'clean');
     expect(read('notes', 'Untitled-001.tex')).toBe('\\section{Typed from the tree}\n');
     await expect(page.locator('.react-flow__node'), 'the canvas still has no node for it').toHaveCount(0);
@@ -157,7 +175,7 @@ test.describe.serial('workspace files on the canvas, in the desktop shell', () =
     const node = nodeOf('Untitled-001.md');
     const surface = surfaceOf('Untitled-001.md');
     await expect(surface, 'it opened when it was made').toBeVisible();
-    await surface.locator('[data-surface-text]').fill('TYPED_HERE_W7\n');
+    await typeIn(surface, 'TYPED_HERE_W7\n');
     await surface.locator('[data-surface-save]').click();
     await expect.poll(() => read('Graph Files', 'Untitled-001.md')).toBe('TYPED_HERE_W7\n');
     await expect(node.locator('[data-resource-preview]')).toContainText('TYPED_HERE_W7');
@@ -167,25 +185,26 @@ test.describe.serial('workspace files on the canvas, in the desktop shell', () =
 
   test('a save does not land on top of another program\'s change until the person says so', async () => {
     const surface = surfaceOf('Untitled-001.md');
-    await surface.locator('[data-surface-text]').fill('MINE_Z5\n');
+    await typeIn(surface, 'MINE_Z5\n');
     fs.writeFileSync(onDisk('Graph Files', 'Untitled-001.md'), 'CHANGED_ELSEWHERE_M2\n');
     // nothing is clicked: the conflict shows by itself, from the folder's news or from the save that would have followed the typing
     await expect(surface.locator('[data-surface-conflict]')).toBeVisible();
     await expect(surface.locator('[data-surface-save]')).toBeDisabled();
     expect(read('Graph Files', 'Untitled-001.md')).toBe('CHANGED_ELSEWHERE_M2\n');
-    await expect(surface.locator('[data-surface-text]')).toHaveValue('MINE_Z5\n');
+    expect(await textIn(surface)).toBe('MINE_Z5\n');
     await surface.locator('[data-conflict-overwrite]').click();
     await expect.poll(() => read('Graph Files', 'Untitled-001.md')).toBe('MINE_Z5\n');
   });
 
   test('what is typed saves by itself a moment after the typing stops', async () => {
     const surface = surfaceOf('Untitled-001.md');
-    await surface.locator('[data-surface-text]').fill('SAVED_BY_ITSELF_A2\n');
+    await typeIn(surface, 'SAVED_BY_ITSELF_A2\n');
     await expect(surface.locator('[data-surface-state]')).toHaveAttribute('data-surface-state', 'clean');
     expect(read('Graph Files', 'Untitled-001.md')).toBe('SAVED_BY_ITSELF_A2\n');
-    // undo is the document's: the text goes back, and that is saved too
-    await surface.locator('[data-surface-text]').press('ControlOrMeta+z');
-    await expect(surface.locator('[data-surface-text]')).toHaveValue('MINE_Z5\n');
+    // undo is the document's: step by step the text goes back to what it was, and that is saved too
+    await surface.locator('.cm-content').click();
+    for (let step = 0; step < 12 && (await textIn(surface)) !== 'MINE_Z5\n'; step++) await surface.page().keyboard.press('ControlOrMeta+z');
+    expect(await textIn(surface)).toBe('MINE_Z5\n');
     await expect.poll(() => read('Graph Files', 'Untitled-001.md')).toBe('MINE_Z5\n');
     await expect(nodes(), 'undoing in a document undoes nothing on the canvas').toHaveCount(2);
     await surface.locator('[data-surface-close]').click();
@@ -272,7 +291,7 @@ test.describe.serial('workspace files on the canvas, in the desktop shell', () =
     try {
       await nodeOf('space-page.md').locator('[data-resource-edit]').click();
       const surface = surfaceOf('space-page.md');
-      await surface.locator('[data-surface-text]').fill('TYPED_BUT_NOT_SAVED_J7\n');
+      await typeIn(surface, 'TYPED_BUT_NOT_SAVED_J7\n');
       await expect(surface.locator('[data-surface-state]')).toHaveAttribute('data-surface-state', 'readonly');
       expect(read('notes', 'space-page.md')).toBe('COPIED_FROM_SPACE_H9\n');
       await page.waitForTimeout(2500); // the canvas is saved a moment after the last change
@@ -282,7 +301,7 @@ test.describe.serial('workspace files on the canvas, in the desktop shell', () =
     }
     // the surface is where it was, with what was typed, and now that the folder can be written it is saved
     const again = surfaceOf('space-page.md');
-    await expect(again.locator('[data-surface-text]')).toHaveValue('TYPED_BUT_NOT_SAVED_J7\n');
+    await expect.poll(() => textIn(again)).toBe('TYPED_BUT_NOT_SAVED_J7\n');
     await expect.poll(() => read('notes', 'space-page.md')).toBe('TYPED_BUT_NOT_SAVED_J7\n');
     await again.locator('[data-surface-close]').click();
   });
@@ -489,7 +508,7 @@ test.describe.serial('documents open beside the canvas, in the desktop shell', (
   test('four files open at once, each in its own frame, by a double click in the tree, and the canvas gets no nodes', async () => {
     for (const name of NAMES) await sp.locator(`[data-tree-file="${name}"]`).dblclick();
     await expect(sp.locator('[data-surface]')).toHaveCount(4);
-    for (const name of NAMES) await expect(surface(name).locator('[data-surface-text]')).toHaveValue(`content of ${name}\n`);
+    for (const name of NAMES) await expect.poll(() => textIn(surface(name))).toBe(`content of ${name}\n`);
     await expect(sp.locator('.react-flow__node')).toHaveCount(0);
     await sp.locator('[data-tree-close]').click();
   });
@@ -516,15 +535,16 @@ test.describe.serial('documents open beside the canvas, in the desktop shell', (
   test('switching quickly between the documents sends each keystroke to the one in front, and none of it to the canvas', async () => {
     for (const name of ['two.tex', 'four.txt', 'one.md', 'three.py', 'two.tex']) {
       await bringForward(name);
-      const box = surface(name).locator('[data-surface-text]');
+      const box = surface(name).locator('.cm-content');
       await box.click();
-      await box.press('End');
-      await box.pressSequentially(' r ');
-      await box.press('Delete');
-      await box.press('Backspace');
+      await sp.keyboard.press('ControlOrMeta+Home');
+      await sp.keyboard.press('End');
+      await sp.keyboard.type(' r ');
+      await sp.keyboard.press('Delete');
+      await sp.keyboard.press('Backspace');
     }
-    await expect(surface('two.tex').locator('[data-surface-text]')).toHaveValue(/ r r/);
-    for (const name of NAMES) await expect(surface(name).locator('[data-surface-text]')).toHaveValue(new RegExp(`^content of ${name.replace('.', '\\.')}`));
+    expect(await textIn(surface('two.tex'))).toMatch(/ r r/);
+    for (const name of NAMES) expect(await textIn(surface(name))).toMatch(new RegExp(`^content of ${name.replace('.', '\\.')}`));
     // the question on the canvas is still there, untouched: neither deleted nor run again nor collapsed
     await expect(sp.locator('.react-flow__node')).toHaveCount(1);
     await expect(sp.locator('.react-flow__node textarea').first()).toHaveValue('What do these four files have in common?');
@@ -595,13 +615,167 @@ test.describe.serial('documents open beside the canvas, in the desktop shell', (
     await expect(sp.locator('[data-surface]')).toHaveCount(3);
     await expect(surface('three.py')).toHaveAttribute('data-surface-placement', 'left');
     await expect(sp.locator('[data-surface-tray] [data-surface-chip]')).toHaveCount(1);
-    await expect(surface('two.tex').locator('[data-surface-text]')).toHaveValue(/^content of two\.tex/);
+    await expect.poll(() => textIn(surface('two.tex'))).toMatch(/^content of two\.tex/);
   });
 
   test('closing a document\'s view deletes nothing', async () => {
     for (const name of ['one.md', 'two.tex', 'three.py']) { await bringForward(name); await surface(name).locator('[data-surface-close]').click(); }
     await expect(sp.locator('[data-surface]')).toHaveCount(0);
     expect(fs.readdirSync(sProject).filter((n) => !n.startsWith('.')).sort()).toEqual([...NAMES].sort());
+  });
+});
+
+test.describe.serial('editors and readers, in the desktop shell', () => {
+  let eBase: string;
+  let eProject: string;
+  let eApp: ElectronApplication;
+  let ep: Page;
+  const disk = (name: string) => path.join(eProject, name);
+  const surface = (name: string) => surfaceOn(ep, name);
+  const openFromTree = (name: string) => ep.locator(`[data-tree-file="${name}"]`).dblclick();
+  /** What ran in the page that should not have: a script in a file sets one of these if it is ever run. */
+  const ranInPage = () => ep.evaluate(() => { const w = globalThis as unknown as Record<string, unknown>; return [w.__ranFromHtml, w.__ranFromMarkdown].filter((v) => v !== undefined).length; });
+
+  test.beforeAll(async () => {
+    eBase = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'tdag-desktop-editors-')));
+    eProject = path.join(eBase, 'research-project');
+    fs.mkdirSync(eProject, { recursive: true });
+    fs.writeFileSync(disk('notes.md'), '# Notes\n\nSome **bold** words.\n\n<script>window.__ranFromMarkdown = true</script>\n');
+    fs.writeFileSync(disk('paper.tex'), '\\section{Method}\n');
+    fs.writeFileSync(disk('analysis.py'), 'def mean(xs):\n    return sum(xs) / len(xs)\n');
+    fs.writeFileSync(disk('paper.pdf'), pdfWithPages(['PDF_PAGE_ONE_TEXT', 'PDF_PAGE_TWO_TEXT']));
+    fs.writeFileSync(disk('draft.docx'), docxWith(['DOCX_FIRST_PARAGRAPH', 'DOCX_SECOND_PARAGRAPH']));
+    fs.writeFileSync(disk('pixel.png'), onePixelPng());
+    fs.writeFileSync(disk('page.html'), '<html><body><h1>HTML_SHOWN_TEXT</h1><script>top.__ranFromHtml = true; window.__ranFromHtml = true</script><p onclick="top.__ranFromHtml = true">text</p></body></html>');
+    fs.writeFileSync(disk('huge.csv'), Buffer.alloc(8 * 1024 * 1024 + 1, 'a'));
+    eApp = await electron.launch({
+      executablePath: electronBinary,
+      args: [path.join(REPO, 'desktop'), `--user-data-dir=${path.join(eBase, 'profile')}`],
+      cwd: REPO,
+      env: { ...process.env, TD_SESSION_ROOTS: '{}' },
+    });
+    await eApp.evaluate(({ dialog, shell }, chosen) => {
+      dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [chosen] });
+      const shown: string[] = [];
+      (globalThis as unknown as { __shown: string[] }).__shown = shown;
+      shell.showItemInFolder = (target: string) => { shown.push(target); };
+    }, eProject);
+    ep = await eApp.firstWindow();
+    await ep.waitForURL(/^http:\/\/127\.0\.0\.1:\d+\//, { timeout: 60_000 });
+    await markLessonSeen(ep);
+    await ep.reload();
+    await ep.locator('[data-workspace-toggle]').click();
+    await ep.locator('[data-open-folder]').click();
+    await expect(ep.locator('[data-tree-file="paper.pdf"]')).toBeVisible();
+  });
+
+  test.afterAll(async () => {
+    await eApp?.close();
+    if (eBase) fs.rmSync(eBase, { recursive: true, force: true });
+  });
+
+  test('Markdown, LaTeX and Python are typed into side by side while a PDF is open to read, and each lands in its own file', async () => {
+    for (const name of ['notes.md', 'paper.tex', 'analysis.py', 'paper.pdf']) await openFromTree(name);
+    await ep.locator('[data-tree-close]').click();
+    await expect(ep.locator('[data-surface]')).toHaveCount(4);
+    await expect(surface('paper.pdf').locator('[data-reader="pdf"]')).toBeVisible();
+
+    await surface('analysis.py').locator('[data-surface-dock-left]').click();
+    await typeIn(surface('analysis.py'), 'def median(xs):\nreturn sorted(xs)[len(xs) // 2]\n');
+    await expect(surface('analysis.py').locator('[data-surface-state]')).toHaveAttribute('data-surface-state', 'clean');
+    // the editor knows the language: the line after a block opener is indented for the person
+    expect(fs.readFileSync(disk('analysis.py'), 'utf8')).toBe('def median(xs):\n    return sorted(xs)[len(xs) // 2]\n');
+
+    await surface('paper.tex').locator('[data-surface-minimize]').click();
+    await ep.locator('[data-surface-tray] [data-surface-chip]').click();
+    await typeIn(surface('paper.tex'), '\\section{Results}\n');
+    await expect(surface('paper.tex').locator('[data-surface-state]')).toHaveAttribute('data-surface-state', 'clean');
+    expect(fs.readFileSync(disk('paper.tex'), 'utf8')).toBe('\\section{Results}\n');
+    await surface('paper.tex').locator('[data-surface-close]').click();
+    await surface('analysis.py').locator('[data-surface-close]').click();
+  });
+
+  test('a Markdown file reads as it is typed, and markup in it is shown and never run', async () => {
+    const md = surface('notes.md');
+    await md.locator('[data-surface-maximize]').click();
+    await md.locator('[data-markdown-mode="split"]').click();
+    const preview = md.locator('[data-markdown-preview]');
+    await expect(preview.locator('h1')).toHaveText('Notes');
+    await expect(preview.locator('strong')).toHaveText('bold');
+    await expect(preview.locator('script')).toHaveCount(0);
+    await md.locator('.cm-content').click();
+    await ep.keyboard.press('ControlOrMeta+End');
+    await ep.keyboard.insertText('## TYPED_HEADING_Q6');
+    await expect(preview.locator('h2')).toHaveText('TYPED_HEADING_Q6');
+    await expect(md.locator('[data-surface-state]')).toHaveAttribute('data-surface-state', 'clean');
+    expect(fs.readFileSync(disk('notes.md'), 'utf8')).toContain('## TYPED_HEADING_Q6');
+    expect(await ranInPage()).toBe(0);
+    await md.locator('[data-surface-close]').click();
+  });
+
+  test('a PDF is read page by page with its words selectable, and a quote from it lands on the canvas with its page', async () => {
+    const pdf = surface('paper.pdf');
+    await pdf.locator('[data-surface-maximize]').click();
+    await expect(pdf.locator('[data-page]')).toHaveCount(2);
+    await expect(pdf.locator('[data-page="2"] .tdag-textlayer')).toContainText('PDF_PAGE_TWO_TEXT');
+    // the person selects the words on the second page
+    await pdf.locator('[data-page="2"]').scrollIntoViewIfNeeded();
+    await ep.evaluate(() => {
+      type Node = { textContent: string | null };
+      const dom = globalThis as unknown as { document: { querySelector(s: string): { querySelectorAll(s: string): Iterable<Node> } | null; createRange(): { selectNodeContents(n: Node): void } }; getSelection(): { removeAllRanges(): void; addRange(r: unknown): void } };
+      const span = [...dom.document.querySelector('[data-page="2"] .tdag-textlayer')!.querySelectorAll('span')].find((n) => (n.textContent ?? '').includes('PDF_PAGE_TWO_TEXT'))!;
+      const range = dom.document.createRange();
+      range.selectNodeContents(span);
+      const selection = dom.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    });
+    await pdf.locator('[data-reader-quote]').click();
+    await pdf.locator('[data-surface-close]').click();
+    const note = ep.locator('.react-flow__node').filter({ hasText: 'PDF_PAGE_TWO_TEXT' });
+    await expect(note).toHaveCount(1);
+    await expect(note).toContainText('paper.pdf p.2');
+    await expect(ep.locator('.react-flow__edge')).toHaveCount(0);
+  });
+
+  test('a Word document shows the text taken out of it and says so; the file itself is not changed and is not typed into', async () => {
+    const before = fs.readFileSync(disk('draft.docx'));
+    await ep.locator('[data-workspace-toggle]').click();
+    await openFromTree('draft.docx');
+    const docx = surface('draft.docx');
+    await expect(docx.locator('[data-reader-derived]')).toBeVisible();
+    await expect(docx.locator('[data-reader-text]')).toContainText('DOCX_FIRST_PARAGRAPH');
+    await expect(docx.locator('[data-reader-text]')).toContainText('DOCX_SECOND_PARAGRAPH');
+    await expect(docx.locator('.cm-editor')).toHaveCount(0);
+    await expect(docx.locator('[data-surface-save]')).toHaveCount(0);
+    await docx.locator('[data-surface-close]').click();
+    expect(fs.readFileSync(disk('draft.docx')).equals(before)).toBe(true);
+  });
+
+  test('an image is shown, and an HTML page is shown without any of its scripts running', async () => {
+    await openFromTree('pixel.png');
+    await expect(surface('pixel.png').locator('[data-reader-image]')).toBeVisible();
+    await surface('pixel.png').locator('[data-surface-close]').click();
+
+    await openFromTree('page.html');
+    const html = surface('page.html');
+    const frame = html.locator('iframe').first();
+    await expect(frame).toBeVisible();
+    expect(await frame.getAttribute('sandbox') ?? '').not.toContain('allow-scripts');
+    await expect(html.frameLocator('iframe').first().locator('h1')).toHaveText('HTML_SHOWN_TEXT');
+    await ep.waitForTimeout(300);
+    expect(await ranInPage()).toBe(0);
+    await html.locator('[data-surface-close]').click();
+  });
+
+  test('a text file above the limit is not opened to type into: the surface says so and offers to show the file', async () => {
+    await openFromTree('huge.csv');
+    const huge = surface('huge.csv');
+    await expect(huge.locator('[data-surface-notice="too-large"]')).toBeVisible();
+    await expect(huge.locator('.cm-editor')).toHaveCount(0);
+    await huge.locator('[data-surface-reveal]').click();
+    await expect.poll(() => eApp.evaluate(() => (globalThis as unknown as { __shown: string[] }).__shown)).toEqual([disk('huge.csv')]);
+    expect(fs.statSync(disk('huge.csv')).size).toBe(8 * 1024 * 1024 + 1);
   });
 });
 
@@ -641,7 +815,7 @@ test.describe.serial('a new canvas that starts from a file', () => {
 
     // the file opened as it was made: it is typed into right away
     const surface = surfaceOn(freshPage, 'Untitled-001.md');
-    await surface.locator('[data-surface-text]').fill('FIRST_WORDS_Y3\n');
+    await typeIn(surface, 'FIRST_WORDS_Y3\n');
     await surface.locator('[data-surface-save]').click();
     const workspaces = path.join(freshBase, 'profile', 'workspaces');
     const where = () => fs.readdirSync(workspaces, { recursive: true, encoding: 'utf8' }).filter((p) => p.endsWith(path.join('Graph Files', 'Untitled-001.md')));

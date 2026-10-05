@@ -1485,4 +1485,13 @@ export const en = {
   'surface.restore': 'Back to where it was',
   'surface.close': 'Close this view. The file stays.',
   'surface.open': 'Open to read and type',
+  'surface.mdEdit': 'Text',
+  'surface.mdSplit': 'Text and how it reads, side by side',
+  'surface.mdPreview': 'How it reads',
+  'surface.derivedText': 'This is the text taken out of the document, for reading. It is not the file itself, and it is not edited here.',
+  'surface.tooLargeToShow': 'the file is too large to show here',
+  'surface.tooLargeToEdit': 'This file is larger than 8 MB and is not opened for typing here. It can be shown in the file manager and opened with another program.',
+  'surface.notText': 'This file is not text that can be typed into here.',
+  'surface.quote': 'Quote',
+  'surface.quoteTitle': 'Put a reference to what is selected (or to this page) on the canvas',
 } as const;

@@ -10,7 +10,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const { fixture, sha, entryIdOf } = require('./helpers/workspace-fixture.cjs');
 const { createProviderRegistry } = require('../../runtime/workspace/providers/provider-registry.cjs');
-const { createWorkspaceDoor, watchingThrough, MAX_PAGE_READ_BYTES } = require('../../runtime/workspace/door.cjs');
+const { createWorkspaceDoor, watchingThrough, MAX_PAGE_READ_BYTES, MAX_VIEW_BYTES } = require('../../runtime/workspace/door.cjs');
 const { createSubscriptionHub } = require('../../runtime/workspace/subscriptions.cjs');
 const { loadContracts } = require('../../shared/schemas/host.cjs');
 
@@ -131,6 +131,19 @@ test('a file too large to send to the page is refused from its size, and none of
   await assert.rejects(ask('read-source', huge.fileId), { code: 'too-large' });
   await assert.rejects(ask('read-text', huge.fileId), { code: 'too-large' });
   assert.equal(reads, 0);
+});
+
+test('a file can be sent to be looked at when it is too large to be copied in, and past a second limit not even that', async () => {
+  const { ask, workspace, at } = await doorOver();
+  fs.writeFileSync(at('notes/scan.pdf'), Buffer.alloc(MAX_PAGE_READ_BYTES + 1024, 1));
+  const scan = await ask('register-entry', workspace.workspaceId, entryIdOf('notes/scan.pdf'));
+  await assert.rejects(ask('read-source', scan.fileId), { code: 'too-large' });
+  const shown = await ask('read-view', scan.fileId);
+  assert.equal(shown.representation, 'bytes');
+  assert.equal(shown.payload.length, MAX_PAGE_READ_BYTES + 1024);
+  fs.writeFileSync(at('notes/film.bin'), Buffer.alloc(MAX_VIEW_BYTES + 1));
+  const film = await ask('register-entry', workspace.workspaceId, entryIdOf('notes/film.bin'));
+  await assert.rejects(ask('read-view', film.fileId), { code: 'too-large' });
 });
 
 test('a canvas\'s own folder is opened where the shell says it is, and the page names only the canvas', async () => {

@@ -87,6 +87,7 @@ contextBridge.exposeInMainWorld('desktopWorkspace', {
   rescan: (workspaceId) => ipcRenderer.invoke('workspace:rescan', workspaceId),
   relink: (fileId, entryId) => ipcRenderer.invoke('workspace:relink', fileId, entryId),
   readSource: (fileId) => ipcRenderer.invoke('workspace:read-source', fileId),
+  readView: (fileId) => ipcRenderer.invoke('workspace:read-view', fileId),
   capabilities: (workspaceId) => ipcRenderer.invoke('workspace:capabilities', workspaceId),
   openDefault: (canvasId) => ipcRenderer.invoke('workspace:open-default', canvasId),
   reveal: (fileId) => ipcRenderer.invoke('workspace:reveal', fileId),

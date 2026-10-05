@@ -1,19 +1,24 @@
 import { documents } from '../../lib/documents/document-service';
 import { useDocument } from './use-document';
+import MarkdownEditor from '../editors/MarkdownEditor';
+import TextEditor from '../editors/TextEditor';
 import { toast } from '../../lib/ui-store';
 import { useT, fmt } from '../../i18n';
 
-// What a surface shows of a document: its text, to type into, and where it
-// stands with the file (saved, not saved, in conflict, could not be saved).
-// The text is the document's; this view holds none of it and types straight
-// into the shared buffer, so every other view of the file sees it at once.
+// What a surface shows of a document: its text in an editor, to type into,
+// and where it stands with the file (saved, not saved, in conflict, could
+// not be saved). The text is the document's; the editor is one view of it
+// and types straight into the shared buffer, so every other view of the
+// file sees it at once.
 
 interface Props {
   documentId: string;
   surfaceId: string;
+  /** how the document is shown: Markdown gets a preview beside its text */
+  kind: 'text' | 'markdown';
 }
 
-export default function DocumentBody({ documentId, surfaceId }: Props) {
+export default function DocumentBody({ documentId, surfaceId, kind }: Props) {
   const t = useT();
   const { model, status } = useDocument(documentId);
   if (!model) return null;
@@ -27,22 +32,9 @@ export default function DocumentBody({ documentId, surfaceId }: Props) {
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <textarea
-        value={model.text}
-        readOnly={model.state === 'readonly'}
-        onChange={(e) => documents.setText(documentId, e.target.value, surfaceId)}
-        onKeyDown={(e) => {
-          const mod = e.metaKey || e.ctrlKey;
-          const key = e.key.toLowerCase();
-          if (mod && key === 's') { e.preventDefault(); void save(); }
-          // undo and redo are the document's, shared by every view of the file
-          else if (mod && key === 'z') { e.preventDefault(); if (e.shiftKey) documents.redo(documentId, surfaceId); else documents.undo(documentId, surfaceId); }
-          else if (mod && key === 'y') { e.preventDefault(); documents.redo(documentId, surfaceId); }
-        }}
-        spellCheck={false}
-        data-surface-text
-        className="flex-1 min-h-0 w-full resize-none bg-card px-3 py-2 text-[13px] font-mono text-ink leading-relaxed outline-none"
-      />
+      {kind === 'markdown'
+        ? <MarkdownEditor documentId={documentId} surfaceId={surfaceId} onSave={() => void save()} />
+        : <TextEditor documentId={documentId} surfaceId={surfaceId} onSave={() => void save()} />}
       {problem?.kind === 'conflict' && (
         <div className="shrink-0 border-t border-amber-200 bg-amber-50 px-3 py-2 text-2xs text-amber-800 leading-snug" data-surface-conflict>
           <p>{t(problem.theirsRevision ? 'resource.conflict' : 'resource.conflictGone')}</p>

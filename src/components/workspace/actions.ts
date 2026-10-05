@@ -7,6 +7,8 @@ import { useProjects } from '../../store/projects';
 import { reconcileFile, revealFile } from '../../lib/workspace/client';
 import { addNodeFor, createDocument } from '../../lib/workspace/create-command';
 import { attachEntry, attachResource, type DragPayload } from '../../lib/workspace/graph-resource';
+import type { ResourceRef } from '../../lib/workspace/contracts';
+import { spawnContentNode } from '../../lib/content';
 import { ensureWorkspace, reloadTree } from '../../lib/workspace/session';
 import { openFileSurface } from '../../lib/documents/surface-store';
 import { toast } from '../../lib/ui-store';
@@ -66,6 +68,23 @@ export async function createInGraph(extension: string, at: Point): Promise<void>
   } catch (e) {
     toast('error', fmt(say('workspace.failed'), { why: why(e) }));
   }
+}
+
+/**
+ * Put what was quoted from a file on the canvas, as a note: the words, and
+ * under them where they are from. The note carries the reference to the
+ * part that was quoted, so it can be found again in the file. It is wired
+ * to nothing: like all material, it enters a context only by an edge.
+ */
+export function quoteOnCanvas(ref: ResourceRef, words: string, fileName: string, at: Point): string | null {
+  const quoted = words.trim();
+  if (!quoted) return null;
+  const where = ref.selector.kind === 'pdf' ? `${fileName} p.${ref.selector.pages.join(', ')}`
+    : ref.selector.kind === 'text' && ref.selector.lines ? `${fileName} L${ref.selector.lines[0]}${ref.selector.lines[1] !== ref.selector.lines[0] ? `-${ref.selector.lines[1]}` : ''}`
+      : fileName;
+  const id = spawnContentNode('note', freeSpot(at), { question: `${quoted.split('\n').map((line) => `> ${line}`).join('\n')}\n\n(${where})` });
+  useStore.setState((st) => ({ nodes: st.nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, quoteRef: ref } } : n)) }));
+  return id;
 }
 
 /**

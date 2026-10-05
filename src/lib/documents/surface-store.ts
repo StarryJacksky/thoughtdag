@@ -11,7 +11,7 @@
 
 import { create } from 'zustand';
 import type { SurfaceState } from '../workspace/contracts';
-import { reconcileFile } from '../workspace/client';
+import { reconcileFile, WorkspaceError } from '../workspace/client';
 import { documents } from './document-service';
 
 export type Rect = SurfaceState['rect'];
@@ -25,6 +25,10 @@ export interface Surface extends SurfaceState {
   title: string;
   /** where the surface was before it was maximized, docked or put away: what "restore" returns it to */
   back: { placement: Placement; rect: Rect } | null;
+  /** the file is shown by a reader (a PDF, an image, a page, a Word document): there is no document to type into */
+  reading: boolean;
+  /** the file could not be opened to type into, and why; the surface says so instead of showing nothing */
+  notice: 'too-large' | 'not-text' | null;
 }
 
 export const MIN_SURFACE: Size = { width: 360, height: 240 };
@@ -87,14 +91,14 @@ export function focusSurface(surfaceId: string): void {
  * already be open for that id as a view (see `openFileSurface`, which does
  * both). `as` places it; otherwise it floats beside the surfaces already there.
  */
-export function openSurface(documentId: string, kind: SurfaceKind, options: { surfaceId?: string; fileId?: string; title?: string; placement?: Placement; rect?: Rect } = {}): string {
+export function openSurface(documentId: string, kind: SurfaceKind, options: { surfaceId?: string; fileId?: string; title?: string; placement?: Placement; rect?: Rect; reading?: boolean; notice?: Surface['notice'] } = {}): string {
   const surfaceId = options.surfaceId ?? newSurfaceId();
   useSurfaces.setState((state) => {
     const floating = state.surfaces.filter((s) => s.placement === 'floating').length;
     // each new surface a step down and across from the last, wrapping before it leaves the container
     const step = (floating % 8) * 28;
     const rect = fitRect(options.rect ?? { ...DEFAULT_SIZE, x: state.container.width - DEFAULT_SIZE.width - 24 - step, y: 64 + step }, state.container);
-    const surface: Surface = { surfaceId, documentId, kind, placement: options.placement ?? 'floating', rect, fileId: options.fileId ?? '', title: options.title ?? '', back: null };
+    const surface: Surface = { surfaceId, documentId, kind, placement: options.placement ?? 'floating', rect, fileId: options.fileId ?? '', title: options.title ?? '', back: null, reading: options.reading ?? false, notice: options.notice ?? null };
     return { surfaces: [...state.surfaces, surface], order: [...state.order, surfaceId] };
   });
   return surfaceId;
@@ -146,14 +150,20 @@ export function setContainer(container: Size): void {
   useSurfaces.setState((state) => ({ container, surfaces: state.surfaces.map((s) => ({ ...s, rect: fitRect(s.rect, container) })) }));
 }
 
+const extensionOf = (name: string) => (name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toLowerCase() : '');
+
 /** The kind of surface a file of this name opens in. */
 export function surfaceKindOf(name: string): SurfaceKind {
-  const extension = name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toLowerCase() : '';
+  const extension = extensionOf(name);
   if (extension === 'md' || extension === 'markdown') return 'markdown';
   if (extension === 'pdf') return 'pdf';
   if (['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(extension)) return 'image';
+  if (extension === 'html' || extension === 'htm') return 'html';
   return 'text';
 }
+
+/** Whether a file of this name is shown by a reader instead of being opened to type into. */
+export const isReadOnly = (name: string): boolean => surfaceKindOf(name) === 'pdf' || surfaceKindOf(name) === 'image' || surfaceKindOf(name) === 'html' || extensionOf(name) === 'docx';
 
 /**
  * Show a file in a surface. One surface per file: a file that already has
@@ -166,12 +176,24 @@ export async function openFileSurface(fileId: string, options: { placement?: Pla
     return existing.surfaceId;
   }
   const surfaceId = newSurfaceId();
-  const model = await documents.open(fileId, surfaceId);
-  // someone else may have opened the same file while it was being read
-  const raced = useSurfaces.getState().surfaces.find((s) => s.fileId === fileId);
-  if (raced) { void documents.closeView(surfaceId); focusSurface(raced.surfaceId); return raced.surfaceId; }
-  const title = documents.status(model.documentId)?.name ?? fileId;
-  return openSurface(model.documentId, surfaceKindOf(title), { surfaceId, fileId, title, ...options });
+  const record = await reconcileFile(fileId);
+  const name = (record.relativePath ?? '').split('/').pop() || fileId;
+  /** The surface, unless someone else opened the same file while this one was getting ready. */
+  const place = (documentId: string, more: { reading?: boolean; notice?: Surface['notice'] } = {}): string => {
+    const raced = useSurfaces.getState().surfaces.find((s) => s.fileId === fileId);
+    if (raced) { void documents.closeView(surfaceId); focusSurface(raced.surfaceId); return raced.surfaceId; }
+    return openSurface(documentId, surfaceKindOf(name), { surfaceId, fileId, title: name, ...options, ...more });
+  };
+  // a file that is read, not typed into, has a reader and no document
+  if (isReadOnly(name)) return place(`reader:${fileId}`, { reading: true });
+  try {
+    return place((await documents.open(fileId, surfaceId)).documentId);
+  } catch (e) {
+    // it cannot be typed into here: the surface opens all the same, and says why
+    if (e instanceof WorkspaceError && e.code === 'too-large') return place(`notice:${fileId}`, { notice: 'too-large' });
+    if (e instanceof WorkspaceError && (e.code === 'not-text' || e.code === 'not-utf8')) return place(`notice:${fileId}`, { notice: 'not-text' });
+    throw e;
+  }
 }
 
 // ── the layout of a canvas's surfaces ──────────────────────────────────

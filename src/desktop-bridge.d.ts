@@ -267,6 +267,8 @@ interface DesktopWorkspaceBridge {
   restoreVersion(fileId: string, revision: string, baseRevision: string, opId: string): Promise<import('./lib/workspace/contracts').SaveResult>;
   /** a file's content as its source gives it (text, or bytes), with the hash of what was read; a file too large to send is refused unread */
   readSource(fileId: string): Promise<import('./lib/workspace/contracts').SourceRead>;
+  /** a file's content to be looked at (a PDF, an image): like readSource, with a larger limit */
+  readView(fileId: string): Promise<import('./lib/workspace/contracts').SourceRead>;
   /** what the source of a workspace supports: what to offer is decided from this, never from the kind of source */
   capabilities(workspaceId: string): Promise<import('./lib/workspace/contracts').SourceCapabilities>;
   /** the canvas's own managed folder, opened as a workspace without a picker */

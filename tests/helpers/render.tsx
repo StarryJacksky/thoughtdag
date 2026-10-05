@@ -46,3 +46,12 @@ export function keyHeardByWindow(target: Element, init: KeyboardEventInit): bool
   window.removeEventListener('keydown', listener);
   return heard;
 }
+
+/**
+ * The test DOM lays nothing out. An editor that measures text gets empty
+ * answers here instead of a missing method. Call once before mounting one.
+ */
+export function withoutLayout(): void {
+  Range.prototype.getClientRects = () => ({ length: 0, item: () => null, [Symbol.iterator]: function* () {} }) as unknown as DOMRectList;
+  Range.prototype.getBoundingClientRect = () => ({ x: 0, y: 0, top: 0, left: 0, bottom: 0, right: 0, width: 0, height: 0, toJSON: () => ({}) });
+}

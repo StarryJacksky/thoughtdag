@@ -39,7 +39,7 @@ import ResourceNodeView from './components/workspace/ResourceNodeView';
 import WorkspaceLayer from './components/workspace/WorkspaceLayer';
 import SurfaceManager from './components/surfaces/SurfaceManager';
 import NewFileButton from './components/workspace/NewFileButton';
-import { dropOnCanvas } from './components/workspace/actions';
+import { dropOnCanvas, quoteOnCanvas } from './components/workspace/actions';
 import { workspaceAvailable } from './lib/workspace/client';
 import { RESOURCE_DRAG_TYPE, parseDragPayload } from './lib/workspace/graph-resource';
 import { useWorkspacePanel } from './lib/workspace/session';
@@ -1536,7 +1536,7 @@ function Canvas() {
       <WorkspaceLayer flowPosAt={flowPosAt} />
 
       {/* Documents open beside the canvas: movable frames that take the pointer only where they are */}
-      {!isViewerMode && <SurfaceManager />}
+      {!isViewerMode && <SurfaceManager onQuote={(ref, words, fileName) => { quoteOnCanvas(ref, words, fileName, flowPosAt(null)); }} />}
 
       {/* Content palette — canvas material, both modes. Click drops at the
           viewport center; DRAG drops at the pointer. Paste works anywhere:

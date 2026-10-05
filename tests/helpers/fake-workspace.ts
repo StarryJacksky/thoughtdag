@@ -171,6 +171,13 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
         ? { fileId, sourceRevision: null, contentHash: fakeRevision(String.fromCharCode(...bytes.subarray(0, 64)) + bytes.length), representation: 'bytes' as const, payload: bytes, fidelity: 'original' as const }
         : { fileId, sourceRevision: null, contentHash: fakeRevision(f.content), representation: 'text' as const, payload: f.content, fidelity: 'original' as const };
     }),
+    readView: door('readView', null, (fileId: string) => {
+      const f = files.get(fileId);
+      if (!f || f.status === 'missing' || f.status === 'ambiguous') throw new Error('lost: the file is lost; it has to be found again first');
+      return f.bytes
+        ? { fileId, sourceRevision: null, contentHash: fakeRevision(String.fromCharCode(...f.bytes.subarray(0, 64)) + f.bytes.length), representation: 'bytes' as const, payload: f.bytes, fidelity: 'original' as const }
+        : { fileId, sourceRevision: null, contentHash: fakeRevision(f.content), representation: 'text' as const, payload: f.content, fidelity: 'original' as const };
+    }),
     capabilities: door('capabilities', null, () => capabilities),
     saveText: door('saveText', 3, (fileId: string, baseRevision: string, text: string, opId: string) => {
       const f = files.get(fileId)!;

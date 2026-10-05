@@ -364,6 +364,9 @@ export interface ThoughtData extends Record<string, unknown> {
   /** This node stands for a real file in a workspace (lib/workspace/graph-resource).
       The file's identity is the fileId in here; deleting the node never deletes the file. */
   resourceRef?: import('./lib/workspace/contracts').ResourceRef;
+  /** Set on a note that quotes a part of a workspace file: the reference to that part (a passage by its words, a page of a PDF).
+      The note's own text is what flows into context; the reference says where the words came from. */
+  quoteRef?: import('./lib/workspace/contracts').ResourceRef;
   /** What to show for the referenced file and whether it is still there: a
       hint refreshed from the workspace, never the identity, never a path the app acts on. */
   resourceHint?: {

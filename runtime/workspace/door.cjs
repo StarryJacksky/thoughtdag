@@ -20,6 +20,8 @@ const helpers = import('../../shared/workspace/provider-helpers.mjs');
 
 /** Above this a file is referred to by the page and its content is not sent to it. */
 const MAX_PAGE_READ_BYTES = 8 * 1024 * 1024;
+/** Above this a file is not sent to the page even to be looked at (a PDF, an image). */
+const MAX_VIEW_BYTES = 64 * 1024 * 1024;
 
 const newlineOf = (text) => {
   const crlf = (text.match(/\r\n/g) ?? []).length;
@@ -100,6 +102,12 @@ function createWorkspaceDoor({ service, providers, canvasFolder, showInFileManag
     'workspace:read-source': async (_context, fileId) => {
       const { scope, provider } = await ofFile(fileId, 'read');
       return provider.read(scope, String(fileId), { maxBytes: MAX_PAGE_READ_BYTES });
+    },
+
+    /** A file's content to be looked at, not copied into anything: the same answer as read-source, with room for a document or an image. */
+    'workspace:read-view': async (_context, fileId) => {
+      const { scope, provider } = await ofFile(fileId, 'read');
+      return provider.read(scope, String(fileId), { maxBytes: MAX_VIEW_BYTES });
     },
 
     /** A file's text and the revision a later save must name. */
@@ -241,4 +249,4 @@ function watchingThrough(providers) {
   };
 }
 
-module.exports = { createWorkspaceDoor, watchingThrough, MAX_PAGE_READ_BYTES };
+module.exports = { createWorkspaceDoor, watchingThrough, MAX_PAGE_READ_BYTES, MAX_VIEW_BYTES };

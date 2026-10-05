@@ -159,7 +159,19 @@ export async function relinkFile(fileId: string, entryId: string): Promise<Resou
  * to send (`too-large`) without reading it.
  */
 export async function readSource(fileId: string): Promise<SourceRead> {
-  const result = await call((b) => b.readSource(fileId));
+  return checkedSource(await call((b) => b.readSource(fileId)));
+}
+
+/**
+ * A file's content to be looked at: a PDF to page through, an image to see.
+ * The same answer as `readSource`, with a larger limit, and for showing
+ * only: nothing read this way is copied into a node or a context.
+ */
+export async function readView(fileId: string): Promise<SourceRead> {
+  return checkedSource(await call((b) => b.readView(fileId)));
+}
+
+function checkedSource(result: SourceRead): SourceRead {
   // the bytes cross a context boundary, so they are recognised by what they are, not by whose constructor made them
   const text = result?.representation === 'text' && typeof result.payload === 'string';
   const bytes = result?.representation === 'bytes' && ArrayBuffer.isView(result.payload);

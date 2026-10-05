@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useStore } from '../../store';
 import { useProjects } from '../../store/projects';
+import { documents } from '../../lib/documents/document-service';
 import { workspaceAvailable } from '../../lib/workspace/client';
 import { keepCopiesOutOfHistory } from '../../lib/workspace/graph-resource';
 import { restoreWorkspace, useWorkspacePanel, watchWorkspaces } from '../../lib/workspace/session';
@@ -28,6 +29,14 @@ export function useWorkspaceSync(): void {
 
   // an undo or a redo brings back a picture of the canvas, not of the files
   useEffect(() => (workspaceAvailable() ? keepCopiesOutOfHistory() : undefined), []);
+
+  // the window going away: what is typed and not saved goes into drafts on the way out
+  useEffect(() => {
+    if (!workspaceAvailable()) return;
+    const leaving = () => { void documents.keepDrafts(); };
+    window.addEventListener('pagehide', leaving);
+    return () => window.removeEventListener('pagehide', leaving);
+  }, []);
 
   useEffect(() => {
     if (!workspaceAvailable()) return;

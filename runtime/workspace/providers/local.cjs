@@ -109,6 +109,10 @@ function createLocalProvider(service, { pageSize = PAGE_SIZE } = {}) {
     /** What a file held before each save that replaced it. */
     async listVersions(scope, fileId) { assertLocal(scope); return service.listVersions(fileId); },
     async restoreVersion(scope, fileId, revision, baseRevision, opId) { assertLocal(scope); return service.restoreVersion(fileId, revision, baseRevision, opId); },
+    /** Text typed into a file and not yet written to it, kept so it is not lost. */
+    async putDraft(scope, fileId, draft) { assertLocal(scope); return service.putDraft(fileId, draft); },
+    async getDraft(scope, fileId) { assertLocal(scope); return service.getDraft(fileId); },
+    async clearDraft(scope, fileId) { assertLocal(scope); return service.clearDraft(fileId); },
     /** Give the entry its identity in this source, or return the one it has. */
     async register(scope, entryId) { assertLocal(scope); return service.registerEntry(scope.workspaceId, entryId); },
     async reconcile(scope, fileId) { assertLocal(scope); return service.reconcile(fileId); },

@@ -4,7 +4,7 @@
 // other code sees it, so a shell and a page of different versions fail
 // loudly here instead of quietly somewhere else.
 
-import { validateDTO, type ContentHash, type CreateFileRequest, type FileEntry, type FileVersion, type ImportProvenance, type RecoveryItem, type ResourceRecord, type SaveResult, type SourceCapabilities, type SourceRead, type TextRevision, type TrashReceipt, type WorkspaceDTOs, type WorkspaceRecord } from './contracts';
+import { validateDTO, type ContentHash, type CreateFileRequest, type DocumentDraft, type FileEntry, type FileVersion, type ImportProvenance, type RecoveryItem, type ResourceRecord, type SaveResult, type SourceCapabilities, type SourceRead, type TextRevision, type TrashReceipt, type WorkspaceDTOs, type WorkspaceRecord } from './contracts';
 
 /** A workspace call the shell refused or could not complete. `code` is
  *  stable (traversal, escapes-root, read-only, no-grant, …); the message is
@@ -167,6 +167,22 @@ export async function readSource(fileId: string): Promise<SourceRead> {
   if (!bytes) return result;
   const view = result.payload as unknown as ArrayBufferView;
   return { ...result, payload: new Uint8Array(view.buffer as ArrayBuffer, view.byteOffset, view.byteLength) };
+}
+
+/** Keep text typed into a file and not yet written to it. One draft per file; a new one replaces the old. */
+export async function putDraft(fileId: string, text: string, baseRevision: ContentHash): Promise<DocumentDraft> {
+  return checked('DocumentDraft', await call((b) => b.putDraft(fileId, { text, baseRevision })));
+}
+
+/** The draft kept for a file, or null. */
+export async function getDraft(fileId: string): Promise<DocumentDraft | null> {
+  const draft = await call((b) => b.getDraft(fileId));
+  return draft === null ? null : checked('DocumentDraft', draft);
+}
+
+/** Forget a file's draft: its text is in the file now, or the person let it go. */
+export function clearDraft(fileId: string): Promise<boolean> {
+  return call((b) => b.clearDraft(fileId));
 }
 
 /** Move or rename a folder. The files in it keep their identities. Resolves with the folder's new entry id. */

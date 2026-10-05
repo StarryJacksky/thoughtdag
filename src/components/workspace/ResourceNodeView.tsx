@@ -9,7 +9,8 @@ import { isViewerMode } from '../../lib/viewer';
 import { revealFile, workspaceAvailable } from '../../lib/workspace/client';
 import { isEditableText } from '../../lib/workspace/file-types';
 import { RESOURCE_DRAG_TYPE, type DragPayload } from '../../lib/workspace/graph-resource';
-import { openEdit, saveEdit, type EditSession } from '../../lib/workspace/quick-edit';
+import { documents, type DocumentStatus } from '../../lib/documents/document-service';
+import type { DocumentModel } from '../../lib/workspace/contracts';
 import { useWorkspacePanel } from '../../lib/workspace/session';
 import { useT, fmt } from '../../i18n';
 import ContentNode from '../ContentNode';
@@ -18,6 +19,10 @@ import ContentNode from '../ContentNode';
 // file is, whether it is still there, and the copy of its content that
 // flows into context along its edge. Removing the node removes no file. A
 // lost file shows a card for finding it again, never an empty body.
+//
+// Typing into the file from the node is one view of the file's document
+// (lib/documents): the same buffer every other view of that file shows.
+// The node holds none of the text being typed.
 
 type Props = NodeProps<ThoughtNodeType>;
 const why = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -26,9 +31,6 @@ export default function ResourceNodeView(props: Props) {
   // far out, a file is material like any other: its icon
   return useZoomTier() === 'glyph' ? <ContentNode {...props} /> : <ResourceCard {...props} />;
 }
-
-/** `seen` is the revision the node's copy was at when the text was last read: a later one means the file changed elsewhere. */
-type Editing = { session: EditSession; draft: string; seen: string | null; state: 'idle' | 'saving' | 'conflict'; current?: string | null };
 
 function ResourceCard({ id, data, selected }: Props) {
   const t = useT();
@@ -50,55 +52,39 @@ function ResourceCard({ id, data, selected }: Props) {
   const copy = data.attachments?.[0];
   const lost = hint?.status === 'missing' || hint?.status === 'ambiguous';
   const canEdit = !isViewerMode && hint?.status === 'ready' && !!copy && isEditableText(hint.name) && workspaceAvailable();
-  const [editing, setEditing] = useState<Editing | null>(null);
-  const dirty = !!editing && editing.draft !== editing.session.loaded;
-
-  // the file changed elsewhere while it is open here with nothing typed: show what it is now
-  const revision = hint?.revision ?? null;
+  // the document being typed into from this node, while it is; the text lives in the document service
+  const surfaceId = `node:${id}`;
+  const [editing, setEditing] = useState<DocumentModel | null>(null);
+  const [status, setStatus] = useState<DocumentStatus | null>(null);
+  const documentId = editing?.documentId ?? null;
   useEffect(() => {
-    if (!editing || editing.state !== 'idle' || !revision || revision === editing.seen || revision === editing.session.base || editing.draft !== editing.session.loaded) return;
-    let stale = false;
-    void openEdit(fileId).then((session) => { if (!stale) setEditing((now) => (now && now.draft === now.session.loaded ? { session, draft: session.loaded, seen: revision, state: 'idle' } : now)); }, () => {});
-    return () => { stale = true; };
-  }, [revision, editing, fileId]);
+    if (!documentId) return;
+    return documents.subscribe(documentId, (model) => { setEditing(model); setStatus(documents.status(model.documentId) ?? null); });
+  }, [documentId]);
+  // the node going away closes its view; what was typed is saved or kept as a draft by the service
+  useEffect(() => () => { void documents.closeView(surfaceId); }, [surfaceId]);
+  const revision = hint?.revision ?? null;
 
   const startEditing = async () => {
     try {
-      const session = await openEdit(fileId);
-      setEditing({ session, draft: session.loaded, seen: revision, state: 'idle' });
+      const model = await documents.open(fileId, surfaceId);
+      setEditing(model);
+      setStatus(documents.status(model.documentId) ?? null);
     } catch (e) {
       toast('error', fmt(t('workspace.failed'), { why: why(e) }));
     }
   };
-
-  const save = async (against?: string) => {
-    if (!editing || editing.state === 'saving') return;
-    const { session, draft, seen } = editing;
-    setEditing({ session, draft, seen, state: 'saving' });
-    try {
-      const { session: next, result } = await saveEdit(session, draft, against);
-      // typing may have gone on while the save was out
-      const latest = (now: Editing | null) => now?.draft ?? draft;
-      if (result.status === 'saved') setEditing((now) => ({ session: next, draft: latest(now), seen, state: 'idle' }));
-      else if (result.status === 'conflict') setEditing((now) => ({ session, draft: latest(now), seen, state: 'conflict', current: result.currentRevision }));
-      else {
-        setEditing((now) => ({ session, draft: latest(now), seen, state: 'idle' }));
-        toast('error', fmt(t('resource.saveFailed'), { why: result.reason }));
-      }
-    } catch (e) {
-      setEditing((now) => ({ session, draft: now?.draft ?? draft, seen, state: 'idle' }));
-      toast('error', fmt(t('resource.saveFailed'), { why: why(e) }));
-    }
+  const stopEditing = () => {
+    setEditing(null);
+    setStatus(null);
+    void documents.closeView(surfaceId);
   };
-
-  const reload = async () => {
-    try {
-      const session = await openEdit(fileId);
-      setEditing({ session, draft: session.loaded, seen: revision, state: 'idle' });
-    } catch (e) {
-      toast('error', fmt(t('workspace.failed'), { why: why(e) }));
-    }
+  const save = async () => {
+    if (!editing) return;
+    const result = await documents.save(editing.documentId);
+    if (result.status === 'error') toast('error', fmt(t('resource.saveFailed'), { why: result.reason }));
   };
+  const problem = status?.problem ?? null;
 
   const isImage = !!copy && copy.type.startsWith('image/');
   const text = copy && !isImage && copy.type !== 'application/pdf' ? (copy.extractedText ?? copy.content) : '';
@@ -183,33 +169,47 @@ function ResourceCard({ id, data, selected }: Props) {
           <div className="flex flex-col flex-1 min-h-[160px] gap-1.5" onDoubleClick={(e) => e.stopPropagation()}>
             <textarea
               autoFocus
-              value={editing.draft}
-              onChange={(e) => setEditing((now) => (now ? { ...now, draft: e.target.value } : now))}
+              value={editing.text}
+              readOnly={editing.state === 'readonly'}
+              onChange={(e) => documents.setText(editing.documentId, e.target.value, surfaceId)}
               onKeyDown={(e) => {
                 e.stopPropagation();
-                if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); void save(); }
+                const mod = e.metaKey || e.ctrlKey;
+                const key = e.key.toLowerCase();
+                if (mod && key === 's') { e.preventDefault(); void save(); }
+                // undo and redo are the document's, shared by every view of the file
+                else if (mod && key === 'z') { e.preventDefault(); if (e.shiftKey) documents.redo(editing.documentId, surfaceId); else documents.undo(editing.documentId, surfaceId); }
+                else if (mod && key === 'y') { e.preventDefault(); documents.redo(editing.documentId, surfaceId); }
               }}
               spellCheck={false}
               data-resource-editor
               className="flex-1 min-h-[120px] w-full resize-none bg-wash border border-line rounded-md px-2 py-1.5 text-xs font-mono text-ink leading-relaxed outline-none focus:border-accent/60"
             />
-            {editing.state === 'conflict' && (
+            {problem?.kind === 'conflict' && (
               <div className="rounded-md bg-amber-50 border border-amber-200 px-2.5 py-2 text-2xs text-amber-800 leading-snug" data-resource-conflict>
-                <p>{t(editing.current ? 'resource.conflict' : 'resource.conflictGone')}</p>
-                <div className="flex gap-3 mt-1">
-                  <button onClick={() => void reload()} className="underline hover:no-underline" data-conflict-reload>{t('resource.conflictReload')}</button>
-                  {editing.current && <button onClick={() => void save(editing.current ?? undefined)} className="underline hover:no-underline" data-conflict-overwrite>{t('resource.conflictOverwrite')}</button>}
-                </div>
+                <p>{t(problem.theirsRevision ? 'resource.conflict' : 'resource.conflictGone')}</p>
+                {problem.theirsRevision && (
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                    <button onClick={() => void documents.resolveConflict(editing.documentId, 'theirs')} className="underline hover:no-underline" data-conflict-reload>{t('resource.conflictReload')}</button>
+                    <button onClick={() => void documents.resolveConflict(editing.documentId, 'mine')} className="underline hover:no-underline" data-conflict-overwrite>{t('resource.conflictOverwrite')}</button>
+                    <button onClick={() => void documents.resolveConflict(editing.documentId, 'both', { mine: t('resource.mine'), theirs: t('resource.theirs') })} className="underline hover:no-underline" data-conflict-both>{t('resource.conflictBoth')}</button>
+                  </div>
+                )}
               </div>
             )}
+            {problem?.kind === 'lost' && <p className="text-2xs text-amber-800 leading-snug" data-resource-edit-lost>{t('resource.conflictGone')}</p>}
+            {problem?.kind === 'error' && <p className="text-2xs text-red-600 leading-snug" data-resource-edit-error>{fmt(t('resource.saveFailed'), { why: problem.reason })}</p>}
             <div className="flex items-center justify-between gap-2">
-              <span className="text-2xs text-ink-faint" data-resource-save-state>
-                {editing.state === 'saving' ? t('resource.saving') : dirty ? t('resource.unsaved') : ''}
+              <span className="text-2xs text-ink-faint" data-resource-save-state={editing.state}>
+                {editing.state === 'saving' ? t('resource.saving')
+                  : editing.state === 'dirty' ? t(status?.restoredFromDraft ? 'resource.restoredDraft' : 'resource.unsaved')
+                    : editing.state === 'clean' ? t('resource.saved')
+                      : editing.state === 'readonly' ? t('workspace.readOnly') : ''}
               </span>
               <span className="flex gap-1.5">
-                <button onClick={() => void save()} disabled={!dirty || editing.state === 'saving'} data-resource-save
+                <button onClick={() => void save()} disabled={editing.state === 'clean' || editing.state === 'saving' || editing.state === 'readonly' || problem?.kind === 'conflict' || problem?.kind === 'lost'} data-resource-save
                   className={`${small} text-white bg-accent hover:opacity-90 disabled:opacity-40`}>{t('common.save')}</button>
-                <button onClick={() => setEditing(null)} disabled={editing.state === 'saving'} data-resource-done
+                <button onClick={stopEditing} data-resource-done
                   className={`${small} text-ink-muted hover:bg-wash`}>{t('common.done')}</button>
               </span>
             </div>

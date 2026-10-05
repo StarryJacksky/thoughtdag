@@ -246,6 +246,11 @@ interface DesktopWorkspaceBridge {
   rescan(workspaceId: string): Promise<import('./lib/workspace/contracts').ResourceRecord[]>;
   /** the person says a lost file is this entry */
   relink(fileId: string, entryId: string): Promise<import('./lib/workspace/contracts').ResourceRecord>;
+  /** keep text typed into a file and not yet written to it; one draft per file */
+  putDraft(fileId: string, draft: { text: string; baseRevision: string }): Promise<import('./lib/workspace/contracts').DocumentDraft>;
+  /** the draft kept for a file, or null */
+  getDraft(fileId: string): Promise<import('./lib/workspace/contracts').DocumentDraft | null>;
+  clearDraft(fileId: string): Promise<boolean>;
   /** move or rename a folder; resolves with its new entry id. The files in it keep their identities */
   moveFolder(workspaceId: string, entryId: string, targetParentId: string | undefined, newName: string, opId: string): Promise<string>;
   /** copy a folder and everything in it; resolves with the copy's entry id */

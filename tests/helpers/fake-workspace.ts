@@ -4,7 +4,7 @@
 // door be tested without a disk or a shell. It checks nothing about paths:
 // the real policy is tested where it lives (tests/host).
 
-import type { CreateFileRequest, FileEntry, FileVersion, RecoveryItem, ResourceRecord, SourceCapabilities, WorkspaceEvent, WorkspaceRecord } from '../../src/lib/workspace/contracts';
+import type { CreateFileRequest, DocumentDraft, FileEntry, FileVersion, RecoveryItem, ResourceRecord, SourceCapabilities, WorkspaceEvent, WorkspaceRecord } from '../../src/lib/workspace/contracts';
 
 interface FakeFile { fileId: string; workspaceId: string; relativePath: string; content: string; status: ResourceRecord['status']; origin: ResourceRecord['origin']; importedFrom?: ResourceRecord['importedFrom']; /** set for a file that is not text: what a read gives instead of `content` */ bytes?: Uint8Array }
 
@@ -22,6 +22,8 @@ export interface FakeWorkspace {
   workspace: WorkspaceRecord;
   /** what the workspace's source says it supports; change a field to stand in for a source that cannot do something */
   capabilities: SourceCapabilities;
+  /** the recovery drafts the door holds, by file id */
+  drafts: Map<string, DocumentDraft>;
   /** every call the door received, by method name, oldest first */
   calls: { method: string; args: unknown[] }[];
   files: Map<string, FakeFile>;
@@ -35,6 +37,8 @@ export interface FakeWorkspace {
   emit(event: WorkspaceEvent): void;
   /** make the next call of this method reject with `code: message` */
   failNext(method: string, code: string, message: string): void;
+  /** forget the failures that were queued and never met a call */
+  calm(): void;
   /** hold the next call of this method until `release()`: it answers with what is true at that later moment */
   holdNext(method: string): { release(): void };
   /** like holdNext, but the answer is worked out when the call arrives and only handed over on `release()`: an answer that is old by the time it lands */
@@ -65,6 +69,7 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
   // the recovery area: what was trashed (with the files that went), and what each file held before a save
   const recovery = new Map<string, { item: RecoveryItem; fileIds: string[] }>();
   const versions = new Map<string, string[]>();
+  const drafts = new Map<string, DocumentDraft>();
   const under = (relativePath: string, folder: string) => relativePath.startsWith(folder + '/');
   let serial = 0;
 
@@ -238,6 +243,14 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
       emit(event(fileId, 'content', opId));
       return { status: 'saved' as const, revision: fakeRevision(content), sourceRevision: null };
     }),
+    putDraft: door('putDraft', null, (fileId: string, draft: { text: string; baseRevision: string }) => {
+      if (!files.has(fileId)) throw new Error('unknown-file: that file is not known to an open workspace');
+      const kept: DocumentDraft = { fileId, text: draft.text, baseRevision: draft.baseRevision, savedAt: '2026-10-05T00:00:00Z' };
+      drafts.set(fileId, kept);
+      return kept;
+    }),
+    getDraft: door('getDraft', null, (fileId: string) => drafts.get(fileId) ?? null),
+    clearDraft: door('clearDraft', null, (fileId: string) => { drafts.delete(fileId); return true; }),
     reconcile: door('reconcile', null, (fileId: string) => record(fileId)),
     rescan: door('rescan', null, () => []),
     relink: door('relink', null, (fileId: string, entryId: string) => {
@@ -261,13 +274,14 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
   window.desktopWorkspace = bridge;
 
   return {
-    workspace, capabilities, calls, files,
+    workspace, capabilities, drafts, calls, files,
     seed: (relativePath, content, workspace_ = workspaceId) => { add(workspace_, relativePath, content, 'workspace'); return entryIdOf(relativePath); },
     entryId: entryIdOf,
     record,
     editExternally: (fileId, content) => { files.get(fileId)!.content = content; emit(event(fileId, 'content', null)); },
     emit,
     failNext: (method, code, message) => { failures.set(method, new Error(`Error invoking remote method 'workspace:${method}': Error: ${code}: ${message}`)); },
+    calm: () => failures.clear(),
     holdNext: (method) => hold(method, 'before'),
     delayNext: (method) => hold(method, 'after'),
     uninstall: () => { window.desktopWorkspace = previous; },

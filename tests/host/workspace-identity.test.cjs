@@ -14,6 +14,7 @@ const names = (entries) => entries.map((e) => e.name).sort();
 test('a copy of an open workspace folder is a workspace of its own: its listing, its new files and its file identities are the copy\'s', async () => {
   const { service, start, workspace, project, base, choose, open, request } = await setup();
   const original = await open('notes/a.md');
+  await service.putDraft(original.record.fileId, { text: 'TYPED_BEFORE_THE_COPY_D2\n', baseRevision: original.revision });
   const copyDir = path.join(base, 'copy-of-project');
   fs.cpSync(project, copyDir, { recursive: true });
   fs.writeFileSync(path.join(project, 'original-only.md'), 'ORIGINAL_ONLY_K1\n');
@@ -35,6 +36,11 @@ test('a copy of an open workspace folder is a workspace of its own: its listing,
   assert.equal(inCopy.workspaceId, copy.workspaceId);
   assert.equal(await service.locate(original.record.fileId), path.join(project, 'notes', 'a.md'));
   assert.equal(await service.locate(inCopy.fileId), path.join(copyDir, 'notes', 'a.md'));
+  // unsaved typing was copied with the folder: each folder has it under its own file's identity
+  assert.equal((await service.getDraft(inCopy.fileId))?.text, 'TYPED_BEFORE_THE_COPY_D2\n');
+  assert.equal((await service.getDraft(original.record.fileId))?.text, 'TYPED_BEFORE_THE_COPY_D2\n');
+  await service.clearDraft(inCopy.fileId);
+  assert.equal((await service.getDraft(original.record.fileId))?.text, 'TYPED_BEFORE_THE_COPY_D2\n');
   fs.writeFileSync(path.join(copyDir, 'notes', 'a.md'), 'EDITED_IN_COPY_K3\n');
   assert.equal((await service.readText(original.record.fileId)).text, 'FIRST_TEXT_B3\n');
   assert.equal((await service.readText(inCopy.fileId)).text, 'EDITED_IN_COPY_K3\n');

@@ -22,6 +22,7 @@ const { createRegistry, writeFileAtomic, REGISTRY_FILE } = require('./registry.c
 const { mediaTypeOf } = require('./media-types.cjs');
 const { createJournal, JOURNAL_FILE } = require('./journal.cjs');
 const { recoveryRoot } = require('./recovery.cjs');
+const drafts = require('./drafts.cjs');
 const { createFileOps } = require('./file-ops.cjs');
 const { createReconciler } = require('./reconcile.cjs');
 const { watchWorkspace } = require('./watch.cjs');
@@ -264,6 +265,13 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
     // earlier versions of a file are kept under its id: they follow it to the new one
     const versions = path.join(recoveryRoot(rootPath), 'versions');
     for (const [from, to] of renamed) await fsp.rename(path.join(versions, from), path.join(versions, to)).catch(() => {});
+    // so do the drafts: text typed into the original's file and not yet saved was copied along with the folder
+    for (const [from, to] of renamed) {
+      const draft = await drafts.getDraft(rootPath, from).catch(() => null);
+      if (!draft) continue;
+      await drafts.putDraft(rootPath, { ...draft, fileId: to }).catch(() => {});
+      await drafts.clearDraft(rootPath, from).catch(() => {});
+    }
     await fsp.rename(path.join(meta, JOURNAL_FILE), path.join(meta, `journal.copied-${Date.now()}.jsonl`)).catch(() => {});
     await writeFileAtomic(path.join(meta, IDENTITY_FILE), JSON.stringify({ schemaVersion: SCHEMA_VERSION, workspaceId, createdAt: now() }, null, 2) + '\n');
     return workspaceId;
@@ -542,6 +550,35 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
       const result = await (await operationsOf(grant)).restoreVersion(fileId, revision, baseRevision, opId);
       if (result.status === 'saved' && result.revision !== before) emit(grant.workspaceId, await (await registryOf(grant)).get(fileId), 'content', opId);
       return result;
+    },
+
+    // ── recovery drafts ────────────────────────────────────────────────
+
+    /**
+     * Keep text that was typed into a file and not yet written to it. One
+     * draft per file; a new one replaces the old. `baseRevision` is the
+     * content it was typed over. A folder this version may not write to
+     * keeps no drafts.
+     */
+    async putDraft(fileId, { text, baseRevision }) {
+      const grant = await grantOfFile(fileId);
+      if (grant.readOnly || (await (await registryOf(grant)).access()) !== 'read-write') throw new WorkspaceAccessError('read-only', 'this workspace is read-only');
+      const draft = await checkedRequest('DocumentDraft', { fileId, text, baseRevision, savedAt: now() });
+      await drafts.putDraft(grant.rootPath, draft, io);
+      return draft;
+    },
+
+    /** The draft kept for a file, or null. */
+    async getDraft(fileId) {
+      return drafts.getDraft((await grantOfFile(fileId)).rootPath, fileId, io);
+    },
+
+    /** Forget a file's draft. */
+    async clearDraft(fileId) {
+      const grant = await grantOfFile(fileId);
+      if (grant.readOnly || (await (await registryOf(grant)).access()) !== 'read-write') return true;
+      await drafts.clearDraft(grant.rootPath, fileId, io);
+      return true;
     },
 
     /**

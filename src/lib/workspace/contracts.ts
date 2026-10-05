@@ -149,6 +149,15 @@ export interface TrashReceipt {
   restorable: boolean;
 }
 
+/** Text typed into a file and not yet written to it, kept so it is not lost.
+ *  `baseRevision` is the content it was typed over. Never model input by default. */
+export interface DocumentDraft {
+  fileId: string;
+  text: string;
+  baseRevision: ContentHash;
+  savedAt: string;
+}
+
 /** Something kept in a workspace's recovery area after it was trashed there. */
 export interface RecoveryItem {
   receiptId: string;
@@ -283,6 +292,7 @@ export interface WorkspaceDTOs {
   TrashReceipt: TrashReceipt;
   RecoveryItem: RecoveryItem;
   FileVersion: FileVersion;
+  DocumentDraft: DocumentDraft;
   SourceRead: SourceRead;
   SourceWrite: SourceWrite;
   SourceWriteResult: SourceWriteResult;

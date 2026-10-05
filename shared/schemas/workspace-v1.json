@@ -357,6 +357,19 @@
       }
     },
 
+    "DocumentDraft": {
+      "description": "Text a person typed into a file that has not been written to the file: kept so that it survives a crash, a closed view or a refused save. `baseRevision` is the content the text was typed over. A draft is never model input by default.",
+      "type": "object",
+      "required": ["fileId", "text", "baseRevision", "savedAt"],
+      "additionalProperties": false,
+      "properties": {
+        "fileId": { "$ref": "#/$defs/OpaqueId" },
+        "text": { "type": "string" },
+        "baseRevision": { "$ref": "#/$defs/ContentHash" },
+        "savedAt": { "type": "string", "minLength": 1 }
+      }
+    },
+
     "SourceRead": {
       "description": "Content as a source returned it. `derived` content (a page rendered to text) is for reading; it is never written back as the original.",
       "type": "object",

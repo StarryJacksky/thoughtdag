@@ -154,11 +154,25 @@ test.describe.serial('workspace files on the canvas, in the desktop shell', () =
     await node.locator('[data-resource-edit]').click();
     await node.locator('[data-resource-editor]').fill('MINE_Z5\n');
     fs.writeFileSync(onDisk('Graph Files', 'Untitled-001.md'), 'CHANGED_ELSEWHERE_M2\n');
-    await node.locator('[data-resource-save]').click();
+    // nothing is clicked: the conflict shows by itself, from the folder's news or from the save that would have followed the typing
     await expect(node.locator('[data-resource-conflict]')).toBeVisible();
+    await expect(node.locator('[data-resource-save]')).toBeDisabled();
     expect(read('Graph Files', 'Untitled-001.md')).toBe('CHANGED_ELSEWHERE_M2\n');
     await expect(node.locator('[data-resource-editor]')).toHaveValue('MINE_Z5\n');
     await node.locator('[data-conflict-overwrite]').click();
+    await expect.poll(() => read('Graph Files', 'Untitled-001.md')).toBe('MINE_Z5\n');
+    await node.locator('[data-resource-done]').click();
+  });
+
+  test('what is typed saves by itself a moment after the typing stops', async () => {
+    const node = nodeOf('Untitled-001.md');
+    await node.locator('[data-resource-edit]').click();
+    await node.locator('[data-resource-editor]').fill('SAVED_BY_ITSELF_A2\n');
+    await expect(node.locator('[data-resource-save-state]')).toHaveAttribute('data-resource-save-state', 'clean');
+    expect(read('Graph Files', 'Untitled-001.md')).toBe('SAVED_BY_ITSELF_A2\n');
+    // undo is the document's: the text goes back, and that is saved too
+    await node.locator('[data-resource-editor]').press('ControlOrMeta+z');
+    await expect(node.locator('[data-resource-editor]')).toHaveValue('MINE_Z5\n');
     await expect.poll(() => read('Graph Files', 'Untitled-001.md')).toBe('MINE_Z5\n');
     await node.locator('[data-resource-done]').click();
   });
@@ -236,6 +250,26 @@ test.describe.serial('workspace files on the canvas, in the desktop shell', () =
     await expect(node).toHaveAttribute('data-resource-node', 'ready');
     await expect(node.locator('[data-resource-copy]')).toBeVisible();
     await expect(nodes()).toHaveCount(3);
+  });
+
+  test('typing that could not be saved is not lost: it is there again after the page is loaded anew, and is saved once it can be', async () => {
+    const node = nodeOf('space-page.md');
+    fs.chmodSync(onDisk('notes'), 0o555); // nothing can be written into the folder
+    try {
+      await node.locator('[data-resource-edit]').click();
+      await node.locator('[data-resource-editor]').fill('TYPED_BUT_NOT_SAVED_J7\n');
+      await expect(node.locator('[data-resource-save-state]')).toHaveAttribute('data-resource-save-state', 'readonly');
+      expect(read('notes', 'space-page.md')).toBe('COPIED_FROM_SPACE_H9\n');
+      await page.waitForTimeout(2500); // the canvas is saved a moment after the last change
+      await page.reload();
+    } finally {
+      fs.chmodSync(onDisk('notes'), 0o755);
+    }
+    const again = nodeOf('space-page.md');
+    await again.locator('[data-resource-edit]').click();
+    await expect(again.locator('[data-resource-editor]')).toHaveValue('TYPED_BUT_NOT_SAVED_J7\n');
+    await expect.poll(() => read('notes', 'space-page.md')).toBe('TYPED_BUT_NOT_SAVED_J7\n');
+    await again.locator('[data-resource-done]').click();
   });
 
   test('after the page is loaded again the canvas still has its folder and its file nodes', async () => {

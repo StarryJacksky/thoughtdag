@@ -144,11 +144,12 @@ export function autoLayout(allNodes: ThoughtNode[], allEdges: ThoughtEdge[]): Th
   // BUT if a node's ONLY incoming edge is a cross-link (user deleted the
   // original edge and re-wired by dragging), that link IS its parent chain:
   // adopt it so the node still stacks below its arrow-parent instead of
-  // being treated as a detached root. Watch edges are never adopted.
+  // being treated as a detached root. Watch edges are never adopted, and
+  // neither are feedback lines: they run against the arrows (lib/feedback).
   const structuralEdges = edges.filter((e) => !e.data?.isCrossLink);
   const hasStructuralParent = new Set(structuralEdges.map((e) => e.target));
   for (const e of edges) {
-    if (e.data?.isCrossLink && !e.data?.isWatch && !hasStructuralParent.has(e.target)) {
+    if (e.data?.isCrossLink && !e.data?.isWatch && !e.data?.feedback && !hasStructuralParent.has(e.target)) {
       structuralEdges.push(e);
       hasStructuralParent.add(e.target);
     }

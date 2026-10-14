@@ -44,6 +44,7 @@ export const COLORS = {
   warm: '#E08A3C',     // explore branch edges
   trace: '#F59E0B',    // ancestor-path highlight
   watch: '#DC2626',    // evaluator watch edges
+  feedback: '#0E9F8E', // feedback lines: references that close a loop
 } as const;
 
 // Frame palette — FIXED set (no picker): frames are navigation objects, so

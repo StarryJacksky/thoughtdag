@@ -254,6 +254,8 @@ export interface ThoughtData extends Record<string, unknown> {
   lastContextHash?: string;
   /** per upstream node, at generation time: a hash of what it contributed and its opening text — so a later change can be judged, not only detected */
   lastContextParts?: Record<string, { h: string; head: string }>;
+  /** the answer each feedback line into this node held when its latest answer was written (see lib/feedback): by edge id, the other node and which of its answers */
+  lastFeedback?: Record<string, { source: string; version: number | null }>;
   lastGeneratedAt?: string;
   // ── thinking-timeline raw data (write-only for now: a future timeline /
   //    process-replay view needs these recorded from day one — they cannot
@@ -431,6 +433,10 @@ export interface ThoughtEdge extends Edge {
         connect). Most edges are born with their target node — consumers
         should fall back to the target's createdAt. */
     createdAt?: string;
+    /** A feedback line (see lib/feedback): a reference that closes a loop.
+        It holds one finished answer of its source (`version`, an index into
+        its responses; null while the source has none), not the live one. */
+    feedback?: { version: number | null; pinnedAt: string };
     /** Context Focus role, set ONLY by the render pipeline — never persisted.
         path = structural feed line, ref = reference into the context,
         down = one step downstream. */

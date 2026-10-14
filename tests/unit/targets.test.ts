@@ -246,18 +246,24 @@ describe('wiring material to a task', () => {
     expect(runX.prompt).not.toContain('SHARED_C_L5');
   });
 
-  it('refuses a connection that would make what a task reads depend on its own answer', async () => {
+  // Until T26b a connection that closed a loop was refused. The user chose (2026-10-14) to keep the
+  // iteration a loop allows and make what each run reads fixed instead: the closing line is a feedback
+  // line (tests/unit/feedback-lines.test.ts). Only a task wired into itself is still refused.
+  it('makes a connection that would make what a task reads depend on its own answer a feedback line, and refuses a task into itself', async () => {
     const { x, y } = await setup();
     expect(connectNode(x, y)).toMatchObject({ ok: true });
     expect(wouldLoop(y, x)).toBe(true);
     const edgesBefore = useStore.getState().edges.length;
-    expect(connectNode(y, x)).toEqual({ ok: false, reason: 'loop' });
+    expect(connectNode(y, x)).toMatchObject({ ok: true, feedback: true });
+    expect(useStore.getState().edges.find((e) => e.source === y && e.target === x)!.data?.feedback).toBeDefined();
     expect(connectNode(x, x)).toEqual({ ok: false, reason: 'loop' });
-    expect(useStore.getState().edges.length).toBe(edgesBefore);
+    expect(useStore.getState().edges.length).toBe(edgesBefore + 1);
     // through a third task as well
     const z = newTask(createTarget(templateFor(CODEX)), { x: 300, y: 800 });
     expect(connectNode(y, z)).toMatchObject({ ok: true });
-    expect(connectNode(z, x)).toEqual({ ok: false, reason: 'loop' });
+    expect(connectNode(z, x)).toMatchObject({ ok: true, feedback: true });
+    // a feedback line carries no live answer: it is not a way round a loop for the next connection
+    expect(wouldLoop(x, z)).toBe(false);
   });
 
   it('is only done into a node that asks: material is not wired into material', async () => {

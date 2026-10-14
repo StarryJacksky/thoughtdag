@@ -234,15 +234,17 @@ describe('the strip material is dropped on', () => {
     expect(shell.calls.slice(callsBefore), 'the workspace was not asked for anything').toEqual([]);
   });
 
-  it('refuses to wire a task\'s own answer back into it, and says why', async () => {
+  it('wires a task\'s own answer back into it as a feedback line, and says what that is', async () => {
     const { x, zone } = await setup();
     const y = newTask(createTarget(templateFor(CLAUDE_CODE)), { x: 600, y: 400 });
     connectNode(x, y);
     useUiStore.setState({ toasts: [] });
     const before = useStore.getState().edges.length;
     await during(async () => { dropOn(zone, { kind: 'graph-node', nodeId: y }); await settled(); });
-    expect(useStore.getState().edges.length).toBe(before);
-    expect(useUiStore.getState().toasts.map((toast) => toast.kind)).toEqual(['error']);
+    expect(useStore.getState().edges.length).toBe(before + 1);
+    expect(useStore.getState().edges.find((e) => e.source === y && e.target === x)!.data?.feedback).toBeDefined();
+    expect(useUiStore.getState().toasts.map((toast) => toast.kind)).toEqual(['info']);
+    expect(desktop.runs, 'nothing is sent').toEqual([]);
   });
 });
 

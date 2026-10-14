@@ -14,6 +14,7 @@ import type { ResourceRef } from '../workspace/contracts';
 import { reconcileFile } from '../workspace/client';
 import { attachResource, nodesOfFile } from '../workspace/graph-resource';
 import { canvasVisit } from '../workspace/canvas-visit';
+import { closesLoop } from '../feedback';
 import { generateId } from '../../utils';
 import { useStore } from '../../store';
 import { useProjects } from '../../store/projects';
@@ -23,7 +24,7 @@ import { checkSend, createTarget as newTarget, templateFor, type KnownModels, ty
 export { describeTarget, templateFor, type SendCheck, type TargetDescription } from './target-model';
 
 type Point = { x: number; y: number };
-export type ConnectResult = { ok: true; edgeId: string } | { ok: false; reason: 'loop' | 'not-a-task' | 'unknown' | 'left' };
+export type ConnectResult = { ok: true; edgeId: string; feedback?: true } | { ok: false; reason: 'loop' | 'not-a-task' | 'unknown' | 'left' };
 
 /**
  * Where a gesture began: the canvas, and which opening of it. Work it
@@ -139,24 +140,12 @@ export function canSend(nodeId: string, known: KnownModels): SendCheck {
 
 /**
  * Whether an edge from `sourceId` into `taskId` would close a loop: the
- * task's answer already reaches the source, by whatever kind of edge. What
- * a task reads would then depend on what it answers.
+ * task's answer already reaches the source along lines that carry live
+ * answers (a feedback line does not: what it carries is fixed). What a task
+ * reads would then depend on what it answers.
  */
 export function wouldLoop(sourceId: string, taskId: string): boolean {
-  if (sourceId === taskId) return true;
-  const { edges } = useStore.getState();
-  const seen = new Set<string>([taskId]);
-  const queue = [taskId];
-  while (queue.length > 0) {
-    const from = queue.shift()!;
-    for (const edge of edges) {
-      if (edge.source !== from || seen.has(edge.target)) continue;
-      if (edge.target === sourceId) return true;
-      seen.add(edge.target);
-      queue.push(edge.target);
-    }
-  }
-  return false;
+  return closesLoop(sourceId, taskId, useStore.getState().edges);
 }
 
 /**
@@ -164,7 +153,10 @@ export function wouldLoop(sourceId: string, taskId: string): boolean {
  * already have (material comes in whole; an earlier question and its
  * answer come in as a reference). Nothing is sent and nothing is run.
  * Wiring what is already wired is not an error: the edge that is there is
- * the answer.
+ * the answer. A connection that would close a loop is made as a feedback
+ * line (lib/feedback): it holds one finished answer of the source, so what
+ * the task reads does not depend on what it answers. Only a node wired into
+ * itself is refused.
  */
 export function connectNode(sourceId: string, taskId: string): ConnectResult {
   const { nodes } = useStore.getState();
@@ -172,7 +164,11 @@ export function connectNode(sourceId: string, taskId: string): ConnectResult {
   const task = nodes.find((n) => n.id === taskId);
   if (!source || !task) return { ok: false, reason: 'unknown' };
   if (!isTask(task)) return { ok: false, reason: 'not-a-task' };
-  if (wouldLoop(sourceId, taskId)) return { ok: false, reason: 'loop' };
+  if (sourceId === taskId) return { ok: false, reason: 'loop' };
+  if (wouldLoop(sourceId, taskId)) {
+    const edgeId = useStore.getState().addFeedbackLink(sourceId, taskId);
+    return edgeId ? { ok: true, edgeId, feedback: true } : { ok: false, reason: 'unknown' };
+  }
   const existing = () => useStore.getState().edges.find((e) => e.source === sourceId && e.target === taskId);
   if (!existing()) useStore.getState().addCrossLink(sourceId, taskId);
   const edge = existing();

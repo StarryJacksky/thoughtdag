@@ -35,7 +35,7 @@ export const createEvaluatorSlice: StateCreator<StoreState, [], [], EvaluatorSli
    */
   rerunNode: async (nodeId: string, opts?: { auto?: boolean }) => {
     if (condenseGuard()) return;
-    const { nodes, edges } = get();
+    const { nodes } = get();
     const node = nodes.find((n) => n.id === nodeId);
     if (!node || node.data.isLoading) return;
     // In-place regenerate works for anything with a question — roots included
@@ -65,13 +65,17 @@ export const createEvaluatorSlice: StateCreator<StoreState, [], [], EvaluatorSli
       return;
     }
 
+    // A run in place starts a round: feedback lines into what it reads move to
+    // their latest finished answers (lib/feedback), before the context is built.
+    get().advanceFeedback(nodeId);
+    const { nodes: nodesNow, edges: edgesNow } = get();
     // Standard context with this node's own Q&A blanked out (same pattern
     // as editQuestion) — ancestors, roles, highlights, attachments all
     // resolve exactly like any other generation.
     const ctx = buildContext(
       nodeId,
-      nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, question: '', response: '' } } : n)),
-      edges,
+      nodesNow.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, question: '', response: '' } } : n)),
+      edgesNow,
       undefined,
       node.data.excludedAttachmentIds,
       node.data.includedAttachmentIds,

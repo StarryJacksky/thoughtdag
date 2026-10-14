@@ -5,6 +5,8 @@ import { useStore } from '../store';
 import { routeEdge } from '../lib/edge-path';
 import { walkUpAncestors } from '../lib/graph';
 import { referenceBlockContent } from '../store/context-builder';
+import { latestFinished } from '../lib/feedback';
+import { COLORS } from '../lib/constants';
 import { countTokens } from '../utils';
 import { useT, fmt } from '../i18n';
 import type { ThoughtEdge } from '../types';
@@ -37,7 +39,11 @@ export default function ThoughtEdgeView({
   const depth = data?.contextDepth === 'full' ? 'full' : 'quote';
   const src = nodes.find((n) => n.id === source);
   const srcIsMaterial = !src || ['note', 'file', 'link'].includes(src.data.stepKind ?? '');
-  const convertible = isRef
+  // a feedback line (lib/feedback) holds one finished answer of its source: it says which, and whether there is a newer one
+  const feedback = data?.feedback;
+  const newest = feedback && src ? latestFinished(src) : null;
+  const newer = !!feedback && newest !== null && (feedback.version === null || newest > feedback.version);
+  const convertible = feedback ? false : isRef
     ? !data?.isWatch && !srcIsMaterial
     : !data?.isBranchFromSelection && !data?.isWatch && !srcIsMaterial;
   const refTok = useMemo(() => {
@@ -97,6 +103,22 @@ export default function ThoughtEdgeView({
           >
             <div className="w-4.5 h-4.5 min-w-[18px] px-0.5 rounded-full bg-card border border-line shadow-sm flex items-center justify-center text-2xs font-mono text-ink-muted" style={{ fontSize: 10 }}>
               {mergeIndex + 1}
+            </div>
+          </div>
+        </EdgeLabelRenderer>
+      )}
+      {feedback && !selected && (
+        <EdgeLabelRenderer>
+          <div
+            className="nodrag nopan"
+            style={{ position: 'absolute', pointerEvents: 'all', transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
+            data-feedback-edge={feedback.version ?? 'none'}
+            data-feedback-newer={newer || undefined}
+            title={t('edge.feedbackTitle')}
+          >
+            <div className="h-5 px-2 rounded-full bg-card border shadow-sm flex items-center gap-1 text-2xs whitespace-nowrap" style={{ borderColor: COLORS.feedback, color: COLORS.feedback }}>
+              <span>{feedback.version === null ? t('edge.feedbackEmpty') : fmt(t('edge.feedbackLabel'), { n: feedback.version + 1 })}</span>
+              {newer && <span className="rounded-full px-1.5 text-white" style={{ background: COLORS.feedback }}>{t('edge.feedbackNewer')}</span>}
             </div>
           </div>
         </EdgeLabelRenderer>

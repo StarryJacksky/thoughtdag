@@ -1,0 +1,226 @@
+# npx vitest run tests/unit/feedback-lines.test.ts at 337b232, before T26b is implemented
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/feedback-lines.test.ts (10 tests | 9 failed) 909ms
+   ❯ a connection that closes a loop (4)
+     × [T26b] is made, as a feedback line that holds the answer the other task has now 6ms
+     × [T26b] drawn by hand on the canvas, it is a feedback line too 2ms
+     × [T26b] into a task with no finished answer yet holds nothing until there is one 1ms
+   ❯ a feedback line (6)
+     × [T26b] gives the task the answer it holds, whatever the other task answers later, and that answer does not make the task stale 2ms
+     × [T26b] does not run the task when the other task answers, even a task set to run again by itself 224ms
+     × [T26b] moves, when the task runs, to the other task's latest finished answer: that is what is sent, and the run says which it read 222ms
+     × [T26b] a question asked below the task starts a round too 224ms
+     × [T26b] does not move to an answer still being written, or one that failed 223ms
+     × [T26b] cannot be made solid: that would close the loop for real 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 9 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/feedback-lines.test.ts > a connection that closes a loop > [T26b] is made, as a feedback line that holds the answer the other task has now
+AssertionError: it is not refused: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/unit/feedback-lines.test.ts:82:42
+     80|     const { writer, critic } = writerAndCritic();
+     81|     const made = connectNode(critic, writer);
+     82|     expect(made.ok, 'it is not refused').toBe(true);
+       |                                          ^
+     83|     const line = edgeOf(critic, writer)!;
+     84|     expect(line.data).toMatchObject({ isCrossLink: true, feedback: { v…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/9]⎯
+
+ FAIL  tests/unit/feedback-lines.test.ts > a connection that closes a loop > [T26b] drawn by hand on the canvas, it is a feedback line too
+AssertionError: expected { isCrossLink: true, …(1) } to match object { isCrossLink: true, …(1) }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "feedback": {
+-     "version": 0,
+-   },
+    "isCrossLink": true,
+  }
+
+ ❯ tests/unit/feedback-lines.test.ts:91:42
+     89|     const { writer, critic } = writerAndCritic();
+     90|     useStore.getState().addCrossLink(critic, writer);
+     91|     expect(edgeOf(critic, writer)!.data).toMatchObject({ isCrossLink: …
+       |                                          ^
+     92|   });
+     93|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/9]⎯
+
+ FAIL  tests/unit/feedback-lines.test.ts > a connection that closes a loop > [T26b] into a task with no finished answer yet holds nothing until there is one
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/unit/feedback-lines.test.ts:100:44
+     98|     useStore.setState((st) => ({ nodes: st.nodes.map((n) => (n.id === …
+     99|     connectNode(writer, critic);
+    100|     expect(connectNode(critic, writer).ok).toBe(true);
+       |                                            ^
+    101|     expect(edgeOf(critic, writer)!.data?.feedback).toMatchObject({ ver…
+    102|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/9]⎯
+
+ FAIL  tests/unit/feedback-lines.test.ts > a feedback line > [T26b] gives the task the answer it holds, whatever the other task answers later, and that answer does not make the task stale
+AssertionError: expected 'W_TASK: write the paragraph.\nW_DRAFT…' to contain 'C_CRITIQUE_1'
+
+- Expected
++ Received
+
+- C_CRITIQUE_1
++ W_TASK: write the paragraph.
++ W_DRAFT_1
+
+ ❯ tests/unit/feedback-lines.test.ts:116:31
+    114|     connectNode(critic, writer);
+    115|     answered(writer, 'W_TASK: write the paragraph.', ['W_DRAFT_1']); /…
+    116|     expect(contextOf(writer)).toContain('C_CRITIQUE_1');
+       |                               ^
+    117|     answersAgain(critic, 'C_CRITIQUE_2');
+    118|     expect(contextOf(writer)).toContain('C_CRITIQUE_1');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/9]⎯
+
+ FAIL  tests/unit/feedback-lines.test.ts > a feedback line > [T26b] does not run the task when the other task answers, even a task set to run again by itself
+AssertionError: only the critic ran: expected [ 'claude-code', 'codex' ] to deeply equal [ 'claude-code' ]
+
+- Expected
++ Received
+
+  [
+    "claude-code",
++   "codex",
+  ]
+
+ ❯ tests/unit/feedback-lines.test.ts:130:71
+    128|     await useStore.getState().rerunNode(critic);
+    129|     await settle();
+    130|     expect(desktop.runs.map((r) => r.runtime), 'only the critic ran').…
+       |                                                                       ^
+    131|   });
+    132|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/9]⎯
+
+ FAIL  tests/unit/feedback-lines.test.ts > a feedback line > [T26b] moves, when the task runs, to the other task's latest finished answer: that is what is sent, and the run says which it read
+AssertionError: expected undefined to match object { version: 1 }
+
+- Expected:
+{
+  "version": 1,
+}
+
++ Received:
+undefined
+
+ ❯ tests/unit/feedback-lines.test.ts:144:33
+    142|     expect(sent.prompt).not.toContain('C_CRITIQUE_1');
+    143|     const line = edgeOf(critic, writer)!;
+    144|     expect(line.data?.feedback).toMatchObject({ version: 1 });
+       |                                 ^
+    145|     expect(node(writer).data.lastFeedback).toEqual({ [line.id]: { sour…
+    146|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/9]⎯
+
+ FAIL  tests/unit/feedback-lines.test.ts > a feedback line > [T26b] a question asked below the task starts a round too
+AssertionError: expected '[ThoughtDAG canvas context] The quest…' to contain 'C_CRITIQUE_2'
+
+- Expected
++ Received
+
+- C_CRITIQUE_2
++ [ThoughtDAG canvas context] The question that follows was asked from a ThoughtDAG canvas. Treat the material below as the conversation so far; answer the question at the end.
++
++ The conversation the canvas wired into this question, oldest first:
++
++ [user]
++ W_TASK: write the paragraph.
++
++ [assistant]
++ W_DRAFT_1
++
++ ---
++
++ W_FOLLOW_UP: shorter.
+
+ ❯ tests/unit/feedback-lines.test.ts:154:41
+    152|     await useStore.getState().addQuestion('W_FOLLOW_UP: shorter.', { p…
+    153|     await settle();
+    154|     expect(desktop.runs.at(-1)!.prompt).toContain('C_CRITIQUE_2');
+       |                                         ^
+    155|     expect(edgeOf(critic, writer)!.data?.feedback).toMatchObject({ ver…
+    156|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/9]⎯
+
+ FAIL  tests/unit/feedback-lines.test.ts > a feedback line > [T26b] does not move to an answer still being written, or one that failed
+AssertionError: expected undefined to match object { version: +0 }
+
+- Expected:
+{
+  "version": 0,
+}
+
++ Received:
+undefined
+
+ ❯ tests/unit/feedback-lines.test.ts:165:52
+    163|     await useStore.getState().rerunNode(writer);
+    164|     await settle();
+    165|     expect(edgeOf(critic, writer)!.data?.feedback).toMatchObject({ ver…
+       |                                                    ^
+    166|     expect(desktop.runs.at(-1)!.prompt).toContain('C_CRITIQUE_1');
+    167|     expect(desktop.runs.at(-1)!.prompt).not.toContain('C_FAILED_PLACEH…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/9]⎯
+
+ FAIL  tests/unit/feedback-lines.test.ts > a feedback line > [T26b] cannot be made solid: that would close the loop for real
+AssertionError: expected { Object (createdAt) } to match object { isCrossLink: true, …(1) }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "feedback": {
+-     "version": 0,
+-   },
+-   "isCrossLink": true,
++   "createdAt": "2026-10-14T22:55:12.091Z",
+  }
+
+ ❯ tests/unit/feedback-lines.test.ts:181:42
+    179|     const line = edgeOf(critic, writer)!;
+    180|     useStore.getState().setEdgeStructural(line.id, true);
+    181|     expect(edgeOf(critic, writer)!.data).toMatchObject({ isCrossLink: …
+       |                                          ^
+    182|   });
+    183| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/9]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  9 failed | 1 passed (10)
+   Start at  23:55:10
+   Duration  1.66s (tests 58%, transform 21%, environment 17%, import 3%, setup 1%)
+

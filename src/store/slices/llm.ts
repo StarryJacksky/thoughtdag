@@ -149,6 +149,8 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     const newNodes = autoLayout([...updatedNodes, newNode], newEdges);
     set({ nodes: newNodes, edges: newEdges, selectedNodeId: id });
 
+    // a question asked starts a round: feedback lines into what it reads move to their latest finished answers
+    get().advanceFeedback(id);
     // Build full context from ancestors + explicit role for the new node
     const selfNode = get().nodes.find((n) => n.id === id);
     const ctx = parentId
@@ -426,6 +428,8 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
         } } : n
       ),
     }));
+    // asking again starts a round (lib/feedback)
+    get().advanceFeedback(nodeId);
     // Rebuild context with this node's own Q&A blanked out
     const editNode = get().nodes.find((n) => n.id === nodeId);
     const editCtx = buildContext(nodeId, get().nodes.map(n =>
@@ -492,6 +496,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
 
     // the context is built the way a rerun in place builds it, from the sibling with its own question and answer
     // left out: ancestors, material, references, roles and attachments resolve as they do for the original
+    get().advanceFeedback(id); // a sibling asked starts a round (lib/feedback)
     const regenSelf = get().nodes.find((n) => n.id === id);
     const regenCtx = buildContext(
       id,

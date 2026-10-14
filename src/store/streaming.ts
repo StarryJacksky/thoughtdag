@@ -1,5 +1,6 @@
 import type { StoreApi } from 'zustand';
-import { walkUpAncestors } from '../lib/graph';
+import { partitionContext, walkUpAncestors } from '../lib/graph';
+import { isFeedback } from '../lib/feedback';
 import { upstreamFingerprint, upstreamParts, recordParts, type MessageSource } from './context-builder';
 import { sha256Hex, canonicalStringify } from '../lib/context-bundle';
 import { pruneHighlights } from '../lib/highlight-match';
@@ -163,6 +164,11 @@ export async function runNodeGeneration(
   const isCurrent = () => generationSeq.get(nodeId) === myGen;
   const abortController = new AbortController();
   activeAbortControllers.set(nodeId, abortController);
+  // which answer each feedback line into this run holds: what the context was built with, kept with the answer
+  const feedbackRead: Record<string, { source: string; version: number | null }> = {};
+  for (const ref of partitionContext(nodeId, get().nodes, get().edges).references) {
+    if (ref.edge.data?.feedback) feedbackRead[ref.edge.id] = { source: ref.edge.source, version: ref.edge.data.feedback.version };
+  }
 
   // A retry is starting — clear any previous failure flag and reasoning
   // buffer, and mark the old response as awaiting replacement (the canvas
@@ -289,7 +295,7 @@ export async function runNodeGeneration(
         const reasonings = [...kept.map(({ rs }) => rs), n.data.reasoning || undefined];
         const generatedAts = [...kept.map(({ at }) => at), now];
         const editedAts = [...kept.map(({ ed }) => ed), undefined];
-        return { ...n, data: { ...n.data, response, responses, questions, generatedBy, gatewaySearches, generatedEfforts, reasonings, generatedAts, editedAts, reasoning: undefined, restreaming: undefined, pendingApprovals: undefined, agentTrace: undefined, responseIndex: responses.length - 1, isLoading: false, tokenCount, generationFailed: failed || undefined, references, highlights: pruneHighlights(n.data.highlights, response), lastContextHash: contextHash, lastContextParts: contextParts, lastGeneratedAt: now } };
+        return { ...n, data: { ...n.data, response, responses, questions, generatedBy, gatewaySearches, generatedEfforts, reasonings, generatedAts, editedAts, reasoning: undefined, restreaming: undefined, pendingApprovals: undefined, agentTrace: undefined, responseIndex: responses.length - 1, isLoading: false, tokenCount, generationFailed: failed || undefined, references, highlights: pruneHighlights(n.data.highlights, response), lastContextHash: contextHash, lastContextParts: contextParts, lastFeedback: Object.keys(feedbackRead).length > 0 ? feedbackRead : undefined, lastGeneratedAt: now } };
       }),
     }));
   };
@@ -687,8 +693,11 @@ function triggerAutoReruns(set: Set, get: Get, completedNodeId: string): void {
   }
 
   // 2) rerun any autoRerun node that (now) has the completed node upstream,
-  //    within its per-wave budget (autoRerunRounds, default 1)
-  const { nodes, edges } = get();
+  //    within its per-wave budget (autoRerunRounds, default 1). A feedback
+  //    line is not a way upstream: what it carries is the answer it holds,
+  //    and the other end answering again runs nothing (lib/feedback).
+  const { nodes } = get();
+  const edges = get().edges.filter((e) => !isFeedback(e));
   for (const n of nodes) {
     const auto = n.data.autoRerun ?? n.data.evaluatorTrigger === 'auto'; // legacy graphs
     if (!auto || n.id === completedNodeId) continue;

@@ -5,6 +5,7 @@ import { generateId, countTokens } from '../../utils';
 import { COLORS } from '../../lib/constants';
 import { healLegacyNoteEdges, autoLayout, estimateNodeHeight, nodeHeight } from '../../lib/layout';
 import { getDescendantIds, walkUpAncestors } from '../../lib/graph';
+import { closesLoop, latestFinished } from '../../lib/feedback';
 import { referenceBlockContent, upstreamFingerprint, buildContext } from '../context-builder';
 import { pruneHighlights } from '../../lib/highlight-match';
 import { toast } from '../../lib/ui-store';
@@ -180,6 +181,10 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
     // (context walks are visited-guarded, and auto-chains are budgeted).
     const exists = edges.some((e) => e.source === sourceId && e.target === targetId);
     if (exists) return;
+    // A reference that closes a loop is a feedback line: it holds one finished
+    // answer of the other end, so the writer⇄critic iteration stays, and what
+    // every run reads is fixed when it starts (lib/feedback).
+    if (closesLoop(sourceId, targetId, edges)) { get().addFeedbackLink(sourceId, targetId); return; }
     // MATERIAL sources wire SOLID by default. A dashed reference carries a
     // node's Q/A transcript — a material has none, so a dashed wire from a
     // material is a nearly-empty gesture that LOOKS like "file connected"
@@ -287,10 +292,59 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
     if (stale.length) void import('../../lib/stale-judge').then((m) => m.judgeStaleness()).catch(() => undefined);
   },
 
+  addFeedbackLink: (sourceId: string, targetId: string) => {
+    const { nodes, edges } = get();
+    if (sourceId === targetId) return null;
+    const existing = edges.find((e) => e.source === sourceId && e.target === targetId);
+    if (existing) return existing.id;
+    const source = nodes.find((n) => n.id === sourceId);
+    if (!source || !nodes.some((n) => n.id === targetId)) return null;
+    const now = new Date().toISOString();
+    const version = latestFinished(source);
+    const line: ThoughtEdge = {
+      id: `feedback-${sourceId}-${targetId}`,
+      source: sourceId, sourceHandle: 'branch',
+      target: targetId, targetHandle: 'left',
+      type: 'smoothstep',
+      // its own look: neither the live dashed reference nor solid wiring
+      style: { stroke: COLORS.feedback, strokeDasharray: '2 6', strokeWidth: 2.5, strokeLinecap: 'round' },
+      animated: false,
+      markerEnd: { type: 'arrowclosed' as const, color: COLORS.feedback, width: 16, height: 16 },
+      data: { isCrossLink: true, feedback: { version, pinnedAt: now }, createdAt: now },
+    };
+    get().pushHistory();
+    set((state) => ({ edges: [...state.edges, line] }));
+    get().logEvent('connect', line.id, { feedback: true });
+    get().pushHistory();
+    toast('info', t('edge.feedbackMade'), 9000);
+    return line.id;
+  },
+
+  advanceFeedback: (nodeId: string) => {
+    const { nodes, edges } = get();
+    // what this node reads: itself and its conversation, the nodes references into which reach its context
+    const { ordered } = walkUpAncestors(nodeId, nodes, edges.filter((e) => !e.data?.isCrossLink));
+    const reads = new Set(ordered.map((n) => n.id));
+    const now = new Date().toISOString();
+    let moved = false;
+    const next = edges.map((e) => {
+      if (!e.data?.feedback || !reads.has(e.target)) return e;
+      const source = nodes.find((n) => n.id === e.source);
+      if (!source) return e;
+      const version = latestFinished(source);
+      if (version === e.data.feedback.version) return e;
+      moved = true;
+      return { ...e, data: { ...e.data, feedback: { version, pinnedAt: now } } };
+    });
+    if (moved) set({ edges: next });
+  },
+
   setEdgeStructural: (edgeId: string, structural: boolean) => {
     const { nodes, edges } = get();
     const edge = edges.find((e) => e.id === edgeId);
     if (!edge) return;
+    // a feedback line closes a loop: made solid, it would carry the live answer round it
+    if (structural && edge.data?.feedback) { toast('error', t('edge.feedbackStaysDashed')); return; }
     if (structural) {
       // Dashed → solid: the target will read the source's whole upstream.
       // Guard the DAG: if the source already sits downstream of the target

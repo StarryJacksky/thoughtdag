@@ -1,4 +1,5 @@
 import type { ThoughtNode, ThoughtEdge } from '../types';
+import { asOfVersion } from './feedback';
 
 /**
  * Post-order DFS up ALL incoming edges (blue, orange, cross-link).
@@ -107,6 +108,13 @@ export function partitionContext(
     if (CONTENT_KINDS.has(source.data.stepKind ?? '')) {
       // Hand-wired material is still material — full identity block, no trail
       materials.push(source);
+      continue;
+    }
+    if (edge.data?.feedback) {
+      // A feedback line (lib/feedback): the one finished answer it holds, as
+      // a quote with no trail. What came before that answer is, in a loop,
+      // this conversation itself.
+      references.push({ source: asOfVersion(source, edge.data.feedback.version), edge, depth: 'quote', chain: [] });
       continue;
     }
     const { ordered: refOrdered } = walkUpAncestors(edge.source, nodes, structural);

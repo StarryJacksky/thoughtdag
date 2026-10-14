@@ -446,9 +446,12 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     const node = get().nodes.find((n) => n.id === nodeId);
     if (!node) return;
 
-    // Find a structural parent (any incoming edge) for creating sibling
-    const parentEdge = get().edges.find((e) => e.target === nodeId);
-    const parentId = parentEdge?.source;
+    // The sibling is the same task asked again: it gets every edge into the
+    // original (its conversation parent and every piece of material or
+    // reference wired in, each with its own kind), and its own attachments
+    // and what it leaves out, so its context is the original's.
+    const incoming = get().edges.filter((e) => e.target === nodeId);
+    const parentId = incoming[0]?.source;
 
     // Create a new sibling node with the same question
     const id = generateId();
@@ -469,7 +472,10 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
         isLoading: true,
         tokenCount: 0,
         branchContext: node.data.branchContext,
-        highlights: [], highlightMode: 'tag', attachments: [], excludedAttachmentIds: [], includedAttachmentIds: [],
+        highlights: [], highlightMode: 'tag',
+        attachments: node.data.attachments ?? [],
+        excludedAttachmentIds: [...(node.data.excludedAttachmentIds ?? [])],
+        includedAttachmentIds: [...(node.data.includedAttachmentIds ?? [])],
         roleMode: node.data.roleMode || 'inherit',
         rolePrompt: node.data.rolePrompt,
         isRoot: !parentId,
@@ -479,20 +485,24 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
       },
     };
 
-    const newEdges = parentId
-      ? [...get().edges, { id: `edge-${parentId}-${id}`, source: parentId, target: id, type: 'smoothstep' }]
-      : get().edges;
+    const newEdges = [...get().edges, ...incoming.map((e, i) => ({ ...e, id: incoming.findIndex((o) => o.source === e.source) === i ? `edge-${e.source}-${id}` : `edge-${e.source}-${id}-${i}`, target: id }))];
 
     const newNodes = autoLayout([...get().nodes, newNode], newEdges);
     set({ nodes: newNodes, edges: newEdges, selectedNodeId: id });
 
+    // the context is built the way a rerun in place builds it, from the sibling with its own question and answer
+    // left out: ancestors, material, references, roles and attachments resolve as they do for the original
     const regenSelf = get().nodes.find((n) => n.id === id);
-    const regenCtx = parentId
-      ? buildContext(parentId, get().nodes, get().edges, node.data.branchContext, regenSelf?.data.excludedAttachmentIds, regenSelf?.data.includedAttachmentIds, shownStaleIds(get()))
-      : { messages: [] as ContextMessage[], images: [] as ImageAttachment[], sources: [] as MessageSource[] };
+    const regenCtx = buildContext(
+      id,
+      get().nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, question: '', response: '' } } : n)),
+      get().edges,
+      node.data.branchContext,
+      regenSelf?.data.excludedAttachmentIds,
+      regenSelf?.data.includedAttachmentIds,
+      shownStaleIds(get()),
+    );
     const contextMessages = regenCtx.messages;
-    const regenParent = parentId ? get().nodes.find((n) => n.id === parentId) : null;
-    applyRoleOverride(contextMessages, resolveExplicitRole(regenSelf?.data, regenParent?.data, !!parentId));
 
     const appliedRole = contextMessages.find((m) => m.role === 'system')?.content || undefined;
     contextMessages.push({ role: 'user', content: node.data.question });

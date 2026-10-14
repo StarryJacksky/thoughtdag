@@ -45,6 +45,8 @@ export interface Surface extends SurfaceState {
   notice: 'too-large' | 'not-text' | null;
   /** the surface shows a task of the canvas (its question, its answer, what is wired to it): this is the task's node */
   taskNodeId: string | null;
+  /** for a task: the opening of the canvas it is a task of (see canvas-visit). A copy of a canvas keeps its node ids: the id alone does not say which canvas */
+  visit: number | null;
 }
 
 export const MIN_SURFACE: Size = { width: 360, height: 240 };
@@ -111,14 +113,14 @@ export function focusSurface(surfaceId: string): void {
  * already be open for that id as a view (see `openFileSurface`, which does
  * both). `as` places it; otherwise it floats beside the surfaces already there.
  */
-export function openSurface(documentId: string, kind: SurfaceKind, options: { surfaceId?: string; fileId?: string; workspaceId?: string; title?: string; placement?: Placement; rect?: Rect; reading?: boolean; notice?: Surface['notice']; taskNodeId?: string } = {}): string {
+export function openSurface(documentId: string, kind: SurfaceKind, options: { surfaceId?: string; fileId?: string; workspaceId?: string; title?: string; placement?: Placement; rect?: Rect; reading?: boolean; notice?: Surface['notice']; taskNodeId?: string; visit?: number } = {}): string {
   const surfaceId = options.surfaceId ?? newSurfaceId();
   useSurfaces.setState((state) => {
     const floating = state.surfaces.filter((s) => s.placement === 'floating').length;
     // each new surface a step down and across from the last, wrapping before it leaves the container
     const step = (floating % 8) * 28;
     const rect = fitRect(options.rect ?? { ...DEFAULT_SIZE, x: state.container.width - DEFAULT_SIZE.width - 24 - step, y: 64 + step }, state.container);
-    const surface: Surface = { surfaceId, documentId, kind, placement: options.placement ?? 'floating', rect, fileId: options.fileId ?? '', workspaceId: options.workspaceId ?? '', title: options.title ?? '', back: null, reading: options.reading ?? false, notice: options.notice ?? null, taskNodeId: options.taskNodeId ?? null };
+    const surface: Surface = { surfaceId, documentId, kind, placement: options.placement ?? 'floating', rect, fileId: options.fileId ?? '', workspaceId: options.workspaceId ?? '', title: options.title ?? '', back: null, reading: options.reading ?? false, notice: options.notice ?? null, taskNodeId: options.taskNodeId ?? null, visit: options.visit ?? null };
     return { surfaces: [...state.surfaces, surface], order: [...state.order, surfaceId] };
   });
   return surfaceId;
@@ -264,7 +266,7 @@ export function openTaskSurface(taskNodeId: string, title: string, options: { pl
   const size = { width: 440, height: Math.max(MIN_SURFACE.height, Math.min(640, container.height - 96)) };
   const others = surfaces.filter((s) => s.kind === 'task').length;
   const rect = options.rect ?? { ...size, x: 72 + (others % 4) * (size.width + 16), y: 56 + (others % 4) * 12 };
-  const made = openSurface(`task:${taskNodeId}`, 'task', { taskNodeId, title, placement: options.placement, rect });
+  const made = openSurface(`task:${taskNodeId}`, 'task', { taskNodeId, title, placement: options.placement, rect, visit: canvasVisit() });
   focusSurface(made);
   return made;
 }

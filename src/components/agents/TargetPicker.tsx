@@ -68,12 +68,12 @@ function useDismiss(open: boolean, close: () => void) {
 }
 
 /** The chip on a task: the AI it is bound to, and the way to give it another. Shown only while choosing per task is on. */
-export default function TargetPicker({ nodeId }: { nodeId: string }) {
+export default function TargetPicker({ nodeId, menuAt = 'left' }: { nodeId: string; menuAt?: 'left' | 'right' }) {
   const on = useUiStore((s) => s.perTaskAi);
-  return on ? <TargetChip nodeId={nodeId} /> : null;
+  return on ? <TargetChip nodeId={nodeId} menuAt={menuAt} /> : null;
 }
 
-function TargetChip({ nodeId }: { nodeId: string }) {
+function TargetChip({ nodeId, menuAt }: { nodeId: string; menuAt: 'left' | 'right' }) {
   const t = useT();
   const target = useStore((s) => s.nodes.find((n) => n.id === nodeId)?.data.target);
   const pin = useStore((s) => s.nodes.find((n) => n.id === nodeId)?.data.model);
@@ -102,7 +102,7 @@ function TargetChip({ nodeId }: { nodeId: string }) {
         </button>
       </div>
       {open && (
-        <div className="absolute left-0 top-full mt-1 z-50 w-72 bg-card border border-line rounded-xl shadow-lg p-1.5" data-target-menu>
+        <div className={`absolute ${menuAt === 'right' ? 'right-0' : 'left-0'} top-full mt-1 z-50 w-72 bg-card border border-line rounded-xl shadow-lg p-1.5`} data-target-menu>
           <p className="px-2.5 pt-1 pb-1.5 text-2xs text-ink-muted leading-snug border-b border-line/60 mb-1">{t('target.menuHint')}</p>
           <AiList current={target?.model} onPick={(m) => { retarget(nodeId, { model: m.id }); if (!m.efforts?.length) setOpen(false); }} />
           {efforts.length > 0 && target && (

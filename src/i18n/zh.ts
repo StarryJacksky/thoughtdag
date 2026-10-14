@@ -1511,6 +1511,8 @@ export const zh: Record<keyof typeof en, string> = {
   'target.perTaskOnTitle': '已开启单独选 AI：每个任务仍默认用工具栏的 AI，只在想换的任务卡片上换。再点一次收起选择器（已做的选择保留）。',
   'target.panelUntitled': '任务',
   'target.unavailable': '这个任务绑定的是 {m}，现在连不上。什么都没有发出。请为这个任务另选一个 AI，或者恢复它的连接。',
+  'target.noModelSent': '没有可以发送这个任务的模型，什么都没有发出。请为它选一个 AI，或者先连接一个模型。',
+  'target.noModelAnswer': '没有发送：没有可以发送这个任务的模型。请为它选一个 AI，或者先连接一个模型，再运行。',
   'target.unavailableAnswer': '没有发送：这个任务绑定的模型（{m}）现在连不上。没有改发给别的模型。请在任务卡片上为它另选一个 AI，或者恢复连接后再运行。',
   'surface.fileGone': '这个文件已经不在原处。这里不会把它上次显示的内容当作还在的内容显示。',
   'versions.title': '这个文件每次保存之前的内容',

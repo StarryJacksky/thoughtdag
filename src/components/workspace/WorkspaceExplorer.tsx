@@ -8,6 +8,7 @@ import { canDo } from '../../lib/workspace/provider-contracts';
 import { createDocument } from '../../lib/workspace/create-command';
 import { copyNameOf } from '../../lib/workspace/file-types';
 import { openFileSurface } from '../../lib/documents/surface-store';
+import { canvasVisit } from '../../lib/workspace/canvas-visit';
 import { RESOURCE_DRAG_TYPE, applyRecord, attachEntry, copyAcrossWorkspaces, moveReferencedFile, parseDragPayload, relinkNode, type DragPayload } from '../../lib/workspace/graph-resource';
 import { openCanvasFolder, pickWorkspaceFolder, reloadTree, useWorkspacePanel } from '../../lib/workspace/session';
 import { confirmDialog, toast } from '../../lib/ui-store';
@@ -112,7 +113,11 @@ export default function WorkspaceExplorer({ placeAt }: Props) {
   }, [workspaceId, treeVersion]);
 
   const attempt = async (work: () => Promise<void>) => {
-    try { await work(); } catch (e) { toast('error', fmt(t('workspace.failed'), { why: why(e) })); }
+    try { await work(); } catch (e) {
+      // the canvas was left while this waited: what it would have done there is not done, and not complained of
+      if (e instanceof WorkspaceError && e.code === 'wrong-graph') return;
+      toast('error', fmt(t('workspace.failed'), { why: why(e) }));
+    }
   };
 
   const toggle = (entry: FileEntry) => {
@@ -128,27 +133,32 @@ export default function WorkspaceExplorer({ placeAt }: Props) {
     }
   };
 
+  // A surface opened from here belongs to the opening of the canvas the person was in when they asked
+  // (see canvas-visit): one that is ready only after another canvas was opened, or this one anew, opens nowhere.
   const create = (extension: string) => attempt(async () => {
     setMenu(null);
     if (!workspaceId) return;
+    const visit = canvasVisit();
     const made = await createDocument({ workspaceId, ...(folder ? { parentId: folder.entryId } : {}), extension, origin: 'workspace' });
     if (folder) setExpanded((prev) => new Set(prev).add(folder.entryId));
     reloadTree();
+    if (canvasVisit() !== visit) return;
     // a new file is made to be typed into: it opens at once, and the canvas gets no node for it
-    await openFileSurface(made.record.fileId);
+    await openFileSurface(made.record.fileId, { visit });
     toast('success', fmt(t('workspace.created'), { name: made.record.relativePath ?? '' }), 5000, { label: t('workspace.reveal'), run: () => void revealFile(made.record.fileId).catch(() => {}) });
   });
 
   const addToCanvas = (entry: FileEntry) => attempt(async () => {
     const canvasId = useProjects.getState().activeId;
     if (!workspaceId || !canvasId) return;
-    await attachEntry(canvasId, workspaceId, entry.entryId, placeAt());
+    await attachEntry(canvasId, workspaceId, entry.entryId, placeAt(), canvasVisit());
   });
 
   /** Open a file to read and type into, in a surface. The canvas is not touched. */
   const openFile = (entry: FileEntry) => attempt(async () => {
     if (!workspaceId) return;
-    await openFileSurface((await registerEntry(workspaceId, entry.entryId)).fileId);
+    const visit = canvasVisit();
+    await openFileSurface((await registerEntry(workspaceId, entry.entryId)).fileId, { visit });
   });
 
   const reveal = (entry: FileEntry) => attempt(async () => {

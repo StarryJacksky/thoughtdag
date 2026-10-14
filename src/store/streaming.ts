@@ -223,13 +223,31 @@ export async function runNodeGeneration(
   // Resolved ONCE, here: the picker may change while this node runs, and the
   // node must record what it was asked with, not what the picker says later
   const requestedModel = pinnedModel ?? useUiStore.getState().selectedModel ?? serverDefaultModel ?? undefined;
+  // No model anywhere, and the list of models is known: nothing is sent (it would go out naming none, for the
+  // server to pick one by itself), and nothing is recorded as asked or answered. Every way a run starts comes
+  // through here: a question, a follow-up, a rerun in place or by itself, a sibling.
+  if (!requestedModel && modelData) {
+    if (!isCurrent()) return;
+    activeAbortControllers.delete(nodeId);
+    toast('error', t('target.noModelSent'), 9000);
+    set((state) => ({
+      nodes: state.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, response: t('target.noModelAnswer'), isLoading: false, restreaming: undefined, reasoning: undefined, generationFailed: true } } : n)),
+    }));
+    get().pushHistory();
+    return;
+  }
   // A task with no target yet is bound to what it runs on now, with the
   // global settings as they are now: the defaults are a template for new
   // targets, and whatever changes in them later is not this task's.
+  let runTarget = boundTarget;
   if (requestedModel && !boundTarget) {
     const made = createTarget(templateFor(requestedModel));
+    runTarget = made;
     set((state) => ({ nodes: state.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, model: requestedModel, target: made } } : n)) }));
   }
+  // The model and its effort are decided here, together, once: a change to the task's AI while the run is
+  // still being prepared (its guard, its materials) is the next run's, and never half of this one's.
+  const runEffort = runTarget && runTarget.model === requestedModel ? (runTarget.effort ?? null) : undefined;
   const harnessRoute = await harnessOutbound(nodeId, requestedModel);
   const agentRoute = harnessRoute ? undefined : await agentOutbound(requestedModel, nodeId);
   let harnessSession: string | undefined;
@@ -517,7 +535,7 @@ export async function runNodeGeneration(
       };
       // the model is named in the request, also when it came from the defaults: the task was just bound to it,
       // and what answers must be what the task says it runs on, not whatever the server's default is by then
-    })(), pinnedModel ?? requestedModel, harnessRoute ?? (agentRoute ? { ...agentRoute, nodeId } : undefined));
+    })(), pinnedModel ?? requestedModel, harnessRoute ?? (agentRoute ? { ...agentRoute, nodeId, ...(runEffort !== undefined ? { effort: runEffort } : {}) } : undefined));
     flushStream();
     if (!isCurrent()) return; // superseded while finishing: drop everything
     activeAbortControllers.delete(nodeId);

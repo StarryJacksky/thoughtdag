@@ -547,6 +547,45 @@ describe('a file whose bytes are kept outside the node (a PDF)', () => {
     expect(await loadAttachmentContent(now)).toBe(b64(three));
   });
 
+  it('[R3-08] a canvas exported after its file was refreshed and imported again leaves another copy of the canvas reading the bytes of its own text', async () => {
+    const { loadAttachmentContent, inlineVaultedContent, gcVault } = await import('../../src/lib/attachment-vault');
+    const { referencedVaultIds } = await import('../../src/lib/attachment-vault-boot');
+    const { importProjectFromFile } = await import('../../src/lib/export');
+    const one = pdf('VERSION_ONE_P1');
+    const two = pdf('VERSION_TWO_P2');
+    const { id, fileId } = await placePdf(one);
+    // B: a copy of this canvas, still on the first version; this one (A) is then brought up to the second
+    const elsewhere = structuredClone(node(id));
+    shell.files.get(fileId)!.bytes = two;
+    await refreshResourceNode(id);
+    // A is exported, and the file imported as a canvas of its own: the attachment comes in under the same id
+    const exported = await inlineVaultedContent([node(id)]);
+    expect(exported[0].data.attachments[0].id).toBe(elsewhere.data.attachments[0].id);
+    expect(await importProjectFromFile(new File(['{}'], 'a.thoughtdag.json'), { name: 'imported', nodes: exported, edges: [] })).toBe(true);
+    const imported = useStore.getState().nodes.find((n) => n.id === id)!;
+    expect(imported.data.attachments[0].extractedText).toBe(textOf(two));
+    expect(await loadAttachmentContent(imported.data.attachments[0])).toBe(b64(two));
+    expect(await loadAttachmentContent(elsewhere.data.attachments[0]), 'B reads the bytes that go with its text, as before').toBe(b64(one));
+    // exported again, each carries the bytes of its own text
+    const [fromImported] = await inlineVaultedContent([imported]);
+    const [fromElsewhere] = await inlineVaultedContent([elsewhere]);
+    expect(fromImported.data.attachments[0]).toMatchObject({ content: b64(two), extractedText: textOf(two) });
+    expect(fromElsewhere.data.attachments[0]).toMatchObject({ content: b64(one), extractedText: textOf(one) });
+    // and the sweep keeps what each of them reads
+    await gcVault(referencedVaultIds([imported, elsewhere]));
+    expect(await loadAttachmentContent(elsewhere.data.attachments[0])).toBe(b64(one));
+    expect(await loadAttachmentContent(imported.data.attachments[0])).toBe(b64(two));
+  });
+
+  it('[R3-08] a PDF put in the vault twice with other bytes under the same attachment id does not replace the first', async () => {
+    const { internAttachment, loadAttachmentContent } = await import('../../src/lib/attachment-vault');
+    const att = (content: string) => ({ id: 'att-same-id', name: 'p.pdf', type: 'application/pdf', size: content.length, content });
+    const first = await internAttachment(att(b64(pdf('VERSION_ONE_P1'))));
+    const second = await internAttachment(att(b64(pdf('VERSION_TWO_P2'))));
+    expect(await loadAttachmentContent(first)).toBe(b64(pdf('VERSION_ONE_P1')));
+    expect(await loadAttachmentContent(second)).toBe(b64(pdf('VERSION_TWO_P2')));
+  });
+
   it('[R2-17] the vault is not swept of the bytes a refreshed copy reads', async () => {
     const { loadAttachmentContent, gcVault } = await import('../../src/lib/attachment-vault');
     const { referencedVaultIds } = await import('../../src/lib/attachment-vault-boot');

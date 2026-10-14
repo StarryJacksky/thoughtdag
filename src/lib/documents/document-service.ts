@@ -133,10 +133,10 @@ interface Open {
   restoredFromDraft: boolean;
   autosave: ReturnType<typeof setTimeout> | null;
   drafting: ReturnType<typeof setTimeout> | null;
-  /** the save under way, if any */
+  /** the saves under way, if any: one write after another, until every request is answered */
   saving: Promise<SaveResult> | null;
-  /** another save was asked for while one was under way */
-  saveAgain: boolean;
+  /** who asked for a save, and the buffer revision their request is for: answered by the first write that covers it */
+  waiting: { bufferRevision: number; answer: (result: SaveResult) => void }[];
   /** the attempt whose outcome is not known: asked again under the same id while the text is the same */
   attempt: { opId: string; bufferRevision: number } | null;
   /** operation ids of saves this document sent: news of them is not news */
@@ -321,34 +321,60 @@ export function createDocumentService({ drafts = workspaceDrafts, now = () => Da
     return result;
   }
 
+  /**
+   * Save the buffer as it is now. One write of a file at a time: a save
+   * asked for while writes are under way waits its turn, and every request
+   * is answered by the first write that covers the text it was asked for
+   * (its buffer revision), however many requests came meanwhile. A write
+   * that does not land (a conflict, an error, a closed document) answers
+   * every request still waiting with what became of it. Nothing is called
+   * saved that was not written.
+   */
   function save(doc: Open, against?: ContentHash): Promise<SaveResult> {
     cancelSave(doc);
-    if (doc.saving) {
-      // one save of a file at a time: this one follows the one under way. It is told what became of the save
-      // that covers it: the one that follows, when there is more to write; otherwise the one it waited for,
-      // whatever that was. Nothing is called saved because no save happens to be under way.
-      doc.saveAgain = true;
-      return doc.saving.then((waitedFor) => doc.saving ?? waitedFor);
-    }
-    if (doc.model.state === 'readonly') return Promise.resolve({ status: 'readonly', reason: 'the file cannot be written' });
-    if (doc.problem?.kind === 'lost') return Promise.resolve({ status: 'conflict', currentRevision: null });
-    if (doc.problem?.kind === 'conflict' && against === undefined) return Promise.resolve({ status: 'conflict', currentRevision: doc.problem.theirsRevision });
-    if (!dirty(doc) && against === undefined) return Promise.resolve({ status: 'saved', revision: doc.model.sourceContentHash, sourceRevision: doc.model.sourceRevision });
-
-    const run = writeOnce(doc, against ?? doc.model.sourceContentHash).finally(() => {
-      if (doc.saving === run) doc.saving = null;
-      if (doc.saveAgain) {
-        doc.saveAgain = false;
-        if (!doc.closed && dirty(doc) && doc.problem === null) doc.saving = startFollowing(doc);
-      }
-    });
-    doc.saving = run;
-    return run;
+    const asked = new Promise<SaveResult>((answer) => { doc.waiting.push({ bufferRevision: doc.model.bufferRevision, answer }); });
+    if (doc.saving) return asked;
+    const refused = (result: SaveResult) => { answerWaiting(doc, () => true, result); return asked; };
+    if (doc.model.state === 'readonly') return refused({ status: 'readonly', reason: 'the file cannot be written' });
+    if (doc.problem?.kind === 'lost') return refused({ status: 'conflict', currentRevision: null });
+    if (doc.problem?.kind === 'conflict' && against === undefined) return refused({ status: 'conflict', currentRevision: doc.problem.theirsRevision });
+    if (!dirty(doc) && against === undefined) return refused({ status: 'saved', revision: doc.model.sourceContentHash, sourceRevision: doc.model.sourceRevision });
+    doc.saving = drain(doc, against ?? doc.model.sourceContentHash);
+    return asked;
   }
-  const startFollowing = (doc: Open): Promise<SaveResult> => {
-    const run = writeOnce(doc, doc.model.sourceContentHash).finally(() => { if (doc.saving === run) doc.saving = null; });
-    return run;
-  };
+
+  function answerWaiting(doc: Open, covered: (bufferRevision: number) => boolean, result: SaveResult): void {
+    const answered = doc.waiting.filter((w) => covered(w.bufferRevision));
+    doc.waiting = doc.waiting.filter((w) => !covered(w.bufferRevision));
+    for (const w of answered) w.answer(result);
+  }
+
+  /** Write, and write again while someone waits for text that is not written yet. There is one of these at a time per document. */
+  async function drain(doc: Open, against: ContentHash): Promise<SaveResult> {
+    let base = against;
+    let last: SaveResult;
+    for (;;) {
+      const bufferRevision = doc.model.bufferRevision;
+      try { last = await writeOnce(doc, base); } catch (e) { last = { status: 'error', reason: why(e) }; }
+      if (last.status !== 'saved') break;
+      // whoever asked for the text this write held, or for an earlier one, has their answer
+      answerWaiting(doc, (wanted) => wanted <= bufferRevision, last);
+      if (doc.waiting.length === 0 || doc.closed || !dirty(doc) || doc.problem !== null) break;
+      base = doc.model.sourceContentHash;
+    }
+    // the rest are told how it ended: a write that did not land, a buffer that holds what was written, or why
+    // what they asked for was not written (the document was closed, or the file changed under it meanwhile)
+    if (last.status === 'saved' && doc.waiting.length > 0 && dirty(doc)) {
+      const problem = doc.problem;
+      last = problem?.kind === 'conflict' ? { status: 'conflict', currentRevision: problem.theirsRevision }
+        : problem?.kind === 'lost' ? { status: 'conflict', currentRevision: null }
+        : { status: 'error', reason: 'the document was closed before this was written' };
+    }
+    // over before anyone is answered: a save asked for by whoever is answered starts writing again
+    doc.saving = null;
+    answerWaiting(doc, () => true, last);
+    return last;
+  }
 
   // ── edits ────────────────────────────────────────────────────────────
 
@@ -407,7 +433,7 @@ export function createDocumentService({ drafts = workspaceDrafts, now = () => Da
       listeners: new Set(),
       problem: null,
       restoredFromDraft: false,
-      autosave: null, drafting: null, saving: null, saveAgain: false, attempt: null, sent: new Set(), failures: 0,
+      autosave: null, drafting: null, saving: null, waiting: [], attempt: null, sent: new Set(), failures: 0,
       drafted: draft ? { text: draft.text, baseRevision: draft.baseRevision, byHand: draft.byHand === true } : null,
       draftTurn: Promise.resolve(),
       byHand: false,

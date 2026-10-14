@@ -5,6 +5,7 @@ import { useSendCheck } from '../agents/use-send-check';
 import { shownStaleIds } from '../../lib/stale-judge';
 import { isImeComposing } from '../../utils';
 import { useUiStore } from '../../lib/ui-store';
+import { useSurfaces } from '../../lib/documents/surface-store';
 import { buildContext } from '../../store/context-builder';
 import { processFile, FILE_INPUT_ACCEPT } from '../../lib/attachments';
 import SearchToggles from '../ui/SearchToggles';
@@ -91,13 +92,21 @@ export default function FollowUpInput({
     };
   }, [nodeId, nodes, edges, staleIds]);
 
-  // Auto-focus continue input when switching nodes or staging selected text
+  // Auto-focus continue input when switching nodes or staging selected text.
+  // It comes a moment later, and by then the person may have chosen where to
+  // type: a panel in a surface takes the focus only while its surface is the
+  // one in front, and focus the person put somewhere else meanwhile stays.
   useEffect(() => {
+    const before = document.activeElement;
     const t = setTimeout(() => {
-      if (continueRef.current) {
-        continueRef.current.focus();
-        autoGrow(continueRef.current); // restored drafts need their height back
-      }
+      const input = continueRef.current;
+      if (!input) return;
+      const frame = input.closest<HTMLElement>('[data-surface]');
+      if (frame && useSurfaces.getState().active.surfaceId !== frame.dataset.surface) return;
+      const now = document.activeElement;
+      if (now && now !== before && now !== document.body && !input.contains(now)) return;
+      input.focus();
+      autoGrow(input); // restored drafts need their height back
     }, 100);
     return () => clearTimeout(t);
      

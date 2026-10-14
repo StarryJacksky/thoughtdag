@@ -743,6 +743,50 @@ describe('when the disk is slow or refuses', () => {
     expect(onDisk()).toBe('FIRST_LINE_K4\none\ntwo\n');
   });
 
+  /** Three saves, each asked for after more was typed while the one before was being written. */
+  const threeSaves = async (doc: DocumentModel, thirdFails = false) => {
+    typeAtEnd(doc, 'one\n');
+    const firstHeld = shell.holdNext('saveText');
+    const first = documents.save(doc.documentId);
+    await settle();
+    typeAtEnd(doc, 'two\n');
+    const second = documents.save(doc.documentId);
+    const secondHeld = shell.holdNext('saveText');
+    firstHeld.release();
+    await settle();
+    expect(saves().length, 'the write of the second text is under way').toBe(2);
+    typeAtEnd(doc, 'three\n');
+    const third = documents.save(doc.documentId);
+    const thirdHeld = shell.holdNext('saveText');
+    secondHeld.release();
+    await settle();
+    // the failure is met by the call that is held now: the write of the third text
+    if (thirdFails) shell.failNext('saveText', 'failed', 'no space left on the disk');
+    thirdHeld.release();
+    for (let i = 0; i < 5; i++) await settle();
+    return { first: await first, second: await second, third: await third };
+  };
+
+  it('[R3-07] three saves asked for one after another, more typed before each, are each answered by the write of their own text', async () => {
+    const doc = await documents.open(fileId, 'view-1');
+    const { first, second, third } = await threeSaves(doc);
+    expect(first).toMatchObject({ status: 'saved', revision: fakeRevision('FIRST_LINE_K4\none\n') });
+    expect(second).toMatchObject({ status: 'saved', revision: fakeRevision('FIRST_LINE_K4\none\ntwo\n') });
+    expect(third, 'the third is not told of the second').toMatchObject({ status: 'saved', revision: fakeRevision('FIRST_LINE_K4\none\ntwo\nthree\n') });
+    expect(onDisk()).toBe('FIRST_LINE_K4\none\ntwo\nthree\n');
+    expect(saves().length).toBe(3);
+    expect(documents.get(doc.documentId)!.state).toBe('clean');
+  });
+
+  it('[R3-07] when the write of the third text fails, the third save is told so, and the second keeps its own answer', async () => {
+    const doc = await documents.open(fileId, 'view-1');
+    const { second, third } = await threeSaves(doc, true);
+    expect(second).toMatchObject({ status: 'saved', revision: fakeRevision('FIRST_LINE_K4\none\ntwo\n') });
+    expect(third.status).toBe('error');
+    expect(onDisk()).toBe('FIRST_LINE_K4\none\ntwo\n');
+    expect(documents.get(doc.documentId)!.state).toBe('error');
+  });
+
   it('[R2-13] an older reading of the file that arrives late does not replace a newer one', async () => {
     const doc = await documents.open(fileId, 'view-1');
     const late = shell.delayNext('readText'); // answered with what the file holds now, handed over later

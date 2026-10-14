@@ -293,8 +293,9 @@ function copyableAs(name: string, bytes: Uint8Array): string | null {
  * new node's id once the node holds its copy of the content (or once it is
  * clear it cannot: the reference stands either way).
  */
-export async function attachResource(graphId: string, ref: ResourceRef, position: Position, record: ResourceRecord): Promise<string> {
-  if (useProjects.getState().activeId !== graphId) throw new WorkspaceError('wrong-graph', 'that canvas is not the one that is open');
+export async function attachResource(graphId: string, ref: ResourceRef, position: Position, record: ResourceRecord, visit: number = canvasVisit()): Promise<string> {
+  // the canvas, and the opening of it, the gesture was made in: a copy of the canvas, or this one opened anew, is not it
+  if (useProjects.getState().activeId !== graphId || canvasVisit() !== visit) throw new WorkspaceError('wrong-graph', 'that canvas is not the one that is open');
   if (!validateDTO('ResourceRef', ref).ok || ref.fileId !== record.fileId) throw new WorkspaceError('invalid-request', 'that is not a reference to this file');
   const node = buildContentNode('file', position);
   node.data.resourceRef = ref;
@@ -306,10 +307,10 @@ export async function attachResource(graphId: string, ref: ResourceRef, position
   return node.id;
 }
 
-/** attachResource for a file picked in the tree: it gets its identity first. */
-export async function attachEntry(graphId: string, workspaceId: string, entryId: string, position: Position): Promise<string> {
+/** attachResource for a file picked in the tree: it gets its identity first, and the node goes only to the opening of the canvas the file was picked in. */
+export async function attachEntry(graphId: string, workspaceId: string, entryId: string, position: Position, visit: number = canvasVisit()): Promise<string> {
   const record = await registerEntry(workspaceId, entryId);
-  return attachResource(graphId, { fileId: record.fileId, selector: { kind: 'document' }, version: { kind: 'live' }, payload: 'text' }, position, record);
+  return attachResource(graphId, { fileId: record.fileId, selector: { kind: 'document' }, version: { kind: 'live' }, payload: 'text' }, position, record, visit);
 }
 
 /**

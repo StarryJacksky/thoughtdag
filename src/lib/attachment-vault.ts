@@ -19,7 +19,12 @@ import type { Attachment, ThoughtNode } from '../types';
 // changes (the copy of a workspace file) keeps its id and points at a new
 // key (`vaultId`): whoever still holds the older attachment, an undo
 // snapshot or another canvas that was copied from this one, reads the
-// bytes that go with the text it has.
+// bytes that go with the text it has. Every payload put in is put under a
+// key made from the payload itself (its SHA-256), never under the
+// attachment's id: an export carries the id and not the key, and its
+// import (or any other way the same attachment comes in again with other
+// bytes) cannot reach bytes that another canvas reads under that id.
+// Payloads put in before this read from their attachment's id, as before.
 
 const KEY_PREFIX = 'att-content:';
 const vaultKey = (attId: string) => `${KEY_PREFIX}${attId}`;
@@ -29,12 +34,25 @@ export const vaultIdOf = (att: Pick<Attachment, 'id' | 'vaultId'>): string => at
 const shouldVault = (att: Attachment): boolean =>
   att.type === 'application/pdf' && !!att.content && !att.contentInVault;
 
+/** The key a payload is kept under: its own hash, so that one key only ever holds one payload. */
+async function keyOfPayload(content: string): Promise<string> {
+  const subtle = globalThis.crypto?.subtle;
+  if (subtle) {
+    const digest = new Uint8Array(await subtle.digest('SHA-256', new TextEncoder().encode(content)));
+    return `sha256-${[...digest].map((b) => b.toString(16).padStart(2, '0')).join('')}`;
+  }
+  // no digest here: a key nobody else has is as good, only not shared by equal payloads
+  return `p-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+}
+
 /** Move a bulky payload into the vault; returns the lightened attachment.
-    Non-PDF (and already-vaulted) attachments pass through unchanged. */
+    Non-PDF (and already-vaulted) attachments pass through unchanged. The
+    payload goes under a key of its own (`vaultId`), never its id: see above. */
 export async function internAttachment(att: Attachment): Promise<Attachment> {
   if (!shouldVault(att)) return att;
-  await idbSet(vaultKey(att.id), att.content);
-  return { ...att, content: '', contentInVault: true };
+  const vaultId = await keyOfPayload(att.content);
+  await idbSet(vaultKey(vaultId), att.content);
+  return { ...att, content: '', contentInVault: true, vaultId };
 }
 
 /** The attachment's payload, wherever it lives. '' when the vault entry is

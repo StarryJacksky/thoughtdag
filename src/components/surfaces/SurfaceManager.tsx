@@ -7,6 +7,8 @@ import { useT } from '../../i18n';
 import ResourceReader from '../readers/ResourceReader';
 import FocusPanel from '../focus-panel';
 import { useStore } from '../../store';
+import { useProjects } from '../../store/projects';
+import { canvasVisit } from '../../lib/workspace/canvas-visit';
 import { closeSurface } from '../../lib/documents/surface-store';
 import DocumentBody from './DocumentBody';
 import LargeTextView from './LargeTextView';
@@ -56,10 +58,12 @@ function NoticeBody({ surface }: { surface: Surface }) {
 
 /** A task of the canvas, shown in a surface of its own: the panel the selected node gets at the side, for this one task. */
 function TaskBody({ surface, onFocusNode }: { surface: Surface; onFocusNode?: (id: string) => void }) {
+  // the canvas it is a task of is the one open: another canvas, or this one opened anew, may have a node of the same id
+  const here = useProjects((s) => !s.switching && (surface.visit === null || surface.visit === canvasVisit()));
   const there = useStore((s) => s.nodes.some((n) => n.id === surface.taskNodeId));
-  // the task was removed from the canvas: its panel has nothing left to show
-  useEffect(() => { if (!there) closeSurface(surface.surfaceId); }, [there, surface.surfaceId]);
-  if (!there || !surface.taskNodeId) return null;
+  // the task was removed from the canvas, or its canvas was left: its panel has nothing left to show
+  useEffect(() => { if (!there || !here) closeSurface(surface.surfaceId); }, [there, here, surface.surfaceId]);
+  if (!there || !here || !surface.taskNodeId) return null;
   return <FocusPanel nodeId={surface.taskNodeId} embedded onFocusNode={onFocusNode} />;
 }
 

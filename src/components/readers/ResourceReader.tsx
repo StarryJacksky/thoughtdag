@@ -59,13 +59,24 @@ export default function ResourceReader({ resourceRef, name, onQuote }: Props) {
   const [lost, setLost] = useState(false);
   const shownRevision = useRef<ContentHash | null>(null);
 
-  // what the workspace reports about this file while the reader is open
+  const wasLost = useRef(false);
+
+  // What the workspace reports about this file while the reader is open. It is read by what the record says
+  // the file is now, whatever the kind of news: a file that moved may have been changed on the way, or be one
+  // that was lost and is found again somewhere else. A file that is there again is read again; a file whose
+  // version is not the one on screen is read again; a file that only moved, as it was, is left as it is.
   useEffect(() => onFileEvent(fileId, (event) => {
-    if (event.change === 'missing' || event.change === 'ambiguous') { setLost(true); return; }
-    const back = event.change === 'restored';
-    if (back) setLost(false);
+    const status = event.record?.status;
+    if (event.change === 'missing' || event.change === 'ambiguous' || status === 'missing' || status === 'ambiguous') {
+      wasLost.current = true;
+      setLost(true);
+      return;
+    }
+    const back = event.change === 'restored' || wasLost.current;
+    if (back) { wasLost.current = false; setLost(false); }
+    const otherVersion = !!event.observedRevision && event.observedRevision !== shownRevision.current;
     // news of the version that is on screen is not a reason to read it again
-    if (!back && (event.change !== 'content' || event.observedRevision === shownRevision.current)) return;
+    if (!back && !otherVersion) return;
     // what was selected was selected in the old version: it is not carried over to the new one
     const selection = window.getSelection();
     if (selection && selection.rangeCount > 0 && scroller.current?.contains(selection.getRangeAt(0).commonAncestorContainer)) selection.removeAllRanges();

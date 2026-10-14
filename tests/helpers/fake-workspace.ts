@@ -83,13 +83,16 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
   let serial = 0;
 
   const byPath = (workspace_: string, relativePath: string) => [...files.values()].find((f) => f.workspaceId === workspace_ && f.relativePath === relativePath);
+  // A file's revision is the hash of what it holds, as the shell's is: of its bytes when it has bytes of its own,
+  // and that is the same hash a read of it answers with
+  const bytesRevision = (bytes: Uint8Array) => fakeRevision(String.fromCharCode(...bytes.subarray(0, 64)) + bytes.length);
   const record = (fileId: string): ResourceRecord => {
     const f = files.get(fileId);
     if (!f) throw new Error('unknown-file: that file is not known to an open workspace');
     return {
       fileId, workspaceId: f.workspaceId, relativePath: f.relativePath,
       locator: { kind: 'local', rootGrantId: 'grant_1', relativePath: f.relativePath },
-      sourceRevision: null, mediaType: 'text/plain', origin: f.origin, status: f.status, revision: fakeRevision(f.content),
+      sourceRevision: null, mediaType: 'text/plain', origin: f.origin, status: f.status, revision: f.bytes ? bytesRevision(f.bytes) : fakeRevision(f.content),
       ...(f.importedFrom ? { importedFrom: f.importedFrom } : {}),
     };
   };
@@ -177,14 +180,14 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
       const bytes = f.bytes ?? null;
       if ((bytes?.length ?? encoder.encode(f.content).length) > 8 * 1024 * 1024) throw new Error("Error invoking remote method 'workspace:read-source': Error: too-large: the file is too large to be read here");
       return bytes
-        ? { fileId, sourceRevision: null, contentHash: fakeRevision(String.fromCharCode(...bytes.subarray(0, 64)) + bytes.length), representation: 'bytes' as const, payload: bytes, fidelity: 'original' as const }
+        ? { fileId, sourceRevision: null, contentHash: bytesRevision(bytes), representation: 'bytes' as const, payload: bytes, fidelity: 'original' as const }
         : { fileId, sourceRevision: null, contentHash: fakeRevision(f.content), representation: 'text' as const, payload: f.content, fidelity: 'original' as const };
     }),
     readView: door('readView', null, (fileId: string) => {
       const f = files.get(fileId);
       if (!f || f.status === 'missing' || f.status === 'ambiguous') throw new Error('lost: the file is lost; it has to be found again first');
       return f.bytes
-        ? { fileId, sourceRevision: null, contentHash: fakeRevision(String.fromCharCode(...f.bytes.subarray(0, 64)) + f.bytes.length), representation: 'bytes' as const, payload: f.bytes, fidelity: 'original' as const }
+        ? { fileId, sourceRevision: null, contentHash: bytesRevision(f.bytes), representation: 'bytes' as const, payload: f.bytes, fidelity: 'original' as const }
         : { fileId, sourceRevision: null, contentHash: fakeRevision(f.content), representation: 'text' as const, payload: f.content, fidelity: 'original' as const };
     }),
     capabilities: door('capabilities', null, () => capabilities),

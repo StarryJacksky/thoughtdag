@@ -1,9 +1,15 @@
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EditorView } from '@codemirror/view';
 import SurfaceManager from '../../src/components/surfaces/SurfaceManager';
 import { documents } from '../../src/lib/documents/document-service';
 import { MIN_SURFACE, TITLE_BAR_HEIGHT, closeSurface, fitRect, focusSurface, openFileSurface, openSurface, restoreLayout, restoreSurface, saveLayout, setContainer, setPlacement, shownRect, updateRect, useSurfaces } from '../../src/lib/documents/surface-store';
-import { closeAllSurfaces } from '../../src/lib/documents/surface-store';
+import { closeAllSurfaces, openTaskSurface } from '../../src/lib/documents/surface-store';
+import WorkspaceExplorer from '../../src/components/workspace/WorkspaceExplorer';
+import WorkspaceLayer from '../../src/components/workspace/WorkspaceLayer';
+import { createInGraph } from '../../src/components/workspace/actions';
+import { useWorkspacePanel } from '../../src/lib/workspace/session';
+import { useStore } from '../../src/store';
+import type { ThoughtNode } from '../../src/types';
 import { useUiStore } from '../../src/lib/ui-store';
 import { useProjects } from '../../src/store/projects';
 import { installFakeWorkspace, type FakeWorkspace } from '../helpers/fake-workspace';
@@ -140,7 +146,7 @@ describe('a surface holds no text', () => {
   it('knows which document it shows and where it sits, and nothing of what the document says', async () => {
     const id = await opened(fileIdOf('notes/a.md'));
     const state = surface(id);
-    expect(Object.keys(state).sort()).toEqual(['back', 'documentId', 'fileId', 'kind', 'notice', 'placement', 'reading', 'rect', 'surfaceId', 'taskNodeId', 'title', 'workspaceId'].sort());
+    expect(Object.keys(state).sort()).toEqual(['back', 'documentId', 'fileId', 'kind', 'notice', 'placement', 'reading', 'rect', 'surfaceId', 'taskNodeId', 'title', 'visit', 'workspaceId'].sort());
     expect(JSON.stringify(useSurfaces.getState())).not.toContain('content of a.md');
     expect(documents.get(state.documentId)!.text).toBe('content of a.md\n');
   });
@@ -503,4 +509,128 @@ describe('a surface whose document could not be put anywhere when it was closed'
     expect(documents.documentOf(fileIdOf('notes/a.md'))?.text).toBe('content of a.md\nUNSAVED_Q7\n');
     expect(useUiStore.getState().toasts.map((toast) => toast.kind)).toEqual(['error']);
   });
+});
+
+describe('what a gesture made on one canvas opens, when its waits end on another (third review)', () => {
+  const twoCanvases = () => useProjects.setState({ projects: [{ id: 'canvas-A', name: 'A', createdAt: 0, updatedAt: 0 }, { id: 'canvas-B', name: 'B', createdAt: 0, updatedAt: 0 }], activeId: 'canvas-A', switching: false });
+  /** What leaving a canvas for another does to the surfaces in the desktop app (see useWorkspaceSync). */
+  const switchTo = (id: string) => {
+    useProjects.setState({ switching: true });
+    closeAllSurfaces();
+    useProjects.setState({ activeId: id, switching: false });
+  };
+  const settled = () => new Promise<void>((resolve) => setTimeout(resolve, 10));
+  const nothingOpened = async () => {
+    for (let i = 0; i < 6; i++) await during(settled);
+    expect(useSurfaces.getState().surfaces.map((s) => s.title), 'nothing of canvas A opens on the canvas that is there now').toEqual([]);
+    saveLayout(useProjects.getState().activeId!);
+    expect(localStorage.getItem(`thoughtdag.surfaces.${useProjects.getState().activeId}`)).toBeNull();
+  };
+  let tree: Mounted | null = null;
+  const mountTree = async () => {
+    useWorkspacePanel.setState({ workspace: shell.workspace, open: true });
+    tree = await mount(<WorkspaceExplorer placeAt={() => ({ x: 0, y: 0 })} />);
+    for (let i = 0; i < 20 && !tree.container.querySelector('[data-tree-file="top.md"]'); i++) await during(settled);
+    return tree;
+  };
+  beforeEach(() => { shell.seed('top.md', 'FROM_CANVAS_A\n'); });
+  afterEach(async () => {
+    await tree?.unmount();
+    tree = null;
+    useWorkspacePanel.setState({ workspace: null, open: false });
+    useProjects.setState({ projects: [], activeId: null, switching: false });
+  });
+
+  for (const route of [['B'], ['B', 'A']]) {
+    const away = route.join('→');
+    it(`[R3-09] a file double-clicked in the tree whose identity comes back after A→${away} opens nowhere`, async () => {
+      twoCanvases();
+      const t = await mountTree();
+      const slow = shell.holdNext('registerEntry');
+      await during(() => { t.container.querySelector('[data-tree-file="top.md"]')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); });
+      await during(settled);
+      for (const id of route) switchTo(`canvas-${id}`);
+      slow.release();
+      await nothingOpened();
+    });
+
+    it(`[R3-09] a file made from the tree that is made only after A→${away} opens nowhere`, async () => {
+      twoCanvases();
+      const t = await mountTree();
+      await during(() => t.container.querySelector<HTMLElement>('[data-tree-new-file]')!.click());
+      const slow = shell.holdNext('createFile');
+      await during(() => t.container.querySelector<HTMLElement>('[data-create-file-menu] [data-file-type="md"]')!.click());
+      await during(settled);
+      for (const id of route) switchTo(`canvas-${id}`);
+      slow.release();
+      await nothingOpened();
+      expect([...shell.files.values()].some((f) => f.relativePath === 'Untitled-001.md'), 'the file itself is made, as asked').toBe(true);
+    });
+
+    it(`[R3-09] a file made from the canvas that is made only after A→${away} opens nowhere`, async () => {
+      twoCanvases();
+      const slow = shell.holdNext('createFile');
+      const making = createInGraph('md', { x: 0, y: 0 });
+      await during(settled);
+      for (const id of route) switchTo(`canvas-${id}`);
+      slow.release();
+      await making;
+      await nothingOpened();
+    });
+  }
+
+  it('[R3-09] a file opened from the tree with nothing in between opens on the canvas it was opened on', async () => {
+    twoCanvases();
+    const t = await mountTree();
+    await during(() => { t.container.querySelector('[data-tree-file="top.md"]')!.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); });
+    for (let i = 0; i < 20 && useSurfaces.getState().surfaces.length === 0; i++) await during(settled);
+    expect(useSurfaces.getState().surfaces.map((s) => s.title)).toEqual(['top.md']);
+  });
+});
+
+describe('a task\'s panel outside the desktop app (third review)', () => {
+  /** A task of a canvas: copies of a canvas keep the ids of their nodes. */
+  const task = (id: string, question: string): ThoughtNode => ({
+    id, type: 'thought', position: { x: 0, y: 0 }, dragHandle: '.drag-handle',
+    data: {
+      question, response: '', responses: [], responseIndex: -1, isCollapsed: false, isEditing: false, isEditingResponse: false, isLoading: false,
+      tokenCount: 0, highlights: [], highlightMode: 'tag', attachments: [], excludedAttachmentIds: [], includedAttachmentIds: [], roleMode: 'inherit', isRoot: false, isBranch: false,
+    },
+  });
+  /** Another canvas is opened as the app does it: the store is swapped while `switching` is set, then the active id changes. Nothing else: what that does to the surfaces is the app's to do. */
+  const openCanvas = (id: string, nodes: ThoughtNode[]) => {
+    useProjects.setState({ switching: true });
+    useStore.setState({ nodes, edges: [] });
+    useProjects.setState({ activeId: id, switching: false });
+  };
+  const settled = () => new Promise<void>((resolve) => setTimeout(resolve, 10));
+  let app: Mounted | null = null;
+  afterEach(async () => {
+    await app?.unmount();
+    app = null;
+    useStore.setState({ nodes: [], edges: [] });
+    useProjects.setState({ projects: [], activeId: null, switching: false });
+    vi.unstubAllGlobals();
+  });
+
+  for (const route of [['B'], ['B', 'A']]) {
+    it(`[R3-10] is closed when its canvas is left (A→${route.join('→')}), and never shows a task of the same id on another canvas under its title`, async () => {
+      shell.uninstall(); // the web app: no desktop shell, no workspace
+      vi.stubGlobal('fetch', () => Promise.reject(new Error('no network in tests')));
+      expect(window.desktopWorkspace).toBeUndefined();
+      useProjects.setState({ projects: [{ id: 'canvas-A', name: 'A', createdAt: 0, updatedAt: 0 }, { id: 'canvas-B', name: 'B', createdAt: 0, updatedAt: 0 }], activeId: 'canvas-A', switching: false });
+      useStore.setState({ nodes: [task('t-1', 'A_TASK_QUESTION')], edges: [] });
+      app = await mount(<><WorkspaceLayer flowPosAt={() => ({ x: 0, y: 0 })} /><SurfaceManager /></>);
+      await during(() => { openTaskSurface('t-1', 'A_TASK_TITLE'); });
+      expect(app.container.textContent).toContain('A_TASK_QUESTION');
+
+      for (const id of route) {
+        await during(() => openCanvas(`canvas-${id}`, [task('t-1', `${id}_TASK_QUESTION`)]));
+        await during(settled);
+      }
+      expect(useSurfaces.getState().surfaces, 'the panel went with its canvas').toEqual([]);
+      expect(app.container.textContent).not.toContain('A_TASK_TITLE');
+      expect(app.container.textContent).not.toContain('B_TASK_QUESTION');
+    });
+  }
 });

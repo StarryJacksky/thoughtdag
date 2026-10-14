@@ -46,6 +46,13 @@ export function useWorkspaceSync(): void {
     };
   }, [canvasId, switching]);
 
+  // Outside the desktop app there are no files, but there are surfaces (a task's panel): they belong to the
+  // canvas they were opened on, and leaving it closes them, the same as above
+  useEffect(() => {
+    if (!canvasId || switching || workspaceAvailable()) return;
+    return () => closeAllSurfaces();
+  }, [canvasId, switching]);
+
   // an undo or a redo brings back a picture of the canvas, not of the files
   useEffect(() => (workspaceAvailable() ? keepCopiesOutOfHistory() : undefined), []);
 

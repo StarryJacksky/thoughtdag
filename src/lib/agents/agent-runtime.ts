@@ -85,7 +85,8 @@ export async function agentModels(): Promise<ModelInfo[]> {
   return (await agentCatalog()).models;
 }
 
-export type AgentRoute = { cwd: string; sessionPath?: string; forkEntryId?: string; continue?: boolean };
+/** `effort`, when given (null: the runtime's own default), is what the run was decided with, together with its model: it is not looked up again later. */
+export type AgentRoute = { cwd: string; sessionPath?: string; forkEntryId?: string; continue?: boolean; effort?: string | null };
 
 export type CwdChoice = { cwd: string; kind: 'chosen' | 'mirrored' | 'session' | 'workspace' };
 
@@ -329,9 +330,10 @@ export async function agentCallStream(
   const materials = continuing ? '' : await materialsToDisk(nodeId, cwd);
   const ahead = continuing ? '' : [context, materials].filter(Boolean).join('\n\n');
   const prompt = ahead ? `${ahead}\n\n---\n\n${question}` : question;
-  // the effort is the task's own once the task is bound to an AI; the global one is only what a new target starts from
+  // the effort is the one the run was decided with, beside its model; without one, the task's own once the task is
+  // bound to an AI (the global one is only what a new target starts from)
   const bound = nodeId ? useStore.getState().nodes.find((n) => n.id === nodeId)?.data.target : undefined;
-  const effort = bound ? (bound.effort ?? undefined) : (useUiStore.getState().agentEffort || undefined);
+  const effort = route && 'effort' in route ? (route.effort ?? undefined) : bound ? (bound.effort ?? undefined) : (useUiStore.getState().agentEffort || undefined);
   // what this conversation already allowed for good: every 'allowed-session'
   // decision on this canvas whose rule belongs to this runtime
   const allowRules = [...new Set(useStore.getState().nodes.flatMap((n) => (n.data.approvals ?? []).filter((a) => a.outcome === 'allowed-session' && typeof a.rule === 'string' && a.rule.startsWith(target.runtime === 'claude-code' ? 'claude:' : target.runtime + ':')).map((a) => a.rule as string)))];

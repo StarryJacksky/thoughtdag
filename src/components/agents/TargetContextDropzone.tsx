@@ -4,7 +4,7 @@ import { useStore } from '../../store';
 import { toast } from '../../lib/ui-store';
 import { registerEntry } from '../../lib/workspace/client';
 import { RESOURCE_DRAG_TYPE, parseDragPayload } from '../../lib/workspace/graph-resource';
-import { connectNode, connectRefs, type ConnectResult } from '../../lib/agents/targets';
+import { connectNode, connectRefs, originNow, stillAt, type ConnectResult } from '../../lib/agents/targets';
 import { useT, fmt } from '../../i18n';
 
 // Where material is dropped to wire it to one task. A drop here makes a
@@ -23,22 +23,26 @@ export default function TargetContextDropzone({ nodeId }: { nodeId: string }) {
   const [over, setOver] = useState(false);
 
   const said = (results: ConnectResult[]) => {
-    if (results.some((r) => !r.ok && r.reason === 'loop')) toast('error', t('target.loopRefused'));
-    else if (results.some((r) => !r.ok)) toast('error', t('target.wireFailed'));
+    // a drop whose canvas was left before it was done has nothing to say in the canvas that is open now
+    const failed = results.filter((r) => !r.ok && r.reason !== 'left');
+    if (failed.some((r) => !r.ok && r.reason === 'loop')) toast('error', t('target.loopRefused'));
+    else if (failed.length > 0) toast('error', t('target.wireFailed'));
   };
   const drop = async (raw: string) => {
     const payload = parseDragPayload(raw);
     // a folder is not material for a question, and anything that is not a reference by id is not taken
     if (!payload || payload.kind === 'folder-ref') return;
+    // the drop belongs to the canvas, and the opening of it, it was made in, whatever is open when its waits are over
+    const origin = originNow();
     try {
       if (payload.kind === 'graph-node') said([connectNode(payload.nodeId, nodeId)]);
-      else if (payload.kind === 'selection-ref') said(await connectRefs(nodeId, [payload.ref]));
+      else if (payload.kind === 'selection-ref') said(await connectRefs(nodeId, [payload.ref], origin));
       else {
         const record = await registerEntry(payload.workspaceId, payload.entryId);
-        said(await connectRefs(nodeId, [{ fileId: record.fileId, selector: { kind: 'document' }, version: { kind: 'live' }, payload: 'text' }]));
+        said(await connectRefs(nodeId, [{ fileId: record.fileId, selector: { kind: 'document' }, version: { kind: 'live' }, payload: 'text' }], origin));
       }
     } catch (e) {
-      toast('error', fmt(t('workspace.failed'), { why: why(e) }));
+      if (stillAt(origin)) toast('error', fmt(t('workspace.failed'), { why: why(e) }));
     }
   };
 

@@ -1512,6 +1512,8 @@ export const en = {
   'target.perTaskOnTitle': "Choosing per task is on: each task still starts on the toolbar's AI; change only the ones you want on their cards. Click to turn the choosers off (choices made stay).",
   'target.panelUntitled': 'Task',
   'target.unavailable': 'This task is bound to {m}, which cannot be reached here now. Nothing was sent. Choose another AI for this task, or bring its connection back.',
+  'target.noModelSent': 'There is no model to send this task to, so nothing was sent. Choose an AI for it, or connect a model.',
+  'target.noModelAnswer': 'Not sent: there is no model to send this task to. Choose an AI for it, or connect a model, and run it again.',
   'target.unavailableAnswer': 'Not sent: the model this task is bound to ({m}) cannot be reached here. It was not sent to another model instead. Choose another AI for this task from its card, or bring the connection back and run it again.',
   'surface.fileGone': 'This file is not where it was. What it last showed is not shown as if it were still there.',
   'versions.title': 'What this file held before each save',

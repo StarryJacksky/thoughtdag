@@ -2,7 +2,9 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import TargetContextDropzone from '../../src/components/agents/TargetContextDropzone';
 import TargetPicker, { PerTaskAiToggle } from '../../src/components/agents/TargetPicker';
 import SurfaceManager from '../../src/components/surfaces/SurfaceManager';
-import { connectNode, createTarget, newTask, targetOf, templateFor } from '../../src/lib/agents/targets';
+import { connectNode, createTarget, newTask, retarget, targetOf, templateFor } from '../../src/lib/agents/targets';
+import HeaderActions from '../../src/components/focus-panel/HeaderActions';
+import { buildContext } from '../../src/store/context-builder';
 import { closeSurface, openTaskSurface, useSurfaces } from '../../src/lib/documents/surface-store';
 import { useUiStore } from '../../src/lib/ui-store';
 import { recheckAgents, setModelsCache } from '../../src/lib/use-models';
@@ -319,5 +321,188 @@ describe('a panel for each task, in the one window', () => {
     await during(() => { openTaskSurface(x, 'X'); });
     await during(() => { useStore.setState((st) => ({ nodes: st.nodes.filter((n) => n.id !== x) })); });
     expect(useSurfaces.getState().surfaces).toEqual([]);
+  });
+});
+
+describe('what a task is wired to, sent with and typed into while things change (third review)', () => {
+  const OTHER = 'canvas-2';
+  const wait = (ms: number) => during(() => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  /** Another canvas is opened as the app does it: its graph is put in the store while `switching` is set, then the active id changes. */
+  const openCanvas = (id: string, graph: { nodes: ReturnType<typeof useStore.getState>['nodes']; edges: ReturnType<typeof useStore.getState>['edges'] }) => {
+    useProjects.setState({ switching: true });
+    useStore.setState({ nodes: structuredClone(graph.nodes), edges: structuredClone(graph.edges) });
+    useProjects.setState({ activeId: id, switching: false });
+  };
+  const withQuestion = (id: string, question: string, answer = '') => useStore.setState((st) => ({
+    nodes: st.nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, question, response: answer, responses: answer ? [answer] : [], responseIndex: answer ? 0 : -1 } } : n)),
+  }));
+  const contextOf = (id: string) => buildContext(id, useStore.getState().nodes, useStore.getState().edges).messages.map((m) => m.content).join('\n');
+
+  for (const kind of ['file-ref', 'selection-ref'] as const) {
+    for (const route of [['B'], ['B', 'A']]) {
+      it(`[R3-03] material dropped on a task (${kind}) whose wait ends after A→${route.join('→')} is wired into no task and no question`, async () => {
+        useProjects.setState((s) => ({ projects: [...s.projects, { id: OTHER, name: 'copy', createdAt: 0, updatedAt: 0, agentCwd: '/synthetic/project' }] }));
+        const x = newTask(createTarget(templateFor(CODEX)), { x: 0, y: 0 });
+        withQuestion(x, 'X_TASK: summarise.');
+        const a = { nodes: structuredClone(useStore.getState().nodes), edges: [] };
+        // B was imported from a copy of A: the same task id, bound to another AI there
+        const b = { nodes: a.nodes.map((n) => ({ ...n, data: { ...n.data, target: createTarget(templateFor(CLAUDE_CODE)), model: CLAUDE_CODE } })), edges: [] };
+        const entryId = shell.seed('notes/one.md', 'A_PRIVATE_SYNTHETIC\n');
+        const fileId = [...shell.files.values()].find((f) => f.relativePath === 'notes/one.md')!.fileId;
+        view = await mount(<TargetContextDropzone nodeId={x} />);
+        const zone = view.container.querySelector<HTMLElement>('[data-target-dropzone]')!;
+        const slow = shell.holdNext(kind === 'file-ref' ? 'registerEntry' : 'reconcile');
+        await during(async () => {
+          dropOn(zone, kind === 'file-ref'
+            ? { kind, workspaceId: 'ws_1', entryId, name: 'one.md' }
+            : { kind, workspaceId: 'ws_1', name: 'one.md', ref: { fileId, selector: { kind: 'document' }, version: { kind: 'live' }, payload: 'text' } });
+          await settled();
+        });
+        for (const id of route) await during(() => openCanvas(id === 'B' ? OTHER : CANVAS, id === 'B' ? b : a));
+        useUiStore.setState({ toasts: [] });
+        slow.release();
+        for (let i = 0; i < 10; i++) await during(settled);
+        expect(useStore.getState().nodes.map((n) => n.id), 'no node was added').toEqual([x]);
+        expect(useStore.getState().edges, 'and nothing was wired').toEqual([]);
+        expect(contextOf(x)).not.toContain('A_PRIVATE_SYNTHETIC');
+        expect(desktop.runs).toEqual([]);
+        expect(useUiStore.getState().toasts, 'nothing is said about it on the canvas that is open').toEqual([]);
+      });
+    }
+  }
+
+  it('[R3-03] material dropped with nothing in between is wired to the task it was dropped on', async () => {
+    const x = newTask(createTarget(templateFor(CODEX)), { x: 0, y: 0 });
+    const entryId = shell.seed('notes/one.md', 'A_PRIVATE_SYNTHETIC\n');
+    view = await mount(<TargetContextDropzone nodeId={x} />);
+    const zone = view.container.querySelector<HTMLElement>('[data-target-dropzone]')!;
+    await during(async () => { dropOn(zone, { kind: 'file-ref', workspaceId: 'ws_1', entryId, name: 'one.md' }); for (let i = 0; i < 40 && edgesInto(x).length === 0; i++) await settled(); });
+    expect(edgesInto(x).length).toBe(1);
+    withQuestion(x, 'X_TASK: summarise.');
+    expect(contextOf(x)).toContain('A_PRIVATE_SYNTHETIC');
+  });
+
+  it('[R3-12] a task\'s panel names the AI and effort the task runs on, and an effort chosen there is that task\'s alone', async () => {
+    const x = newTask(createTarget(templateFor(CODEX, { effort: 'low' })), { x: 0, y: 0 });
+    const y = newTask(createTarget(templateFor(CODEX)), { x: 600, y: 0 });
+    withQuestion(x, 'X_TASK: write the paragraph.', 'an earlier answer');
+    expect(targetOf(y)!.effort).toBe('high');
+    view = await mount(<HeaderActions nodeId={x} isLoading={false} />);
+    expect(view.container.textContent, 'the panel says what X runs on').toContain('gpt-synthetic · low');
+    await during(() => view!.container.querySelector<HTMLElement>('[data-target-chip]')!.click());
+    await during(() => view!.container.querySelector<HTMLElement>('[data-target-effort="medium"]')!.click());
+    expect(targetOf(x)).toMatchObject({ model: CODEX, effort: 'medium' });
+    expect(targetOf(y)!.effort, 'the other task keeps its own').toBe('high');
+    expect(useUiStore.getState().agentEffort, 'and the default for new tasks is not touched').toBe('high');
+    expect(view.container.textContent).toContain('gpt-synthetic · medium');
+    // what it runs with is what it says: rerun in place, and a sibling
+    const before = desktop.runs.length;
+    await useStore.getState().rerunNode(x);
+    expect(desktop.runs[before]).toMatchObject({ runtime: 'codex', effort: 'medium' });
+    await useStore.getState().regenerate(x);
+    expect(desktop.runs[before + 1]).toMatchObject({ runtime: 'codex', effort: 'medium' });
+  });
+
+  it('[R3-12] the panel of a task in a surface names the task\'s own effort too', async () => {
+    const x = newTask(createTarget(templateFor(CODEX, { effort: 'low' })), { x: 0, y: 0 });
+    withQuestion(x, 'X_TASK: write the paragraph.');
+    view = await mount(<SurfaceManager />);
+    let sx = '';
+    await during(() => { sx = openTaskSurface(x, 'X'); });
+    expect(view.container.querySelector(`[data-surface="${sx}"]`)!.textContent).toContain('gpt-synthetic · low');
+  });
+
+  for (const [what, to] of [['another runtime', { model: CLAUDE_CODE, effort: 'low' }], ['another effort', { model: CODEX, effort: 'low' }]] as const) {
+    it(`[R3-13] a task given ${what} while its run is being prepared is sent as it was when the run began, model and effort together`, async () => {
+      const x = newTask(createTarget(templateFor(CODEX)), { x: 0, y: 0 });
+      let arrived = () => {};
+      const atGuard = new Promise<void>((resolve) => { arrived = resolve; });
+      let letGo = () => {};
+      const held = new Promise<void>((resolve) => { letGo = resolve; });
+      window.desktopAgents!.guardWrite = async () => { arrived(); await held; return true; };
+      const running = useStore.getState().editQuestion(x, 'X_TASK: write the paragraph.');
+      await atGuard;
+      retarget(x, to);
+      letGo();
+      await running;
+      expect(desktop.runs).toHaveLength(1);
+      expect(desktop.runs[0]).toMatchObject({ runtime: 'codex', model: { id: 'gpt-synthetic' }, effort: 'high' });
+      expect(targetOf(x), 'the change is the next run\'s').toMatchObject(to);
+    });
+  }
+
+  it('[R3-14] a task\'s panel opened a moment before another is brought to the front does not take the typing from it', async () => {
+    const x = newTask(createTarget(templateFor(CODEX)), { x: 0, y: 0 });
+    const y = newTask(createTarget(templateFor(CLAUDE_CODE)), { x: 600, y: 0 });
+    withQuestion(x, 'X_TASK: write the paragraph.', 'an answer');
+    withQuestion(y, 'Y_TASK: draft the reply.', 'an answer');
+    view = await mount(<SurfaceManager />);
+    let sb = '';
+    await during(() => { sb = openTaskSurface(y, 'B'); });
+    await wait(150);
+    await during(() => { openTaskSurface(x, 'A'); });
+    // at once, the person brings B forward by its title bar, to type there
+    await during(() => { view!.container.querySelector(`[data-surface="${sb}"] [data-surface-titlebar]`)!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })); });
+    await wait(200);
+    const frameB = view.container.querySelector<HTMLElement>(`[data-surface="${sb}"]`)!;
+    expect(useSurfaces.getState().active.surfaceId).toBe(sb);
+    expect(frameB.contains(document.activeElement), 'the keys go to B').toBe(true);
+    // and what is typed there goes to B's AI
+    const box = document.activeElement as HTMLTextAreaElement;
+    expect(box.tagName).toBe('TEXTAREA');
+    const before = desktop.runs.length;
+    await during(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(box, 'MEANT_FOR_B: shorter.');
+      box.dispatchEvent(new Event('input', { bubbles: true }));
+      await settled();
+    });
+    await during(async () => { frameB.querySelector<HTMLElement>('[data-followup-send]')!.click(); for (let i = 0; i < 40 && desktop.runs.length === before; i++) await settled(); });
+    expect(desktop.runs[before]).toMatchObject({ runtime: 'claude-code' });
+  });
+
+  it('[L05] a sibling of a task with two pieces of material wired in is asked with both, on the task\'s AI', async () => {
+    const a = await attachEntry(CANVAS, 'ws_1', shell.seed('notes/a.md', 'A_ONLY_K7: trimmed mean.\n'), { x: -600, y: 0 });
+    const b = await attachEntry(CANVAS, 'ws_1', shell.seed('notes/b.md', 'B_ONLY_Q9: robustness.\n'), { x: -600, y: 300 });
+    const x = newTask(createTarget(templateFor(CODEX)), { x: 0, y: 0 });
+    connectNode(a, x);
+    connectNode(b, x);
+    await useStore.getState().editQuestion(x, 'X_TASK: compare them.');
+    const seenBy = (run: number, materialsFrom: number) => [desktop.runs[run].prompt, ...desktop.materials.slice(materialsFrom).flatMap((m) => m.files.map((f) => (f.encoding === 'base64' ? atob(f.content) : f.content)))].join('\n');
+    expect(seenBy(0, 0)).toContain('A_ONLY_K7');
+    expect(seenBy(0, 0)).toContain('B_ONLY_Q9');
+    const runsBefore = desktop.runs.length;
+    const materialsBefore = desktop.materials.length;
+    const answersBefore = node(x).data.responses;
+    await useStore.getState().regenerate(x);
+    const sibling = useStore.getState().selectedNodeId!;
+    expect(sibling).not.toBe(x);
+    expect(edgesInto(sibling).map((e) => e.source).sort()).toEqual([a, b].sort());
+    expect(desktop.runs[runsBefore]).toMatchObject({ runtime: 'codex' });
+    expect(seenBy(runsBefore, materialsBefore)).toContain('A_ONLY_K7');
+    expect(seenBy(runsBefore, materialsBefore), 'the second piece of material too').toContain('B_ONLY_Q9');
+    expect(edgesInto(x).map((e) => e.source).sort(), 'the task keeps its own').toEqual([a, b].sort());
+    expect(node(x).data.responses).toEqual(answersBefore);
+  });
+
+  it('[L06] a task that names no model, when no model is known anywhere, is not sent, and gets no answer it did not have', async () => {
+    desktop.uninstall(); // the web app: no runtimes that remember models of their own
+    const asked: string[] = [];
+    vi.stubGlobal('fetch', async (url: unknown) => { asked.push(String(url)); throw new Error('no network in tests'); });
+    setModelsCache({ models: [], default: null });
+    useUiStore.getState().setSelectedModel(null);
+    // a task from before tasks had targets: no target, no model of its own
+    const old = newTask(createTarget(templateFor(CODEX)), { x: 0, y: 0 });
+    useStore.setState((st) => ({ nodes: st.nodes.map((n) => (n.id === old ? { ...n, data: { ...n.data, target: undefined, model: undefined, question: 'OLD_TASK', response: 'an old answer', responses: ['an old answer'], responseIndex: 0 } } : n)) }));
+    await useStore.getState().rerunNode(old);
+    await useStore.getState().rerunNode(old, { auto: true });
+    await useStore.getState().regenerate(old);
+    for (let i = 0; i < 5; i++) await during(settled);
+    expect(asked.filter((url) => url.includes('/api/stream')), 'nothing was sent for the server to pick a model for').toEqual([]);
+    expect(node(old).data.responses).toEqual(['an old answer']);
+    expect(node(old).data.generatedBy ?? []).toEqual([]);
+    expect(node(old).data.isLoading).toBe(false);
+    const sibling = useStore.getState().nodes.find((n) => n.id !== old)!;
+    expect(sibling.data.responses).toEqual([]);
+    expect(sibling.data.isLoading).toBe(false);
   });
 });

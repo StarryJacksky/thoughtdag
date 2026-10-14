@@ -2,14 +2,19 @@ import { useEffect, useRef, useState } from 'react';
 import { Archive, ArchiveRestore, ClipboardCopy, Copy, Ellipsis, FileDown, GitFork, RefreshCw, Split, Square, Trash2, Undo2 } from 'lucide-react';
 import { useStore } from '../../store';
 import { contextChainMarkdown, downloadMarkdown, copyText } from '../../lib/export';
-import ModelPicker from '../ui/ModelPicker';
+import TargetPicker from '../agents/TargetPicker';
+import { isTask } from '../../lib/agents/targets';
 import FanOutModal from '../FanOutModal';
 import { toast } from '../../lib/ui-store';
 import { useT } from '../../i18n';
 
 // Compact action strip: the two actions you actually reach for (regenerate,
-// archive) plus the model chip, everything else behind "…". Perspectives
+// archive) plus the task's AI, everything else behind "…". Perspectives
 // (once = candidates, follow = reviewers) live here until the palette lands.
+// The AI shown and changed here is the task's own target, the same chip the
+// task carries on the canvas (shown while choosing per task is on): what it
+// says is what the task runs on, and changing it changes this task only,
+// never the toolbar's default.
 
 export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; isLoading: boolean }) {
   const regenerate = useStore((s) => s.regenerate);
@@ -18,8 +23,7 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
   const duplicateNode = useStore((s) => s.duplicateNode);
   const deleteNode = useStore((s) => s.deleteNode);
   const setSelectedNodeId = useStore((s) => s.setSelectedNodeId);
-  const setNodeModel = useStore((s) => s.setNodeModel);
-  const nodeModel = useStore((s) => s.nodes.find((n) => n.id === nodeId)?.data.model);
+  const task = useStore((s) => isTask(s.nodes.find((n) => n.id === nodeId)));
   const setArchived = useStore((s) => s.setArchived);
   const isArchived = useStore((s) => !!s.nodes.find((n) => n.id === nodeId)?.data.archived);
   const nodeQuestion = useStore((s) => s.nodes.find((n) => n.id === nodeId)?.data.question ?? '');
@@ -86,7 +90,7 @@ export default function HeaderActions({ nodeId, isLoading }: { nodeId: string; i
       >
         {isArchived ? <ArchiveRestore size={16} strokeWidth={1.75} /> : <Archive size={16} strokeWidth={1.75} />}
       </button>
-      <ModelPicker compact value={nodeModel} onChange={(m) => setNodeModel(nodeId, m)} />
+      {task && <TargetPicker nodeId={nodeId} menuAt="right" />}
 
       <div ref={menuRef} className="relative">
         <button onClick={() => setMenuOpen((v) => !v)} title={t('panel.more')} className={`${iconBtn} ${menuOpen ? 'bg-line/50 text-ink' : ''}`}>

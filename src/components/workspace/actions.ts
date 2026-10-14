@@ -4,7 +4,8 @@
 
 import { useStore } from '../../store';
 import { useProjects } from '../../store/projects';
-import { reconcileFile, revealFile } from '../../lib/workspace/client';
+import { reconcileFile, revealFile, WorkspaceError } from '../../lib/workspace/client';
+import { canvasVisit } from '../../lib/workspace/canvas-visit';
 import { addNodeFor, createDocument } from '../../lib/workspace/create-command';
 import { attachEntry, attachResource, type DragPayload } from '../../lib/workspace/graph-resource';
 import type { ResourceRef } from '../../lib/workspace/contracts';
@@ -51,12 +52,15 @@ export async function createInGraph(extension: string, at: Point): Promise<void>
     // the canvas is fixed now: whatever is opened while the folder is looked up, the file is this canvas's
     const canvasId = useProjects.getState().activeId;
     if (!canvasId) return;
+    const visit = canvasVisit();
     const workspace = await ensureWorkspace(canvasId);
     const made = await createDocument({ workspaceId: workspace.workspaceId, extension, origin: 'graph', graphId: canvasId, position: at });
     reloadTree();
+    // the canvas was left while the file was made: it is in the canvas's folder, and nothing of it opens elsewhere
+    if (canvasVisit() !== visit) return;
     const name = made.record.relativePath ?? '';
     // made to be typed into: it opens at once, node or no node
-    void openFileSurface(made.record.fileId).catch(() => {});
+    void openFileSurface(made.record.fileId, { visit }).catch(() => {});
     if (made.nodeId) {
       toast('success', fmt(say('workspace.created'), { name }), 5000, { label: say('workspace.reveal'), run: () => void revealFile(made.record.fileId).catch(() => {}) });
     } else {
@@ -94,11 +98,14 @@ export function quoteOnCanvas(ref: ResourceRef, words: string, fileName: string,
 export async function dropOnCanvas(payload: DragPayload, at: Point): Promise<void> {
   try {
     const canvasId = useProjects.getState().activeId;
+    const visit = canvasVisit();
     // a node is already on the canvas, and a folder is not something a node references
     if (!canvasId || payload.kind === 'graph-node' || payload.kind === 'folder-ref') return;
-    if (payload.kind === 'file-ref') await attachEntry(canvasId, payload.workspaceId, payload.entryId, at);
-    else await attachResource(canvasId, payload.ref, at, await reconcileFile(payload.ref.fileId));
+    if (payload.kind === 'file-ref') await attachEntry(canvasId, payload.workspaceId, payload.entryId, at, visit);
+    else await attachResource(canvasId, payload.ref, at, await reconcileFile(payload.ref.fileId), visit);
   } catch (e) {
+    // the canvas it was dropped on was left meanwhile: nothing to say in the one open now
+    if (e instanceof WorkspaceError && e.code === 'wrong-graph') return;
     toast('error', fmt(say('workspace.failed'), { why: why(e) }));
   }
 }

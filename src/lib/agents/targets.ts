@@ -13,6 +13,7 @@ import type { ExecutionTarget, TargetBinding } from '../context/contracts';
 import type { ResourceRef } from '../workspace/contracts';
 import { reconcileFile } from '../workspace/client';
 import { attachResource, nodesOfFile } from '../workspace/graph-resource';
+import { canvasVisit } from '../workspace/canvas-visit';
 import { generateId } from '../../utils';
 import { useStore } from '../../store';
 import { useProjects } from '../../store/projects';
@@ -22,7 +23,18 @@ import { checkSend, createTarget as newTarget, templateFor, type KnownModels, ty
 export { describeTarget, templateFor, type SendCheck, type TargetDescription } from './target-model';
 
 type Point = { x: number; y: number };
-export type ConnectResult = { ok: true; edgeId: string } | { ok: false; reason: 'loop' | 'not-a-task' | 'unknown' };
+export type ConnectResult = { ok: true; edgeId: string } | { ok: false; reason: 'loop' | 'not-a-task' | 'unknown' | 'left' };
+
+/**
+ * Where a gesture began: the canvas, and which opening of it. Work it
+ * waits for (a file's identity, its record, its content) may come back
+ * after another canvas was opened, or this one opened anew; it then does
+ * nothing there. The canvas's id alone cannot tell, since a copy of a
+ * canvas keeps the ids of its nodes.
+ */
+export interface Origin { canvasId: string | null; visit: number }
+export const originNow = (): Origin => ({ canvasId: useProjects.getState().activeId, visit: canvasVisit() });
+export const stillAt = (origin: Origin): boolean => canvasVisit() === origin.visit && useProjects.getState().activeId === origin.canvasId;
 
 /** A node that asks: a question for an AI. Material (a note, a file, a link) and a step for a person are not. */
 export const isTask = (node: ThoughtNode | undefined): node is ThoughtNode =>
@@ -171,21 +183,26 @@ export function connectNode(sourceId: string, taskId: string): ConnectResult {
  * Wire references to files (or parts of files) into a task, and resolve
  * with the result for each. A file that already has a node on the canvas
  * is wired through that node; one that has none gets one, beside the
- * task. Each reference is wired to this task and to no other.
+ * task. Each reference is wired to this task and to no other, on the
+ * canvas, and in the opening of it, where the gesture began (`origin`):
+ * after every wait that is checked again, and once it is not that canvas
+ * nothing more is made or wired (`left`).
  */
-export async function connectRefs(taskNodeId: string, refs: ResourceRef[]): Promise<ConnectResult[]> {
+export async function connectRefs(taskNodeId: string, refs: ResourceRef[], origin: Origin = originNow()): Promise<ConnectResult[]> {
   const results: ConnectResult[] = [];
   for (const [index, ref] of refs.entries()) {
+    if (!stillAt(origin) || !origin.canvasId) { results.push({ ok: false, reason: 'left' }); continue; }
     const task = useStore.getState().nodes.find((n) => n.id === taskNodeId);
     if (!isTask(task)) { results.push({ ok: false, reason: task ? 'not-a-task' : 'unknown' }); continue; }
     const sameSelector = (n: ThoughtNode) => JSON.stringify(n.data.resourceRef?.selector) === JSON.stringify(ref.selector);
     let sourceId = nodesOfFile(ref.fileId).find(sameSelector)?.id;
     if (!sourceId) {
-      const canvasId = useProjects.getState().activeId;
-      if (!canvasId) { results.push({ ok: false, reason: 'unknown' }); continue; }
       try {
-        sourceId = await attachResource(canvasId, ref, { x: task.position.x - 420, y: task.position.y - 260 + index * 60 }, await reconcileFile(ref.fileId));
+        const record = await reconcileFile(ref.fileId);
+        if (!stillAt(origin)) { results.push({ ok: false, reason: 'left' }); continue; }
+        sourceId = await attachResource(origin.canvasId, ref, { x: task.position.x - 420, y: task.position.y - 260 + index * 60 }, record);
       } catch { results.push({ ok: false, reason: 'unknown' }); continue; }
+      if (!stillAt(origin)) { results.push({ ok: false, reason: 'left' }); continue; }
     }
     results.push(connectNode(sourceId, taskNodeId));
   }

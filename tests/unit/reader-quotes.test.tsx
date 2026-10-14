@@ -205,7 +205,7 @@ describe('a reader whose file changes', () => {
   /** Another program replaces the file's content, and the workspace says so. */
   const replace = (fileId: string, bytes: Uint8Array, marker: string) => during(() => {
     shell.files.get(fileId)!.bytes = bytes;
-    shell.editExternally(fileId, marker); // the record's revision follows `content`; what is read is `bytes`
+    shell.editExternally(fileId, marker); // what is read, and the record's revision, follow `bytes`; this sends the news
   });
 
   it('[R2-21] shows what the file holds now, and a quote taken after that is of the new version', async () => {
@@ -240,6 +240,45 @@ describe('a reader whose file changes', () => {
     await until(() => shown().includes('BACK_AGAIN_T3'));
     expect(view!.container.querySelector('[data-reader-gone]')).toBeNull();
     expect(shown()).toContain('BACK_AGAIN_T3');
+  });
+
+  /** The workspace says the file moved, with its record as it is now. */
+  const moved = (fileId: string) => during(() => shell.emit({ workspaceId: 'ws_1', fileId, change: 'moved', observedRevision: shell.record(fileId).revision, opId: null, record: shell.record(fileId) }));
+
+  it('[R3-11] a file that moved and was changed on the way is shown as it is now, with nothing of the old version selected', async () => {
+    const fileId = await open();
+    const text = view!.container.querySelector<HTMLElement>('[data-reader-text]')!.firstChild as Text;
+    select([text, 0], [text, 7]);
+    shell.files.get(fileId)!.bytes = docxWith(['MOVED_AND_CHANGED_T4']); // the record's revision follows the bytes
+    await moved(fileId);
+    await until(() => shown().includes('MOVED_AND_CHANGED_T4'));
+    expect(reads()).toBe(2);
+    expect(shown()).not.toContain('VERSION_ONE_T1');
+    expect(window.getSelection()!.toString()).toBe('');
+  });
+
+  for (const status of ['ready', 'readonly'] as const) {
+    it(`[R3-11] a file that was lost and is found again somewhere else (${status}) is shown again, and no longer said to be gone`, async () => {
+      const fileId = await open();
+      shell.files.get(fileId)!.status = 'missing';
+      await during(() => shell.emit({ workspaceId: 'ws_1', fileId, change: 'missing', observedRevision: null, opId: null, record: shell.record(fileId) }));
+      await until(() => view!.container.querySelector('[data-reader-gone]'));
+
+      shell.files.get(fileId)!.status = status;
+      shell.files.get(fileId)!.bytes = docxWith(['FOUND_AGAIN_T5']);
+      await moved(fileId);
+      await until(() => shown().includes('FOUND_AGAIN_T5'));
+      expect(view!.container.querySelector('[data-reader-gone]')).toBeNull();
+      expect(view!.container.querySelector('[data-reader-quote]'), 'it can be quoted from again').not.toBeNull();
+    });
+  }
+
+  it('[R3-11] a file reported moved while its record says it is lost is shown as gone', async () => {
+    const fileId = await open();
+    shell.files.get(fileId)!.status = 'missing';
+    await moved(fileId);
+    await until(() => view!.container.querySelector('[data-reader-gone]'));
+    expect(view!.container.querySelector('[data-reader-quote]')).toBeNull();
   });
 
   it('[R2-21] does not read the file again for news of the version it already shows', async () => {

@@ -26,12 +26,20 @@ import FollowUpInput from './FollowUpInput';
 // follow-up input at the bottom), INSPECT (context chain). Everything else
 // is one compact strip of actions or a collapsed section.
 
-export default function FocusPanel({ onFocusNode }: { onFocusNode?: (id: string) => void }) {
+export default function FocusPanel({ onFocusNode, nodeId, embedded }: {
+  onFocusNode?: (id: string) => void;
+  /** show this node instead of the selected one: a task's panel in a surface of its own */
+  nodeId?: string;
+  /** the panel is inside a frame that places and sizes it: no edge to resize by, no button to close it */
+  embedded?: boolean;
+}) {
   const {
-    nodes, edges, selectedNodeId, setSelectedNodeId,
+    nodes, edges, selectedNodeId: selectedId, setSelectedNodeId,
     addAttachment, removeAttachment, toggleExcludeAttachment, setAttachmentRenderMode, getInheritedAttachments,
   } = useStore();
   const t = useT();
+  // the node this panel shows: the one it was given, else the one selected on the canvas
+  const selectedNodeId = nodeId ?? selectedId;
 
   // Selected text from the response, staged as context for the follow-up
   const [branchContext, setBranchContext] = useState('');
@@ -104,11 +112,14 @@ export default function FocusPanel({ onFocusNode }: { onFocusNode?: (id: string)
   return (
     <div
       data-focus-panel
-      className={`absolute right-3 top-3 bottom-3 z-20 bg-wash border border-line rounded-2xl shadow-xl overflow-hidden flex flex-col ${resizing ? 'select-none' : ''}`}
-      style={{ width: panelWidth, minWidth: PANEL_MIN_WIDTH, maxWidth: '70vw' }}
+      {...(embedded ? { 'data-task-panel': selectedNodeId } : {})}
+      className={embedded
+        ? 'flex-1 min-h-0 bg-wash overflow-hidden flex flex-col'
+        : `absolute right-3 top-3 bottom-3 z-20 bg-wash border border-line rounded-2xl shadow-xl overflow-hidden flex flex-col ${resizing ? 'select-none' : ''}`}
+      style={embedded ? undefined : { width: panelWidth, minWidth: PANEL_MIN_WIDTH, maxWidth: '70vw' }}
     >
       {/* Resize handle on the left edge */}
-      <div
+      {!embedded && <div
         onPointerDown={onResizePointerDown}
         onPointerMove={onResizePointerMove}
         onPointerUp={onResizePointerUp}
@@ -119,19 +130,19 @@ export default function FocusPanel({ onFocusNode }: { onFocusNode?: (id: string)
       >
         {/* a visible grip: the handle exists whether or not you hover it */}
         <div className={`w-[3px] h-9 rounded-full transition-colors ${resizing ? 'bg-accent' : 'bg-line-strong'}`} />
-      </div>
+      </div>}
       {/* Header: summary kicker (role · tokens · materials) + action strip */}
       <div className="flex items-start gap-2 pl-4 pr-3 py-1.5 border-b border-line/70 shrink-0">
         <RoleLine data={data} inheritedRole={inheritedRole} onEdit={(initial) => setRoleEdit(initial)} />
         <div className="flex items-center gap-1 shrink-0">
           {!isViewerMode && <HeaderActions nodeId={selectedNodeId!} isLoading={data.isLoading} />}
-          <button
+          {!embedded && <button
             onClick={() => { useUiStore.getState().setPanelOpen(false); setSelectedNodeId(null); }}
             title={t('panel.close')}
             className="text-ink-faint hover:text-ink transition-colors shrink-0 ml-1 h-8 flex items-center"
           >
             <X size={16} strokeWidth={1.75} />
-          </button>
+          </button>}
         </div>
       </div>
       {/* the role editor: a full-width strip under the header, the whole panel's width for the text and the presets */}

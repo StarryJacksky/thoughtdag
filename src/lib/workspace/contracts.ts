@@ -273,7 +273,7 @@ export interface DocumentEdit {
 export interface SurfaceState {
   surfaceId: string;
   documentId: string;
-  kind: 'text' | 'markdown' | 'pdf' | 'image' | 'html' | 'mindmap';
+  kind: 'text' | 'markdown' | 'pdf' | 'image' | 'html' | 'mindmap' | 'task';
   placement: 'floating' | 'left' | 'right' | 'maximized' | 'minimized';
   rect: { x: number; y: number; width: number; height: number };
 }

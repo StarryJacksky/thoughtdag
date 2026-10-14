@@ -5,6 +5,9 @@ import { revealFile } from '../../lib/workspace/client';
 import type { ResourceRef } from '../../lib/workspace/contracts';
 import { useT } from '../../i18n';
 import ResourceReader from '../readers/ResourceReader';
+import FocusPanel from '../focus-panel';
+import { useStore } from '../../store';
+import { closeSurface } from '../../lib/documents/surface-store';
 import DocumentBody from './DocumentBody';
 import SurfaceFrame from './SurfaceFrame';
 import SurfaceTray from './SurfaceTray';
@@ -17,6 +20,8 @@ import SurfaceTray from './SurfaceTray';
 interface Props {
   /** what a quote taken in a reader is handed to: the reference to the part, its words, and the file's name */
   onQuote?: (ref: ResourceRef, words: string, fileName: string) => void;
+  /** bring a node of the canvas into view: what a task's panel asks for when a node it lists is picked */
+  onFocusNode?: (id: string) => void;
 }
 
 /** A file that could not be opened to type into: the surface says why, and what can be done about it. */
@@ -33,7 +38,16 @@ function NoticeBody({ surface }: { surface: Surface }) {
   );
 }
 
-export default function SurfaceManager({ onQuote }: Props = {}) {
+/** A task of the canvas, shown in a surface of its own: the panel the selected node gets at the side, for this one task. */
+function TaskBody({ surface, onFocusNode }: { surface: Surface; onFocusNode?: (id: string) => void }) {
+  const there = useStore((s) => s.nodes.some((n) => n.id === surface.taskNodeId));
+  // the task was removed from the canvas: its panel has nothing left to show
+  useEffect(() => { if (!there) closeSurface(surface.surfaceId); }, [there, surface.surfaceId]);
+  if (!there || !surface.taskNodeId) return null;
+  return <FocusPanel nodeId={surface.taskNodeId} embedded onFocusNode={onFocusNode} />;
+}
+
+export default function SurfaceManager({ onQuote, onFocusNode }: Props = {}) {
   const surfaces = useSurfaces((s) => s.surfaces);
   const order = useSurfaces((s) => s.order);
   const layer = useRef<HTMLDivElement>(null);
@@ -54,7 +68,8 @@ export default function SurfaceManager({ onQuote }: Props = {}) {
     <div ref={layer} data-surface-layer className="absolute inset-0 z-30 overflow-hidden" style={{ pointerEvents: 'none' }}>
       {surfaces.map((surface) => (
         <SurfaceFrame key={surface.surfaceId} surface={surface} zIndex={1 + order.indexOf(surface.surfaceId)}>
-          {surface.notice ? <NoticeBody surface={surface} />
+          {surface.kind === 'task' ? <TaskBody surface={surface} onFocusNode={onFocusNode} />
+            : surface.notice ? <NoticeBody surface={surface} />
             : surface.reading ? (
               <ResourceReader
                 resourceRef={{ fileId: surface.fileId, selector: { kind: 'document' }, version: { kind: 'live' }, payload: 'text' }}

@@ -43,6 +43,8 @@ export interface Surface extends SurfaceState {
   reading: boolean;
   /** the file could not be opened to type into, and why; the surface says so instead of showing nothing */
   notice: 'too-large' | 'not-text' | null;
+  /** the surface shows a task of the canvas (its question, its answer, what is wired to it): this is the task's node */
+  taskNodeId: string | null;
 }
 
 export const MIN_SURFACE: Size = { width: 360, height: 240 };
@@ -109,14 +111,14 @@ export function focusSurface(surfaceId: string): void {
  * already be open for that id as a view (see `openFileSurface`, which does
  * both). `as` places it; otherwise it floats beside the surfaces already there.
  */
-export function openSurface(documentId: string, kind: SurfaceKind, options: { surfaceId?: string; fileId?: string; workspaceId?: string; title?: string; placement?: Placement; rect?: Rect; reading?: boolean; notice?: Surface['notice'] } = {}): string {
+export function openSurface(documentId: string, kind: SurfaceKind, options: { surfaceId?: string; fileId?: string; workspaceId?: string; title?: string; placement?: Placement; rect?: Rect; reading?: boolean; notice?: Surface['notice']; taskNodeId?: string } = {}): string {
   const surfaceId = options.surfaceId ?? newSurfaceId();
   useSurfaces.setState((state) => {
     const floating = state.surfaces.filter((s) => s.placement === 'floating').length;
     // each new surface a step down and across from the last, wrapping before it leaves the container
     const step = (floating % 8) * 28;
     const rect = fitRect(options.rect ?? { ...DEFAULT_SIZE, x: state.container.width - DEFAULT_SIZE.width - 24 - step, y: 64 + step }, state.container);
-    const surface: Surface = { surfaceId, documentId, kind, placement: options.placement ?? 'floating', rect, fileId: options.fileId ?? '', workspaceId: options.workspaceId ?? '', title: options.title ?? '', back: null, reading: options.reading ?? false, notice: options.notice ?? null };
+    const surface: Surface = { surfaceId, documentId, kind, placement: options.placement ?? 'floating', rect, fileId: options.fileId ?? '', workspaceId: options.workspaceId ?? '', title: options.title ?? '', back: null, reading: options.reading ?? false, notice: options.notice ?? null, taskNodeId: options.taskNodeId ?? null };
     return { surfaces: [...state.surfaces, surface], order: [...state.order, surfaceId] };
   });
   return surfaceId;
@@ -242,6 +244,29 @@ export async function openFileSurface(fileId: string, options: { placement?: Pla
   // the canvas was left while the file was being read: the view that was opened for a surface that will not be is closed again
   if (left()) { void documents.closeView(surfaceId); return null; }
   return place(documentId);
+}
+
+/**
+ * Show a task of the canvas in a surface of its own: the same panel the
+ * selected node gets at the side, for this one task, movable like any
+ * other surface. One surface per task; a task that has one gets it brought
+ * to the front. Several tasks can each have theirs open at once, in the one
+ * window. Resolves with the surface's id.
+ */
+export function openTaskSurface(taskNodeId: string, title: string, options: { placement?: Placement; rect?: Rect } = {}): string {
+  const existing = useSurfaces.getState().surfaces.find((s) => s.taskNodeId === taskNodeId);
+  if (existing) {
+    if (existing.placement === 'minimized') restoreSurface(existing.surfaceId); else focusSurface(existing.surfaceId);
+    return existing.surfaceId;
+  }
+  const { container, surfaces } = useSurfaces.getState();
+  // a task panel is tall and narrow; each new one stands beside the last, from the left
+  const size = { width: 440, height: Math.max(MIN_SURFACE.height, Math.min(640, container.height - 96)) };
+  const others = surfaces.filter((s) => s.kind === 'task').length;
+  const rect = options.rect ?? { ...size, x: 72 + (others % 4) * (size.width + 16), y: 56 + (others % 4) * 12 };
+  const made = openSurface(`task:${taskNodeId}`, 'task', { taskNodeId, title, placement: options.placement, rect });
+  focusSurface(made);
+  return made;
 }
 
 // ── the layout of a canvas's surfaces ──────────────────────────────────

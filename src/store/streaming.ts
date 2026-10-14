@@ -9,6 +9,7 @@ import { agentOutbound, adoptAgentTurn, claimAgentTurn, isAgentModel } from '../
 import { countTokens, activeSummary } from '../utils';
 import { toast, useUiStore } from '../lib/ui-store';
 import { getModelsOnce, reconcileModelId } from '../lib/use-models';
+import { checkSend, createTarget, describeTarget, templateFor } from '../lib/agents/target-model';
 import { contextLengthFor } from '../lib/runtime-providers';
 import { memoryContextBlock, judgeMemory } from '../lib/memory';
 import { fetchRecallItems, recallContextBlock } from '../lib/recall';
@@ -181,11 +182,30 @@ export async function runNodeGeneration(
   // revoked key) reconciles to the same family locally, or falls back to
   // the global pick — SAID OUT LOUD and recorded as what actually ran,
   // never silently mismatched between execution and provenance.
-  const pinnedRaw = get().nodes.find((n) => n.id === nodeId)?.data.model;
+  //
+  // A task that is BOUND to an AI (data.target, lib/agents/targets.ts) is
+  // different from a bare pin: it runs on that AI or not at all. Its model
+  // is never remapped to another provider's and never dropped for the
+  // global pick; when it cannot be reached the run stops and says so.
+  const boundTarget = get().nodes.find((n) => n.id === nodeId)?.data.target;
+  const pinnedRaw = boundTarget?.model ?? get().nodes.find((n) => n.id === nodeId)?.data.model;
   let pinnedModel = pinnedRaw;
   const modelData = await getModelsOnce();
   const serverDefaultModel: string | null = modelData?.default ?? null;
-  if (pinnedRaw && modelData && modelData.models.length > 0) {
+  const boundCheck = boundTarget ? checkSend({ target: boundTarget }, { models: modelData?.models ?? [], serverDefault: serverDefaultModel }) : { ok: true as const };
+  if (!boundCheck.ok) {
+    if (!isCurrent()) return;
+    activeAbortControllers.delete(nodeId);
+    const model = boundTarget!.model;
+    toast('error', fmt(t('target.unavailable'), { m: describeTarget(boundTarget!).label }), 9000);
+    // nothing was asked and nothing answered: no version, no provenance, only why
+    set((state) => ({
+      nodes: state.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, response: fmt(t('target.unavailableAnswer'), { m: model }), isLoading: false, restreaming: undefined, reasoning: undefined, generationFailed: true } } : n)),
+    }));
+    get().pushHistory();
+    return;
+  }
+  if (!boundTarget && pinnedRaw && modelData && modelData.models.length > 0) {
     const r = reconcileModelId(pinnedRaw, modelData.models);
     if (r !== pinnedRaw) {
       pinnedModel = r ?? undefined;
@@ -203,6 +223,13 @@ export async function runNodeGeneration(
   // Resolved ONCE, here: the picker may change while this node runs, and the
   // node must record what it was asked with, not what the picker says later
   const requestedModel = pinnedModel ?? useUiStore.getState().selectedModel ?? serverDefaultModel ?? undefined;
+  // A task with no target yet is bound to what it runs on now, with the
+  // global settings as they are now: the defaults are a template for new
+  // targets, and whatever changes in them later is not this task's.
+  if (requestedModel && !boundTarget) {
+    const made = createTarget(templateFor(requestedModel));
+    set((state) => ({ nodes: state.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, model: requestedModel, target: made } } : n)) }));
+  }
   const harnessRoute = await harnessOutbound(nodeId, requestedModel);
   const agentRoute = harnessRoute ? undefined : await agentOutbound(requestedModel, nodeId);
   let harnessSession: string | undefined;
@@ -488,7 +515,9 @@ export async function runNodeGeneration(
         scholar: selfData?.scholarSearch ?? useUiStore.getState().scholarSearchEnabled,
         mcp: useUiStore.getState().mcpEnabled,
       };
-    })(), pinnedModel, harnessRoute ?? (agentRoute ? { ...agentRoute, nodeId } : undefined));
+      // the model is named in the request, also when it came from the defaults: the task was just bound to it,
+      // and what answers must be what the task says it runs on, not whatever the server's default is by then
+    })(), pinnedModel ?? requestedModel, harnessRoute ?? (agentRoute ? { ...agentRoute, nodeId } : undefined));
     flushStream();
     if (!isCurrent()) return; // superseded while finishing: drop everything
     activeAbortControllers.delete(nodeId);

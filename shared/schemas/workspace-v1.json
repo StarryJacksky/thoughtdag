@@ -441,7 +441,7 @@
       "properties": {
         "surfaceId": { "$ref": "#/$defs/OpaqueId" },
         "documentId": { "$ref": "#/$defs/OpaqueId" },
-        "kind": { "enum": ["text", "markdown", "pdf", "image", "html", "mindmap"] },
+        "kind": { "enum": ["text", "markdown", "pdf", "image", "html", "mindmap", "task"] },
         "placement": { "enum": ["floating", "left", "right", "maximized", "minimized"] },
         "rect": {
           "type": "object",

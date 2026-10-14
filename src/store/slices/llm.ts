@@ -11,6 +11,30 @@ import { useUiStore, toast, recallSnapshot } from '../../lib/ui-store';
 // the stale set a request carries is the one the preview shows: the fingerprint's minus the judge's dismissals (#51)
 import { shownStaleIds } from '../../lib/stale-judge';
 import { t, fmt } from '../../i18n';
+import { checkSend, describeTarget } from '../../lib/agents/target-model';
+import { modelsNow } from '../../lib/use-models';
+import type { ExecutionTarget } from '../../lib/context/contracts';
+
+/**
+ * Whether a question for this task must not be sent now, having told the
+ * person why: there is no model to send to, or the model the task is
+ * bound to is known not to be reachable. Nothing is sent to some other
+ * model instead. While nothing is known of the models yet, nothing is
+ * held back on a guess.
+ */
+function refusedToSend(task: { target?: ExecutionTarget; model?: string } | undefined): boolean {
+  const known = modelsNow();
+  if (!known) return false;
+  const check = checkSend(task ?? {}, { models: known.models, serverDefault: known.default });
+  if (check.ok) return false;
+  if (check.reason === 'no-model') {
+    toast('info', t('toast.noModelYet'));
+    useUiStore.getState().setApiKeyModalOpen(true);
+  } else if (task?.target) {
+    toast('error', fmt(t('target.unavailable'), { m: describeTarget(task.target).label }), 9000);
+  }
+  return true;
+}
 import type { StoreState, LlmSlice, AddQuestionOptions } from '../types';
 import { condenseGuard } from '../../lib/condense-guard';
 
@@ -18,6 +42,8 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
   addQuestion: async (question: string, opts: AddQuestionOptions = {}) => {
     if (condenseGuard()) return;
     const { parentId, branchContext, branchYRatio, inheritRole, rolePrompt, initialAttachments, excludeAllInheritedAttachments, mentions } = opts;
+    // the new question continues its parent's line: what it would be sent to is the parent's to say
+    if (refusedToSend(parentId ? get().nodes.find((n) => n.id === parentId)?.data : undefined)) return;
     const id = generateId();
     get().logEvent('ask', id, { chars: question.length, ...(parentId ? {} : { root: true }), ...(branchContext ? { branch: true } : {}) });
     const isRoot = !parentId;
@@ -26,6 +52,8 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     // global picker sits on something else. No pin on the parent = keep
     // following the global pick (undefined), as before.
     const inheritedModel = parentId ? get().nodes.find((n) => n.id === parentId)?.data.model : undefined;
+    // and with the model, the AI the line is bound to: one target for the line
+    const inheritedTarget = parentId ? get().nodes.find((n) => n.id === parentId)?.data.target : undefined;
     const newNode: ThoughtNode = {
       id,
       type: 'thought',
@@ -36,6 +64,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
         createdAt: new Date().toISOString(),
         askedAt: new Date().toISOString(),
         model: inheritedModel,
+        ...(inheritedTarget ? { target: inheritedTarget } : {}),
         response: '',
         responses: [],
         responseIndex: -1,
@@ -293,11 +322,13 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     // Single-parent explore stays on that line's model; multi-parent is
     // ambiguous — follow the global pick.
     const exploreModel = parents.length === 1 ? nodes.find((n) => n.id === parents[0])?.data.model : undefined;
+    const exploreTarget = parents.length === 1 ? nodes.find((n) => n.id === parents[0])?.data.target : undefined;
     const newNode: ThoughtNode = {
       id, type: 'thought', position: { x: 0, y: 0 }, dragHandle: '.drag-handle',
       data: {
         question,
         model: exploreModel,
+        ...(exploreTarget ? { target: exploreTarget } : {}),
         createdAt: new Date().toISOString(),
         askedAt: new Date().toISOString(),
         response: '', responses: [], responseIndex: -1,
@@ -362,6 +393,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
 
   editQuestion: async (nodeId: string, question: string) => {
     if (condenseGuard()) return;
+    if (refusedToSend(get().nodes.find((n) => n.id === nodeId)?.data)) return;
     get().pushHistory();
     get().logEvent('edit-question', nodeId, { chars: question.length });
     // Staleness seed: descendants keep answers written against the OLD
@@ -443,6 +475,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
         isRoot: !parentId,
         isBranch: node.data.isBranch,
         model: node.data.model, // sibling keeps the original's model override
+        ...(node.data.target ? { target: node.data.target } : {}), // and the AI it is bound to, with its settings
       },
     };
 

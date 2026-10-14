@@ -1,0 +1,64 @@
+# T26: tests/unit/targets.test.ts, first run, before the behaviour was written.
+# The module existed only as names (functions that return a fixed value and change nothing), so that every
+# failure below comes from an assertion about behaviour and none from a missing import.
+# Command: npx vitest run tests/unit/targets.test.ts
+
+     × is made from a template with an identity of its own, and fits the contract 5ms
+     × takes the global defaults as they are when it is made, and is not changed when they change 0ms
+     × does not call a model reached through its API by the name of the agent that runs the same family 1ms
+     × is bound to a task by its id, on the canvas that is open and to a node that asks 0ms
+     × a Codex task and a Claude Code task are made side by side, and each runs on its own AI with its own settings 1ms
+     × a question asked below a task goes to that task's AI, whatever the toolbar says by then 11ms
+     × a task that was never given a target is bound to what it first runs on, and stays on it 2ms
+     × a task given another AI by the person gets a target of its own; the task it was copied from keeps its own 4ms
+     × makes an edge and nothing else: no run starts, no file moves or changes, the material stays where it is 2ms
+     × a file dropped on a task by reference is wired the same way, through the node that already stands for it 1ms
+     × a file that has no node yet gets one, wired to the task it was dropped on and to no other 1004ms
+     × shared material is wired to each task by an edge of its own: taking one away leaves the other 2ms
+     × refuses a connection that would make what a task reads depend on its own answer 2ms
+     × is only done into a node that asks: material is not wired into material 1ms
+     × is not offered when there is no model to send to, and says which is missing 1ms
+     × is not offered for a task whose API model is not among the models that can be reached here 1ms
+     × a task whose API model cannot be reached is not answered by another provider's model of the same name 5ms
+⎯⎯⎯⎯⎯⎯ Failed Tests 17 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/unit/targets.test.ts > a target > is made from a template with an identity of its own, and fits the contract
+AssertionError: expected { targetId: 'template', …(12) } to match object { kind: 'agent', …(3) }
+ FAIL  tests/unit/targets.test.ts > a target > takes the global defaults as they are when it is made, and is not changed when they change
+AssertionError: expected undefined to match object { model: 'codex/gpt-synthetic', …(1) }
+ FAIL  tests/unit/targets.test.ts > a target > does not call a model reached through its API by the name of the agent that runs the same family
+AssertionError: expected { group: 'api', runtime: null, …(3) } to match object { group: 'agent', …(1) }
+ FAIL  tests/unit/targets.test.ts > a target > is bound to a task by its id, on the canvas that is open and to a node that asks
+AssertionError: expected undefined to deeply equal { targetId: 'template', …(12) }
+ FAIL  tests/unit/targets.test.ts > two tasks for two AIs on one canvas > a Codex task and a Claude Code task are made side by side, and each runs on its own AI with its own settings
+AssertionError: expected [] to deeply equal [ '', '' ]
+ FAIL  tests/unit/targets.test.ts > two tasks for two AIs on one canvas > a question asked below a task goes to that task's AI, whatever the toolbar says by then
+AssertionError: expected { runtime: 'claude-code', …(5) } to match object { runtime: 'codex', effort: 'high' }
+ FAIL  tests/unit/targets.test.ts > two tasks for two AIs on one canvas > a task that was never given a target is bound to what it first runs on, and stays on it
+AssertionError: expected undefined to match object { model: 'codex/gpt-synthetic', …(3) }
+ FAIL  tests/unit/targets.test.ts > two tasks for two AIs on one canvas > a task given another AI by the person gets a target of its own; the task it was copied from keeps its own
+AssertionError: expected { targetId: 'template', …(12) } to match object { …(4) }
+ FAIL  tests/unit/targets.test.ts > wiring material to a task > makes an edge and nothing else: no run starts, no file moves or changes, the material stays where it is
+AssertionError: expected { ok: false, reason: 'unknown' } to match object { ok: true }
+ FAIL  tests/unit/targets.test.ts > wiring material to a task > a file dropped on a task by reference is wired the same way, through the node that already stands for it
+AssertionError: expected [] to deeply equal [ 'node-1791946766138-6' ]
+ FAIL  tests/unit/targets.test.ts > wiring material to a task > a file that has no node yet gets one, wired to the task it was dropped on and to no other
+AssertionError: expected '' to contain 'B_ONLY_Q9'
+ FAIL  tests/unit/targets.test.ts > wiring material to a task > shared material is wired to each task by an edge of its own: taking one away leaves the other
+Error: the shared material was not wired
+ FAIL  tests/unit/targets.test.ts > wiring material to a task > refuses a connection that would make what a task reads depend on its own answer
+AssertionError: expected { ok: false, reason: 'unknown' } to match object { ok: true }
+ FAIL  tests/unit/targets.test.ts > wiring material to a task > is only done into a node that asks: material is not wired into material
+AssertionError: expected { ok: false, reason: 'unknown' } to deeply equal { ok: false, reason: 'not-a-task' }
+ FAIL  tests/unit/targets.test.ts > sending > is not offered when there is no model to send to, and says which is missing
+AssertionError: expected { ok: true } to deeply equal { ok: false, reason: 'no-model' }
+ FAIL  tests/unit/targets.test.ts > sending > is not offered for a task whose API model is not among the models that can be reached here
+AssertionError: expected { ok: true } to deeply equal { ok: false, …(2) }
+ FAIL  tests/unit/targets.test.ts > sending > a task whose API model cannot be reached is not answered by another provider's model of the same name
+AssertionError: expected [ { runtime: 'codex', …(5) } ] to deeply equal []
+ Test Files  1 failed (1)
+      Tests  17 failed (17)
+
+# The two gaps recorded by T25 in tests/unit/multi-ai-baseline.test.ts, as they stood before T26 (expected failures):
+#   [T26] a task on an unpinned line keeps the model it was created with when the toolbar's pick changes
+#   [T27] a task keeps the effort it ran with when the global effort changes
+# After T26 both pass and are ordinary tests.

@@ -1,4 +1,5 @@
 import type { StateCreator } from 'zustand';
+import { createTarget, templateFor } from '../../lib/agents/target-model';
 import type { ThoughtNode, ThoughtEdge } from '../../types';
 import { generateId, countTokens } from '../../utils';
 import { COLORS } from '../../lib/constants';
@@ -426,9 +427,20 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
 
   setNodeModel: (nodeId: string, model: string | undefined) => {
     set((state) => ({
-      nodes: state.nodes.map((n) =>
-        n.id === nodeId ? { ...n, data: { ...n.data, model } } : n
-      ),
+      nodes: state.nodes.map((n) => {
+        if (n.id !== nodeId) return n;
+        // Picking a model here gives the task a target of its own, made now
+        // (the tasks it shared one with keep theirs). Its effort stays when
+        // the runtime stays. Clearing the pick unbinds the task: it is bound
+        // again, to the defaults as they are then, the next time it runs.
+        const was = n.data.target;
+        let target = undefined as typeof was;
+        if (model) {
+          const fresh = templateFor(model);
+          target = createTarget(was && was.kind === fresh.kind && was.runtime === fresh.runtime ? { ...fresh, effort: was.effort } : fresh);
+        }
+        return { ...n, data: { ...n.data, model, target } };
+      }),
     }));
   },
 

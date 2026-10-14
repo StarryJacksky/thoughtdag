@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { ChevronUp, GitBranch, Paperclip, Send, X } from 'lucide-react';
 import { useStore } from '../../store';
+import { useSendCheck } from '../agents/use-send-check';
 import { shownStaleIds } from '../../lib/stale-judge';
 import { isImeComposing } from '../../utils';
 import { useUiStore } from '../../lib/ui-store';
@@ -30,6 +31,8 @@ export default function FollowUpInput({
   onClearBranchContext: () => void;
 }) {
   const addQuestion = useStore((s) => s.addQuestion);
+  // what would be sent goes to this task's AI: when there is none to send to, sending is not offered
+  const sendCheck = useSendCheck(nodeId);
   const nodes = useStore((s) => s.nodes);
   const edges = useStore((s) => s.edges);
   const t = useT();
@@ -101,7 +104,7 @@ export default function FollowUpInput({
   }, [nodeId, branchContext]);
 
   const submit = () => {
-    if (!continueInput.trim()) return;
+    if (!continueInput.trim() || !sendCheck.ok) return;
     addQuestion(continueInput.trim(), {
       parentId: nodeId,
       branchContext: branchContext || undefined,
@@ -226,12 +229,19 @@ export default function FollowUpInput({
         </button>
         <button
           onClick={submit}
-          disabled={!continueInput.trim()}
+          disabled={!continueInput.trim() || !sendCheck.ok}
+          data-followup-send={sendCheck.ok ? 'ready' : sendCheck.reason}
+          title={sendCheck.ok ? undefined : sendCheck.reason === 'no-model' ? t('target.cannotSendNoModel') : fmt(t('target.cannotSendUnavailable'), { m: sendCheck.model })}
           className="text-ink-faint hover:text-accent disabled:opacity-30 disabled:hover:text-ink-faint transition-colors shrink-0 rounded-full w-7 h-7 flex items-center justify-center hover:bg-line"
         >
           <Send size={18} strokeWidth={1.75} />
         </button>
       </div>
+      {!sendCheck.ok && (
+        <p className="mt-1.5 px-1 text-2xs text-amber-800 leading-snug" data-followup-blocked={sendCheck.reason}>
+          {sendCheck.reason === 'no-model' ? t('target.cannotSendNoModel') : fmt(t('target.cannotSendUnavailable'), { m: sendCheck.model })}
+        </p>
+      )}
       <div className="flex gap-4 mt-1.5 px-1">
         <label className="flex items-center gap-2 text-xs text-ink-muted cursor-pointer select-none">
           <input type="checkbox" checked={continueInheritAttachments} onChange={(e) => setContinueInheritAttachments(e.target.checked)} className="rounded border-line text-accent focus:ring-accent w-3 h-3" />

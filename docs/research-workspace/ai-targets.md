@@ -1,0 +1,173 @@
+# 研究工作台：AI 任务目标与定向连线（T26）
+
+记录日期：2026-10-14。本文是工程计划 T26 的交付说明：同一张画布上的每个提问节点可以绑定到自己的 AI（一个“目标”），材料通过连线交给指定的任务，每个任务可以在画布旁边有自己的面板。覆盖需求 R21、R22、R25 中属于本任务的部分。
+
+逐条写做了什么、没做什么。没做的在第 9 节。
+
+## 1. 文件
+
+| 文件 | 内容 |
+| --- | --- |
+| `src/lib/agents/target-model.ts` | 目标本身：从模板创建、怎么称呼、能不能发送。不依赖画布状态，供 store 内部的模块引用 |
+| `src/lib/agents/targets.ts` | 画布一侧：绑定、新建任务、换 AI、连线、防循环 |
+| `src/components/agents/TargetPicker.tsx` | 任务卡片上显示 AI 的标签和选择菜单；工具栏里的“新建 AI 任务” |
+| `src/components/agents/TargetContextDropzone.tsx` | 任务卡片上的上下文接收区 |
+| `src/components/agents/TaskBar.tsx`、`use-send-check.ts` | 把上面两个放到卡片上方；“现在能不能发送”的判断 |
+| `tests/unit/targets.test.ts`、`tests/unit/target-ui.test.tsx` | 单元测试 18 + 14 条 |
+| `tests/e2e/target-wiring.spec.ts` | 真实浏览器里的端到端测试 |
+| `evidence/T26-targets-before-implementation.txt` | 实现之前的失败记录 |
+
+改动的上游文件（每处都很小，改动处有注释）：
+
+| 文件 | 改了什么 |
+| --- | --- |
+| `src/store/streaming.ts` | 运行时：已绑定的任务不换模型，连不上就停；没绑定的任务在第一次运行时绑定；请求里明确写出模型 |
+| `src/lib/agents/agent-runtime.ts` | 推理强度取自任务的目标 |
+| `src/store/slices/nodes.ts` | 节点自己的模型选择器（`setNodeModel`）同时更新目标 |
+| `src/store/slices/llm.ts` | 追问、重新生成、探索继承目标；没有可发送的模型时不发送 |
+| `src/lib/use-models.ts` | 增加 `modelsNow()`，同步读取已加载的模型列表 |
+| `src/components/focus-panel/index.tsx` | 面板可以显示指定节点并嵌入表面 |
+| `src/components/focus-panel/FollowUpInput.tsx` | 不能发送时禁用发送并说明原因 |
+| `src/components/surfaces/SurfaceManager.tsx`、`src/lib/documents/surface-store.ts` | 任务面板这种表面 |
+| `src/App.tsx` | 把任务栏挂到提问节点上；工具栏按钮 |
+| `src/types.ts` | 节点数据增加 `target` |
+
+契约：`SurfaceState.kind` 增加 `task`（`shared/schemas/workspace-v1.json`）。`ExecutionTarget`、`TargetBinding` 用的是 T02 已定的定义，没有改。
+
+## 2. 目标是什么
+
+目标就是“这个任务用哪个 AI、在什么设置下运行”。它存在提问节点的数据里（`data.target`），内容是契约里的 `ExecutionTarget`：种类（Agent 或 API 模型）、运行时、模型、推理强度，以及角色、记忆策略、权限策略、工作区、预算的引用。
+
+三条规则：
+
+1. **目标只创建一次。** 工具栏上选的模型和全局推理强度是新目标的模板。目标建好之后，改工具栏、改全局强度都不会改它。
+2. **一条对话线是一个目标。** 在某个任务下面追问，新节点继承它的目标（同一个 `targetId`）。重新生成出来的兄弟节点也继承。
+3. **给任务换 AI 会得到一个新目标。** 只影响这一个任务（以及之后从它继续的节点）；和它共用旧目标的其他任务不变。
+
+`revision` 由设置算出：设置相同则相同，改了模型或强度就不同。T27 需要它来判断“目标变了没有”。
+
+为了让上游已有的机制继续工作，节点上原有的 `data.model`（模型固定）始终和目标的模型保持一致。上游“模型跟着对话线走”的逻辑因此不用改。
+
+### 目标在什么时候创建
+
+- 用工具栏的“新建 AI 任务”：选了哪个 AI，当场创建并绑定到新的空任务上。
+- 在任务卡片的标签上给它另选一个 AI：当场创建。
+- 用节点面板里原有的模型选择器：同上。清空选择会解除绑定。
+- **其余情况在第一次运行时创建。** 一个还没有目标的任务被发送时，绑定到它这次实际使用的模型和当时的全局设置。卡片上的标签在此之前显示“发送时绑定”和将要绑定到的模型。
+
+第 4 种情况是 R25“全局默认仅用于新目标”的落点，也带来一个和上游不同的行为，见第 8 节。
+
+## 3. 怎么称呼
+
+`describeTarget` 给出标签，规则只有一条：Agent 以运行时开头，API 模型以模型名开头并标明是 API。
+
+- Agent：`Claude Code · sonnet · high`、`Codex · gpt-5 · low`。
+- API 模型：`claude-sonnet · API`。
+
+同一家的模型通过 API 调用时，不会被叫成那一家的 Agent。选择菜单分两组，各有标题，先 Agent 后 API 模型，互不混排。运行时的名字取自上游已有的定义，没有新增品牌文案。
+
+## 4. 连线
+
+连线沿用画布已有的边和已有的含义：材料（便签、文件、链接、工作区文件节点）以实线连入，整段进入上下文；已有的问答以引用连入。T26 没有引入新的边类型。
+
+`connectNode(来源节点, 任务)` 和 `connectSelection(任务, 引用列表)` 只做一件事：建一条边。
+
+- **不发送，不运行。** 连线之后任务仍在等它的问题，没有任何请求发出。
+- **不动文件。** 不移动、不复制、不改名、不保存。
+- **共享的材料在每个任务上各有一条边。** 删掉其中一条，另一条和材料本身都不受影响。
+- **只能连进提问节点。** 把材料连进材料会被拒绝。
+- **会形成循环的连接被拒绝。** 如果任务的回答已经（经过任意类型的边）流向来源，再把来源连回任务就会让任务读到自己的输出；这种连接不建立，并提示原因。
+- 文件在画布上已经有节点时，通过那个节点连；没有时，在任务旁边新建一个再连。重复连接不产生第二条边。
+
+### 接收区
+
+每个任务卡片上方有一个接收区，显示“已连入 N 项”。把文件树里的文件、选区或文件节点的路径标签拖到上面，就连到这个任务。它只接受应用自己的按 id 引用的拖拽内容：带路径的、文件夹、格式不对的一律不接收，也不会去问工作区。
+
+从便签这类节点连线，用的还是画布原有的手势：从节点底部的圆点拖到任务卡片上。端到端测试走的就是这个手势。
+
+## 5. 发送
+
+`checkSend` 判断一个任务现在能不能发送，有两种不能：
+
+- **没有模型**：任务没有目标、节点没有固定模型、工具栏没选、服务端也没有默认模型。
+- **目标的模型连不上**：目标是 API 模型，而已加载的模型列表里没有它。
+
+对应的处理：
+
+- 任务面板的追问框：发送按钮禁用，下方写明原因。
+- 卡片上的提问框（回车发送，没有按钮）和追问：不发送，输入的内容留在原处，提示原因；没有模型时同时打开连接模型的对话框。
+- 重新生成、自动重跑这些不经过输入框的路径：运行在开始前停下，节点标为失败并写明“没有改发给别的模型”。不记录任何“由某模型生成”的信息，因为没有模型回答过。
+
+**已绑定的任务不会被换模型。** 上游对固定模型的处理是：连不上时换成别家同名的模型，或者退回工具栏的选择，事后提示。这个行为现在只保留给“有固定模型但还没有目标”的节点（来自有目标之前的旧画布，在这里第一次运行之前）。已绑定的任务一律不换。
+
+两点限制：
+
+- 模型列表还没加载出来时，不拦。不凭猜测禁止发送。
+- Agent 的模型是否可用不靠这张列表判断。列表里的 Agent 模型是上次启动时记下的，可能过期。Agent 模型不存在时由运行时自己报错，同样不会改用别的模型。
+
+## 6. 任务面板
+
+任务卡片的标签旁边有一个按钮，把这个任务的面板打开成一个表面（T09 的那种可移动的框）。内容就是选中节点时右侧出现的那个面板：问题、回答、附件、上下文链、追问框。每个任务一个；几个任务可以同时打开各自的面板，并排放在同一个窗口里，不需要新窗口。再次打开已有面板的任务，会把它的面板带到前面。任务从画布上删掉后，它的面板自动关闭。
+
+在某个任务的面板里追问，发给的是那个任务的 AI。
+
+任务面板不记入画布的表面布局（布局按文件记），重新加载后不会自动恢复。
+
+## 7. 验证
+
+修复前的失败记录在 `evidence/T26-targets-before-implementation.txt`：先只建了函数名，行为为空，17 条测试全部因行为断言失败。
+
+计划要求的四条测试，对应如下：
+
+| 计划要求 | 测试 |
+| --- | --- |
+| 同 Graph 新建 Codex 与 CC 任务 | `targets.test.ts`：“a Codex task and a Claude Code task are made side by side, and each runs on its own AI with its own settings”。在桌面壳的替身上核对两次运行各自的运行时、模型、强度 |
+| 拖 A 到 X 不触发执行或移动源文件 | “makes an edge and nothing else: no run starts, no file moves or changes, the material stays where it is”；`target-ui.test.tsx` 里接收区的 4 条 |
+| 对两个目标连接 C 后只删除一条边 | “shared material is wired to each task by an edge of its own: taking one away leaves the other”，并核对删除后两次运行各自的提示词 |
+| 全局模板变化不改已建目标 | “takes the global defaults as they are when it is made, and is not changed when they change”；“a question asked below a task goes to that task's AI, whatever the toolbar says by then” |
+
+验收三条：
+
+| 验收 | 证据 |
+| --- | --- |
+| 无需新窗口即可独立打开两个任务面板 | `target-ui.test.tsx`：“two tasks have their panels open side by side…”；端到端测试最后一步，并核对浏览器只有一个页面 |
+| Claude API 与 Claude Code 选项不混名 | `targets.test.ts`：“does not call a model reached through its API by the name of the agent…”；`target-ui.test.tsx`：“lists agents and API models in two groups…” |
+| 无模型时禁用发送而非静默替代 | `targets.test.ts` 的 “sending” 一组 4 条；`target-ui.test.tsx`：“does not offer to send when the task's model cannot be reached…” |
+
+T25 登记的两条缺口测试（`tests/unit/multi-ai-baseline.test.ts`）现在通过，已从“预期失败”改为普通测试：
+
+- “a task on an unpinned line keeps the model it was created with when the toolbar's pick changes”。
+- “a task keeps the effort it ran with when the global effort changes”。这条原先记在 T27 名下；强度进了目标之后它就过了。T27 还要把运行用到的其余设置也改成从目标读。
+
+回归结果（2026-10-14，macOS）：
+
+| 检查 | 结果 |
+| --- | --- |
+| `npm run lint`、`npm run build` | 通过 |
+| `npm run test:unit` | 458 通过，6 条预期失败 |
+| `npm run test:host` | 356 通过 |
+| `npm run test:contracts` | 193 + 91 通过 |
+| `npm run test:e2e` | 2 通过；新增的这条连续运行 6 次都通过 |
+| `npm run test:e2e:desktop` | 54 通过（其中 1 条是 M0 登记的预期失败） |
+| `test:layout`、`test:live-log`、`test:subagents` | 通过 |
+
+端到端测试没有调用任何模型：模型列表和回答请求都由测试文件应答，请求被记录后拒绝。它验证的是请求发给了哪个模型、带了什么内容。
+
+## 8. 和上游行为不同的地方
+
+1. **对话线不再跟着工具栏走。** 上游的规则是：节点没有固定模型时，每次运行用工具栏当时的选择，所以改一下工具栏，下一次追问就换了模型。现在一个任务运行过一次之后就绑定了，之后的追问留在同一个 AI 上；要换，在任务卡片的标签上换。这是计划 19.3 节“全局配置只作为新目标的初始模板，创建后固定”的直接结果，但它改变了日常使用的手感，所以单独写在这里。
+2. **第一次运行时请求里会写明模型。** 上游在没有任何选择时不传模型，由服务端用它的默认值。现在任务既然绑定到了那个默认模型，请求里就写明它，否则“任务显示的 AI”和“实际回答的模型”可能不一致。
+3. **新建的 AI 任务不会叠在已有卡片上。** 它落在视口中心附近第一个空位。
+
+## 9. 没做的和已知限制
+
+- **画布原有的手绘引用仍然可以形成循环。** 上游特意允许反向的虚线引用（“写作者→评审者→写作者”的迭代）。T26 自己的连线入口（接收区、`connectNode`、`connectSelection`）拒绝循环，上游这个手势没有动。计划 19.2 节写的是“循环依赖被阻止”。**要不要把上游这个迭代用法也禁掉，需要用户决定。**
+- **卡片上的提问框没有禁用状态。** 它没有发送按钮，靠回车发送；不能发送时回车不会发出任何东西，并提示原因。
+- **旧画布的固定模型没有迁移界面。** 有固定模型而没有目标的节点，第一次运行前仍走上游的“换同名模型或退回工具栏”逻辑。按用户的选择逐个映射是 T30。
+- **视觉转接没有确认步骤。** 带图片的请求在模型不支持视觉时，上游会改用支持视觉的模型并在事后记录。计划 19.3 节要求先展示新目的地并确认。这属于 T27、T30。
+- **目标里的角色、记忆策略、权限策略、工作区、预算目前都是默认值。** 字段在，运行时还不读它们。工作区填的是 `canvas`，表示“画布自己的工作目录”，这是现状（见 `multi-ai-baseline.md`）。按目标隔离这些是 T27、T28。
+- **批量“连接到……”没有界面。** 计划 19.2 节提到框选多个材料后选一个或多个目标。`connectSelection` 支持一次连多个引用，但没有做框选后的菜单。
+- **把已有回答连给另一个 AI 时不固定回答版本。** 连的是节点，用的是它当前的回答。固定版本和陈旧提示是 T29。
+- **任务面板不随画布恢复**（第 6 节）。
+- **Codex 和 Claude Code 的任务没有在真实浏览器或真实桌面壳里跑过。** 这台机器的 PATH 里没有这两个命令。它们的运行请求在桌面壳的替身上核对；真实运行时的验收属于 T30。
+- 只在 macOS 上验证过。

@@ -174,7 +174,9 @@ describe('the global defaults change between two runs of a task', () => {
     expect(again).toMatchObject({ runtime: 'codex', model: { provider: 'codex', id: 'gpt-synthetic' } });
   });
 
-  gap('[T27] a task keeps the effort it ran with when the global effort changes', async () => {
+  // Closed by T26 (2026-10-14): a task is bound to a target when it first runs, and the target holds the effort.
+  // It was recorded as a T27 gap; T27 still has to take the rest of what a run uses from the target.
+  it('a task keeps the effort it ran with when the global effort changes', async () => {
     load(f);
     const pinned = await ask(task(f, 'pinned'));
     useUiStore.getState().setAgentEffort('low');
@@ -182,7 +184,8 @@ describe('the global defaults change between two runs of a task', () => {
     expect(again.effort).toBe('high');
   });
 
-  gap('[T26] a task on an unpinned line keeps the model it was created with when the toolbar\'s pick changes', async () => {
+  // Closed by T26 (2026-10-14): the toolbar's pick is the template for a new target, not something a task follows.
+  it('a task on an unpinned line keeps the model it was created with when the toolbar\'s pick changes', async () => {
     load(f);
     const following = await ask(task(f, 'following'));
     expect(following.request.runtime).toBe('codex');
@@ -235,11 +238,13 @@ describe('two runs in flight at once', () => {
   });
 });
 
-// How a pin that cannot be reached is handled today: remapped to a model of
+// How a bare pin that cannot be reached is handled: remapped to a model of
 // the same name under another provider, or dropped in favor of the toolbar's
 // pick. The app says so in a notice after the fact; it does not ask first.
-// The plan (R25) wants a confirmation before material goes to another
-// provider; that change belongs to T26 and T30.
+// Since T26 this is left only for a node that has a pin and no target (a
+// canvas from before targets, until its first run here): a task bound to a
+// target is never remapped, see tests/unit/targets.test.ts. Mapping the old
+// pins by the person's choice is T30.
 describe('a pinned model that is not available here', () => {
   const model = (id: string) => ({ id, name: id, provider: id.split('/')[0], vision: false });
 

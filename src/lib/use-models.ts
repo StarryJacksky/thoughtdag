@@ -32,6 +32,9 @@ let cache: ModelData | null = null;
 let inflight: Promise<ModelData | null> | null = null;
 const listeners = new Set<(d: ModelData) => void>();
 
+/** What is known of the models right now, without asking anyone: null until the list has been loaded once. */
+export const modelsNow = (): ModelData | null => cache;
+
 /** Imperative access to the same per-session model cache (e.g. picking an extraction model). */
 export function getModelsOnce(): Promise<ModelData | null> {
   if (cache) return Promise.resolve(cache);

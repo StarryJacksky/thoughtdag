@@ -140,7 +140,7 @@ describe('a surface holds no text', () => {
   it('knows which document it shows and where it sits, and nothing of what the document says', async () => {
     const id = await opened(fileIdOf('notes/a.md'));
     const state = surface(id);
-    expect(Object.keys(state).sort()).toEqual(['back', 'documentId', 'fileId', 'kind', 'notice', 'placement', 'reading', 'rect', 'surfaceId', 'title', 'workspaceId'].sort());
+    expect(Object.keys(state).sort()).toEqual(['back', 'documentId', 'fileId', 'kind', 'notice', 'placement', 'reading', 'rect', 'surfaceId', 'taskNodeId', 'title', 'workspaceId'].sort());
     expect(JSON.stringify(useSurfaces.getState())).not.toContain('content of a.md');
     expect(documents.get(state.documentId)!.text).toBe('content of a.md\n');
   });

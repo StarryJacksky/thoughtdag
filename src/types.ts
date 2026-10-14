@@ -202,6 +202,10 @@ export interface ThoughtData extends Record<string, unknown> {
   generationFailed?: boolean; // set on LLM failure; cleared on retry/success (persisted so Retry survives refresh)
   references?: Reference[]; // web sources cited by the current response ([n] markers)
   model?: string; // per-node LLM override; undefined = follow the global picker
+  /** The AI this task is bound to, with what it runs under (see lib/agents/targets.ts). Made once, from the
+      defaults as they were then or by the person's choice; nothing global changes it afterwards. `model`
+      above is kept equal to its model, so that everything that follows a line's pin follows the target. */
+  target?: import('./lib/context/contracts').ExecutionTarget;
   webSearch?: boolean; // may this node's generation use web search? (snapshotted at ask time; undefined = legacy, follow global)
   scholarSearch?: boolean; // same for arXiv / Semantic Scholar tools
   /** may this node's generation recall past conversations and memories (the why layer)? snapshotted at ask time like the search switches */

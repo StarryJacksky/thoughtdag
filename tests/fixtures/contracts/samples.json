@@ -155,6 +155,8 @@
       "value": { "fileId": "file_1", "text": "x", "baseRevision": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "savedAt": "2026-10-05T00:00:00Z", "path": "/synthetic/a.md" } },
     { "name": "floating surface", "kind": "SurfaceState", "valid": true,
       "value": { "surfaceId": "s1", "documentId": "d1", "kind": "markdown", "placement": "floating", "rect": { "x": 40, "y": 60, "width": 480, "height": 360 } } },
+    { "name": "surface showing a task of the canvas", "kind": "SurfaceState", "valid": true,
+      "value": { "surfaceId": "s2", "documentId": "task:n1", "kind": "task", "placement": "left", "rect": { "x": 0, "y": 0, "width": 440, "height": 640 } } },
     { "name": "surface holding document text", "kind": "SurfaceState", "valid": false,
       "error": { "path": "/text", "keyword": "additionalProperties" },
       "value": { "surfaceId": "s1", "documentId": "d1", "kind": "markdown", "placement": "floating", "rect": { "x": 40, "y": 60, "width": 480, "height": 360 }, "text": "draft" } },

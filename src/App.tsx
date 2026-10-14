@@ -38,6 +38,8 @@ import ProjectSwitcher from './components/ProjectSwitcher';
 import ResourceNodeView from './components/workspace/ResourceNodeView';
 import WorkspaceLayer from './components/workspace/WorkspaceLayer';
 import SurfaceManager from './components/surfaces/SurfaceManager';
+import TaskBar from './components/agents/TaskBar';
+import { NewTaskButton } from './components/agents/TargetPicker';
 import NewFileButton from './components/workspace/NewFileButton';
 import { dropOnCanvas, quoteOnCanvas } from './components/workspace/actions';
 import { workspaceAvailable } from './lib/workspace/client';
@@ -109,7 +111,9 @@ const NodeDispatch = memo(function NodeDispatch(props: Parameters<typeof Thought
   // a node that stands for a real workspace file has its own card
   if (props.data?.resourceRef) return <ResourceNodeView {...props} />;
   if (isContentKind(props.data?.stepKind)) return <ContentNode {...props} />;
-  return isParadigm ? <ParadigmNode {...props} /> : <ThoughtNode {...props} />;
+  if (isParadigm) return <ParadigmNode {...props} />;
+  // a question node is a task for an AI: above its card stand the AI it is bound to and the place to wire material to it
+  return isViewerMode ? <ThoughtNode {...props} /> : <><ThoughtNode {...props} /><TaskBar nodeId={props.id} /></>;
 });
 const nodeTypes = { thought: NodeDispatch };
 // Overrides the built-in smoothstep so persisted edges need no migration
@@ -1536,7 +1540,10 @@ function Canvas() {
       <WorkspaceLayer flowPosAt={flowPosAt} />
 
       {/* Documents open beside the canvas: movable frames that take the pointer only where they are */}
-      {!isViewerMode && <SurfaceManager onQuote={(ref, words, fileName) => { quoteOnCanvas(ref, words, fileName, flowPosAt(null)); }} />}
+      {!isViewerMode && <SurfaceManager
+        onQuote={(ref, words, fileName) => { quoteOnCanvas(ref, words, fileName, flowPosAt(null)); }}
+        onFocusNode={(id) => { const node = useStore.getState().nodes.find((n) => n.id === id); if (node) centerNode(node, { duration: 300 }); }}
+      />}
 
       {/* Content palette — canvas material, both modes. Click drops at the
           viewport center; DRAG drops at the pointer. Paste works anywhere:
@@ -1554,6 +1561,8 @@ function Canvas() {
               <MessageCircleQuestion size={17} strokeWidth={1.75} />
             </button>
           )}
+          {/* a task for a chosen AI: the same question node, bound to that AI from the start */}
+          {!isParadigm && <NewTaskButton flowPosAt={flowPosAt} />}
           <button
             onPointerDown={(e) => paletteDrag(e, (screen) => spawnContentNode('note', flowPosAt(screen)))}
             title={t('palette.noteTitle')}

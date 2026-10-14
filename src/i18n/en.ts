@@ -1492,6 +1492,8 @@ export const en = {
   'surface.tooLargeToShow': 'the file is too large to show here',
   'surface.tooLargeToEdit': 'This file is larger than 8 MB and is not opened for typing here. It can be shown in the file manager and opened with another program.',
   'surface.notText': 'This file is not text that can be typed into here.',
+  'surface.fileGone': 'This file is not where it was. What it last showed is not shown as if it were still there.',
+  'surface.notKept': '{name} could not be saved, and no recovery draft could be written either. It is kept open so that what you typed is not lost, and saving is tried again by itself.',
   'surface.quote': 'Quote',
   'surface.quoteTitle': 'Put a reference to what is selected (or to this page) on the canvas',
 } as const;

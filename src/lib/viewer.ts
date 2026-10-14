@@ -51,6 +51,7 @@ export async function buildViewerLink(nodes: ThoughtNode[], edges: ThoughtEdge[]
           ...a,
           content: a.type.startsWith('image/') ? '' : a.type === 'application/pdf' ? '' : a.content,
           contentInVault: undefined,
+          vaultId: undefined,
           pageImages: undefined,
           isExtracting: false,
         })),

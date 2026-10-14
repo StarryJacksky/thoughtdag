@@ -247,7 +247,7 @@ interface DesktopWorkspaceBridge {
   /** the person says a lost file is this entry */
   relink(fileId: string, entryId: string): Promise<import('./lib/workspace/contracts').ResourceRecord>;
   /** keep text typed into a file and not yet written to it; one draft per file */
-  putDraft(fileId: string, draft: { text: string; baseRevision: string }): Promise<import('./lib/workspace/contracts').DocumentDraft>;
+  putDraft(fileId: string, draft: { text: string; baseRevision: string; byHand?: boolean }): Promise<import('./lib/workspace/contracts').DocumentDraft>;
   /** the draft kept for a file, or null */
   getDraft(fileId: string): Promise<import('./lib/workspace/contracts').DocumentDraft | null>;
   clearDraft(fileId: string): Promise<boolean>;

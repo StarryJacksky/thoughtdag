@@ -147,14 +147,15 @@
           }
         },
         {
-          "description": "Pages count from 1. A region is [x0, y0, x1, y1] in page-normalized coordinates.",
+          "description": "Pages count from 1. A region is [x0, y0, x1, y1] in page-normalized coordinates. `baseRevision` is the content the pages were quoted from, when it is known: a page number means something only for that content.",
           "type": "object",
           "required": ["kind", "pages"],
           "additionalProperties": false,
           "properties": {
             "kind": { "const": "pdf" },
             "pages": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "integer", "minimum": 1 } },
-            "rect": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "number", "minimum": 0, "maximum": 1 } }
+            "rect": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "number", "minimum": 0, "maximum": 1 } },
+            "baseRevision": { "$ref": "#/$defs/ContentHash" }
           }
         },
         {

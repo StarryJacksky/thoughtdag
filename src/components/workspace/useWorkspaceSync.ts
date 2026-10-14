@@ -22,6 +22,8 @@ export function useWorkspaceSync(): void {
     for (const n of s.nodes) if (n.data.resourceHint) ids.add(n.data.resourceHint.workspaceId);
     return [...ids].sort().join('\n');
   });
+  // a file shown in a surface is followed too, whichever workspace it is in: its document and its reader hear of its changes
+  const shown = useSurfaces((s) => [...new Set(s.surfaces.map((surface) => surface.workspaceId).filter(Boolean))].sort().join('\n'));
 
   useEffect(() => {
     if (!canvasId || switching || !workspaceAvailable()) return;
@@ -57,11 +59,11 @@ export function useWorkspaceSync(): void {
 
   useEffect(() => {
     if (!workspaceAvailable()) return;
-    const ids = [...new Set([bound, ...referenced.split('\n')].filter(Boolean))];
+    const ids = [...new Set([bound, ...referenced.split('\n'), ...shown.split('\n')].filter(Boolean))];
     if (ids.length === 0) return;
     let stop: (() => void) | null = null;
     let gone = false;
     void watchWorkspaces(ids).then((s) => { if (gone) s(); else stop = s; });
     return () => { gone = true; stop?.(); };
-  }, [bound, referenced]);
+  }, [bound, referenced, shown]);
 }

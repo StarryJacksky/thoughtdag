@@ -34,8 +34,15 @@ export function textQuote(fileId: string, text: string, from: number, to: number
   };
 }
 
-/** A reference to a page of a PDF, or to a region of it: `rect` is [x0, y0, x1, y1] as fractions of the page. */
-export function pdfQuote(fileId: string, page: number, rect?: [number, number, number, number]): ResourceRef | null {
-  if (!Number.isInteger(page) || page < 1) return null;
-  return { fileId, selector: { kind: 'pdf', pages: [page], ...(rect ? { rect } : {}) }, version: { kind: 'live' }, payload: 'text' };
+/**
+ * A reference to pages of a PDF: every page the quoted words are on, in
+ * order. `rect` is a region of one page, [x0, y0, x1, y1] as fractions of
+ * it. `baseRevision` is the content of the file the pages were quoted
+ * from, when it is known: page numbers mean something only for that.
+ */
+export function pdfQuote(fileId: string, pages: number | number[], rect?: [number, number, number, number], baseRevision?: ContentHash): ResourceRef | null {
+  const list = [...new Set(Array.isArray(pages) ? pages : [pages])];
+  if (list.length === 0 || list.some((page) => !Number.isInteger(page) || page < 1)) return null;
+  list.sort((a, b) => a - b);
+  return { fileId, selector: { kind: 'pdf', pages: list, ...(rect ? { rect } : {}), ...(baseRevision ? { baseRevision } : {}) }, version: { kind: 'live' }, payload: 'text' };
 }

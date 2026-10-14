@@ -420,3 +420,141 @@ describe('a read that comes back after the canvas was switched', () => {
     expect(node(id).data.resourceHint!.revision).toBe(fakeRevision('NEWER_COPY_R2\n'));
   });
 });
+
+// ── what the second review found (its R2 numbers) ──────────────────────
+
+describe('a file node whose file could not be copied for a while', () => {
+  const tooLarge = new Uint8Array(8 * 1024 * 1024 + 1);
+  const notText = new Uint8Array([0xff, 0xfe, 0x00, 0xc3, 0x28]);
+
+  for (const [why, bytes, said] of [['was too large to read', tooLarge, 'too-large'], ['was not text any more', notText, 'unreadable']] as const) {
+    it(`[R2-14] keeps what was decided about its content while the file ${why}, and after it can be read again`, async () => {
+      const id = await place(shell.seed('notes/a.md', 'OLD_BODY_L1\n'));
+      const stop = await subscribeWorkspace('ws_1', applyWorkspaceEvent);
+      const fileId = node(id).data.resourceRef!.fileId;
+      const att = attachmentId(id);
+      const addedAt = node(id).data.attachments[0].addedAt;
+      useStore.getState().setAttachmentRenderMode(id, att, 'text-only');
+      useStore.setState((st) => ({
+        nodes: [...st.nodes, turn('ask', { excludedAttachmentIds: [att] }), turn('upper', { excludedAttachmentIds: [att] }), turn('lower'), turn('lower-again', { includedAttachmentIds: [att] })],
+        edges: [{ id: 'e0', source: id, target: 'ask' }, { id: 'e1', source: id, target: 'upper' }, { id: 'e2', source: 'upper', target: 'lower' }, { id: 'e3', source: 'upper', target: 'lower-again' }],
+      }));
+
+      shell.files.get(fileId)!.bytes = bytes;
+      shell.editExternally(fileId, 'CHANGED_MEANWHILE_L3\n'); // what its record says changed; what a read gives is `bytes`
+      await vi.waitFor(() => expect(node(id).data.resourceHint!.uncopied).toBe(said));
+      expect(node(id).data.attachments).toEqual([]);
+
+      shell.files.get(fileId)!.bytes = undefined;
+      shell.editExternally(fileId, 'BACK_BODY_L4\n');
+      await vi.waitFor(() => expect(copyOf(id)).toEqual(['BACK_BODY_L4\n']));
+      expect(attachmentId(id), 'the copy that came back is the attachment it was').toBe(att);
+      expect(node(id).data.attachments[0].renderMode).toBe('text-only');
+      expect(node(id).data.attachments[0].addedAt).toBe(addedAt);
+      expect(contextOf('ask'), 'left out of this question: still left out').not.toContain('BACK_BODY_L4');
+      expect(contextOf('lower'), 'left out further up: still left out below').not.toContain('BACK_BODY_L4');
+      expect(contextOf('lower-again'), 'taken back in: still in').toContain('BACK_BODY_L4');
+      stop();
+    });
+  }
+
+  it('[R2-14] keeps the identity of the copy through an undo that brings back the canvas while the file cannot be read', async () => {
+    const stopKeeping = keepCopiesOutOfHistory();
+    const id = await place(shell.seed('notes/a.md', 'OLD_BODY_L1\n'));
+    const stop = await subscribeWorkspace('ws_1', applyWorkspaceEvent);
+    const fileId = node(id).data.resourceRef!.fileId;
+    const att = attachmentId(id);
+    useStore.getState().pushHistory();
+    useStore.setState((s) => ({ nodes: s.nodes.map((n) => (n.id === id ? { ...n, position: { x: 400, y: 0 } } : n)) }));
+    useStore.getState().pushHistory();
+
+    shell.files.get(fileId)!.bytes = tooLarge;
+    shell.editExternally(fileId, 'CHANGED_MEANWHILE_L3\n');
+    await vi.waitFor(() => expect(node(id).data.resourceHint!.uncopied).toBe('too-large'));
+    useStore.getState().undo(); // the picture that comes back holds the old copy; the file still cannot be read
+    await vi.waitFor(() => expect(node(id).data.attachments).toEqual([]));
+
+    shell.files.get(fileId)!.bytes = undefined;
+    shell.editExternally(fileId, 'BACK_BODY_L4\n');
+    await vi.waitFor(() => expect(copyOf(id)).toEqual(['BACK_BODY_L4\n']));
+    expect(attachmentId(id)).toBe(att);
+    stop();
+    stopKeeping();
+  });
+});
+
+describe('a file whose bytes are kept outside the node (a PDF)', () => {
+  const pdf = (marker: string) => new TextEncoder().encode(`%PDF-1.4 ${marker} `.padEnd(64, '.'));
+  const b64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes));
+  /** What the stand-in extraction says of a PDF: text that names the bytes it was given. */
+  const textOf = (bytes: Uint8Array) => `TEXT_OF ${new TextDecoder().decode(bytes).slice(9, 30).trim()}`;
+  beforeEach(() => {
+    vi.stubGlobal('fetch', async (_url: unknown, init?: { body?: string }) => {
+      const { base64 } = JSON.parse(init?.body ?? '{}') as { base64?: string };
+      if (typeof base64 !== 'string') throw new Error('no network in tests');
+      const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+      return new Response(JSON.stringify({ text: textOf(bytes), numPages: 1, images: ['cGFnZQ=='] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    });
+  });
+  const placePdf = async (bytes: Uint8Array) => {
+    const entry = shell.seed('papers/p.pdf', '');
+    const fileId = [...shell.files.values()].find((f) => f.relativePath === 'papers/p.pdf')!.fileId;
+    shell.files.get(fileId)!.bytes = bytes;
+    const id = await place(entry);
+    await vi.waitFor(() => expect(node(id).data.attachments[0]?.extractedText).toBe(textOf(bytes)));
+    return { id, fileId };
+  };
+
+  it('[R2-17] a newer copy of the file does not replace the bytes an older copy of the canvas still reads', async () => {
+    const { loadAttachmentContent, inlineVaultedContent } = await import('../../src/lib/attachment-vault');
+    const one = pdf('VERSION_ONE_P1');
+    const two = pdf('VERSION_TWO_P2');
+    const { id, fileId } = await placePdf(one);
+    // another canvas was imported from a copy of this one: the same node, the same attachment, the first version
+    const elsewhere = structuredClone(node(id));
+    expect(await loadAttachmentContent(elsewhere.data.attachments[0])).toBe(b64(one));
+
+    shell.files.get(fileId)!.bytes = two;
+    await refreshResourceNode(id);
+    const now = node(id).data.attachments[0];
+    expect(now.id, 'still the same attachment').toBe(elsewhere.data.attachments[0].id);
+    expect(now.extractedText).toBe(textOf(two));
+    expect(await loadAttachmentContent(now)).toBe(b64(two));
+    expect(await loadAttachmentContent(elsewhere.data.attachments[0]), 'the other canvas still has the text and the bytes of the first version').toBe(b64(one));
+    // and an export of either carries the bytes that go with its text
+    const [exportedNow] = await inlineVaultedContent([node(id)]);
+    const [exportedElsewhere] = await inlineVaultedContent([elsewhere]);
+    expect(exportedNow.data.attachments[0]).toMatchObject({ content: b64(two), extractedText: textOf(two) });
+    expect(exportedElsewhere.data.attachments[0]).toMatchObject({ content: b64(one), extractedText: textOf(one) });
+    expect('vaultId' in exportedNow.data.attachments[0]).toBe(false);
+  });
+
+  it('[R2-17] a refresh overtaken by a newer one leaves the node with text, revision and bytes of one and the same version', async () => {
+    const { loadAttachmentContent } = await import('../../src/lib/attachment-vault');
+    const two = pdf('VERSION_TWO_P2');
+    const three = pdf('VERSION_THREE_P3');
+    const { id, fileId } = await placePdf(pdf('VERSION_ONE_P1'));
+    shell.files.get(fileId)!.bytes = two;
+    const slow = shell.delayNext('readSource'); // answers with version two, late
+    const older = refreshResourceNode(id);
+    await expect.poll(() => calls('readSource').length).toBe(2);
+    shell.files.get(fileId)!.bytes = three;
+    await refreshResourceNode(id);
+    slow.release();
+    await older;
+    const now = node(id).data.attachments[0];
+    expect(now.extractedText).toBe(textOf(three));
+    expect(await loadAttachmentContent(now)).toBe(b64(three));
+  });
+
+  it('[R2-17] the vault is not swept of the bytes a refreshed copy reads', async () => {
+    const { loadAttachmentContent, gcVault } = await import('../../src/lib/attachment-vault');
+    const { referencedVaultIds } = await import('../../src/lib/attachment-vault-boot');
+    const two = pdf('VERSION_TWO_P2');
+    const { id, fileId } = await placePdf(pdf('VERSION_ONE_P1'));
+    shell.files.get(fileId)!.bytes = two;
+    await refreshResourceNode(id);
+    await gcVault(referencedVaultIds(useStore.getState().nodes));
+    expect(await loadAttachmentContent(node(id).data.attachments[0])).toBe(b64(two));
+  });
+});

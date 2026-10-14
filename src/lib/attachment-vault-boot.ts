@@ -1,7 +1,7 @@
 import { get as idbGet } from 'idb-keyval';
 import { useStore } from '../store';
 import { useProjects, projectStorageKey } from '../store/projects';
-import { internNodes, gcVault } from './attachment-vault';
+import { internNodes, gcVault, vaultIdOf } from './attachment-vault';
 import type { ThoughtNode } from '../types';
 
 // Store-aware vault plumbing lives in its own module: attachment-vault.ts
@@ -20,17 +20,22 @@ export async function migrateActiveCanvasToVault(): Promise<void> {
   useStore.setState({ nodes: interned });
 }
 
+/** The vault keys these nodes' attachments read their payloads from. */
+export function referencedVaultIds(nodes: ThoughtNode[], into = new Set<string>()): Set<string> {
+  for (const n of nodes) for (const a of n.data.attachments ?? []) { into.add(a.id); into.add(vaultIdOf(a)); }
+  return into;
+}
+
 /** Boot sweep: collect every attachment id across ALL projects (persisted
     payloads + the live one), then drop unreferenced vault entries. */
 export async function gcVaultAtBoot(): Promise<void> {
   try {
-    const ids = new Set<string>();
-    for (const n of useStore.getState().nodes) for (const a of n.data.attachments ?? []) ids.add(a.id);
+    const ids = referencedVaultIds(useStore.getState().nodes);
     for (const p of useProjects.getState().projects) {
       const raw = await idbGet(projectStorageKey(p.id)).catch(() => null);
       const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
       const nodes = (parsed?.state?.nodes ?? []) as ThoughtNode[];
-      for (const n of nodes) for (const a of n.data.attachments ?? []) ids.add(a.id);
+      referencedVaultIds(nodes, ids);
     }
     const swept = await gcVault(ids);
     if (swept > 0) console.info(`[thoughtdag] vault GC: swept ${swept} orphaned payload(s)`);

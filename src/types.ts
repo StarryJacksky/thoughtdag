@@ -10,6 +10,11 @@ export interface Attachment {
   /** Bulky payload lives in the attachment vault (IndexedDB), not here —
       read through loadAttachmentContent(). Exports inline it back. */
   contentInVault?: boolean;
+  /** The key the payload is kept under in the vault, when that is not this
+      attachment's own id. A copy of a workspace file keeps its id while the
+      file's content changes; each version of its bytes has a key of its
+      own, so an older picture of the canvas still reads the older bytes. */
+  vaultId?: string;
   thumbnailUrl?: string; // data URL for image preview
   extractedText?: string; // companion text (PDF extraction / image auto-understanding)
   extractedBy?: string; // which model produced extractedText (extraction provenance)
@@ -380,6 +385,9 @@ export interface ThoughtData extends Record<string, unknown> {
     imported?: boolean;
     /** set when the node holds no copy of the content because the file is too large or is not a kind that can be read: it is a reference only */
     uncopied?: 'too-large' | 'unreadable';
+    /** who the node's copy is, kept while the node holds none: the copy that comes back is the same attachment,
+        so what other nodes decided about it (left out, taken back in) and how it is shown go on meaning the same */
+    copyIdentity?: { id: string; addedAt?: string; renderMode?: 'full' | 'text-only' };
   };
   excludedAttachmentIds: string[]; // upstream attachment IDs to exclude from context
   includedAttachmentIds: string[]; // override ancestor exclusions (re-include)

@@ -1491,6 +1491,8 @@ export const zh: Record<keyof typeof en, string> = {
   'surface.tooLargeToShow': '文件太大，这里显示不了',
   'surface.tooLargeToEdit': '这个文件超过 8 MB，不在这里打开输入。可以在文件管理器中显示它，再用别的程序打开。',
   'surface.notText': '这个文件不是可以在这里输入的文本。',
+  'surface.fileGone': '这个文件已经不在原处。这里不会把它上次显示的内容当作还在的内容显示。',
+  'surface.notKept': '“{name}”没能保存，恢复稿也没能写入。它会保持打开，你输入的内容不会丢，稍后会自动再试。',
   'surface.quote': '引用',
   'surface.quoteTitle': '把选中的内容（或当前页）作为一条引用放到画布上',
 };

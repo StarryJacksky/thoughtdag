@@ -3,6 +3,9 @@ import { EditorView } from '@codemirror/view';
 import SurfaceManager from '../../src/components/surfaces/SurfaceManager';
 import { documents } from '../../src/lib/documents/document-service';
 import { MIN_SURFACE, TITLE_BAR_HEIGHT, closeSurface, fitRect, focusSurface, openFileSurface, openSurface, restoreLayout, restoreSurface, saveLayout, setContainer, setPlacement, shownRect, updateRect, useSurfaces } from '../../src/lib/documents/surface-store';
+import { closeAllSurfaces } from '../../src/lib/documents/surface-store';
+import { useUiStore } from '../../src/lib/ui-store';
+import { useProjects } from '../../src/store/projects';
 import { installFakeWorkspace, type FakeWorkspace } from '../helpers/fake-workspace';
 import { during, keyHeardByWindow, mount, pointer, withoutLayout, type Mounted } from '../helpers/render';
 
@@ -10,6 +13,13 @@ import { during, keyHeardByWindow, mount, pointer, withoutLayout, type Mounted }
 // checked is where a frame may be, what maximizing, minimizing and docking
 // do and undo, that a frame can always be caught again, and that having
 // surfaces open takes nothing away from the canvas underneath.
+
+/** Open a file in a surface on the canvas that is open, and its surface's id. */
+const opened = async (...args: Parameters<typeof openFileSurface>): Promise<string> => {
+  const id = await openFileSurface(...args);
+  if (id === null) throw new Error('the canvas was left while the file was opening');
+  return id;
+};
 
 let shell: FakeWorkspace;
 const CONTAINER = { width: 1200, height: 800 };
@@ -128,24 +138,24 @@ describe('which surface is in front', () => {
 
 describe('a surface holds no text', () => {
   it('knows which document it shows and where it sits, and nothing of what the document says', async () => {
-    const id = await openFileSurface(fileIdOf('notes/a.md'));
+    const id = await opened(fileIdOf('notes/a.md'));
     const state = surface(id);
-    expect(Object.keys(state).sort()).toEqual(['back', 'documentId', 'fileId', 'kind', 'notice', 'placement', 'reading', 'rect', 'surfaceId', 'title'].sort());
+    expect(Object.keys(state).sort()).toEqual(['back', 'documentId', 'fileId', 'kind', 'notice', 'placement', 'reading', 'rect', 'surfaceId', 'title', 'workspaceId'].sort());
     expect(JSON.stringify(useSurfaces.getState())).not.toContain('content of a.md');
     expect(documents.get(state.documentId)!.text).toBe('content of a.md\n');
   });
 
   it('is one surface per file: opening the file again brings its surface to the front', async () => {
-    const first = await openFileSurface(fileIdOf('notes/a.md'));
-    const other = await openFileSurface(fileIdOf('notes/b.tex'));
-    expect(await openFileSurface(fileIdOf('notes/a.md'))).toBe(first);
+    const first = await opened(fileIdOf('notes/a.md'));
+    const other = await opened(fileIdOf('notes/b.tex'));
+    expect(await opened(fileIdOf('notes/a.md'))).toBe(first);
     expect(useSurfaces.getState().order).toEqual([other, first]);
     expect(useSurfaces.getState().surfaces.length).toBe(2);
   });
 
   it('picks the kind of surface from the kind of file', async () => {
-    expect(surface(await openFileSurface(fileIdOf('notes/a.md'))).kind).toBe('markdown');
-    expect(surface(await openFileSurface(fileIdOf('notes/b.tex'))).kind).toBe('text');
+    expect(surface(await opened(fileIdOf('notes/a.md'))).kind).toBe('markdown');
+    expect(surface(await opened(fileIdOf('notes/b.tex'))).kind).toBe('text');
   });
 });
 
@@ -155,7 +165,7 @@ describe('surfaces on screen', () => {
   const frameOf = (id: string) => view.container.querySelector<HTMLElement>(`[data-surface="${id}"]`)!;
   const openAll = async () => {
     const ids: string[] = [];
-    for (const name of ['a.md', 'b.tex', 'c.py', 'd.txt']) ids.push(await openFileSurface(fileIdOf(`notes/${name}`)));
+    for (const name of ['a.md', 'b.tex', 'c.py', 'd.txt']) ids.push(await opened(fileIdOf(`notes/${name}`)));
     return ids;
   };
 
@@ -203,7 +213,7 @@ describe('surfaces on screen', () => {
 
   it('move with their title bar, and hold the pointer only for as long as the drag lasts', async () => {
     let id = '';
-    await during(async () => { id = await openFileSurface(fileIdOf('notes/a.md')); });
+    await during(async () => { id = await opened(fileIdOf('notes/a.md')); });
     await during(() => updateRect(id, { x: 100, y: 100, width: 500, height: 400 }));
     const bar = frameOf(id).querySelector<HTMLElement>('[data-surface-titlebar]')!;
     const held: string[] = [];
@@ -222,7 +232,7 @@ describe('surfaces on screen', () => {
 
   it('are resized from the corner, down to the smallest size and no further', async () => {
     let id = '';
-    await during(async () => { id = await openFileSurface(fileIdOf('notes/a.md')); });
+    await during(async () => { id = await opened(fileIdOf('notes/a.md')); });
     await during(() => updateRect(id, { x: 100, y: 100, width: 500, height: 400 }));
     const grip = frameOf(id).querySelector<HTMLElement>('[data-surface-resize]')!;
     grip.setPointerCapture = () => {};
@@ -237,7 +247,7 @@ describe('surfaces on screen', () => {
 
   it('are put away in the tray when minimized, and come back from it', async () => {
     let id = '';
-    await during(async () => { id = await openFileSurface(fileIdOf('notes/a.md')); });
+    await during(async () => { id = await opened(fileIdOf('notes/a.md')); });
     await during(() => frameOf(id).querySelector<HTMLElement>('[data-surface-minimize]')!.click());
     expect(frames().length).toBe(0);
     const chip = view.container.querySelector<HTMLElement>(`[data-surface-chip="${id}"]`)!;
@@ -249,7 +259,7 @@ describe('surfaces on screen', () => {
 
   it('close without touching the file: the view goes, the file and what it holds stay', async () => {
     let id = '';
-    await during(async () => { id = await openFileSurface(fileIdOf('notes/a.md')); });
+    await during(async () => { id = await opened(fileIdOf('notes/a.md')); });
     await during(() => frameOf(id).querySelector<HTMLElement>('[data-surface-close]')!.click());
     expect(frames().length).toBe(0);
     expect(useSurfaces.getState().surfaces).toEqual([]);
@@ -262,8 +272,8 @@ describe('surfaces on screen', () => {
 
 describe('the layout of a canvas\'s surfaces', () => {
   it('is put back when the canvas is opened again: the same files, where and how they were', async () => {
-    const a = await openFileSurface(fileIdOf('notes/a.md'));
-    const b = await openFileSurface(fileIdOf('notes/b.tex'));
+    const a = await opened(fileIdOf('notes/a.md'));
+    const b = await opened(fileIdOf('notes/b.tex'));
     updateRect(a, { x: 140, y: 90, width: 520, height: 380 });
     setPlacement(b, 'right');
     saveLayout('canvas-1');
@@ -278,8 +288,8 @@ describe('the layout of a canvas\'s surfaces', () => {
   });
 
   it('leaves out a file that is no longer there, and says nothing of the text of any file', async () => {
-    await openFileSurface(fileIdOf('notes/a.md'));
-    await openFileSurface(fileIdOf('notes/b.tex'));
+    await opened(fileIdOf('notes/a.md'));
+    await opened(fileIdOf('notes/b.tex'));
     saveLayout('canvas-1');
     expect(localStorage.getItem('thoughtdag.surfaces.canvas-1')).not.toContain('content of');
     for (const s of [...useSurfaces.getState().surfaces]) closeSurface(s.surfaceId);
@@ -290,11 +300,207 @@ describe('the layout of a canvas\'s surfaces', () => {
   });
 
   it('belongs to its canvas: another canvas has its own, or none', async () => {
-    await openFileSurface(fileIdOf('notes/a.md'));
+    await opened(fileIdOf('notes/a.md'));
     saveLayout('canvas-1');
     for (const s of [...useSurfaces.getState().surfaces]) closeSurface(s.surfaceId);
     await documents.dispose();
     await restoreLayout('canvas-2');
     expect(useSurfaces.getState().surfaces).toEqual([]);
+  });
+});
+
+// ── what the second review found (its R2 numbers) ──────────────────────
+
+describe('the surface in front is the one that is typed into', () => {
+  let view: Mounted;
+  const frameOf = (id: string) => view.container.querySelector<HTMLElement>(`[data-surface="${id}"]`)!;
+  const textOf = (name: string) => documents.documentOf(fileIdOf(`notes/${name}`))!.text;
+  /** A press and release on a frame's title bar, away from its buttons: what brings it forward without touching its text. */
+  const pressTitleBar = async (id: string) => {
+    const bar = frameOf(id).querySelector<HTMLElement>('[data-surface-titlebar]')!;
+    bar.setPointerCapture = () => {};
+    bar.releasePointerCapture = () => {};
+    await during(() => pointer(bar, 'pointerdown', { x: 12, y: 12 }));
+    await during(() => pointer(bar, 'pointerup', { x: 12, y: 12 }));
+  };
+  /** A key pressed wherever the focus is. */
+  const pressKey = (init: KeyboardEventInit) => during(() => { document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init })); });
+  const openTwo = async () => {
+    let a = '';
+    let b = '';
+    await during(async () => { a = await opened(fileIdOf('notes/a.md')); b = await opened(fileIdOf('notes/b.tex')); });
+    // the person types into B
+    await during(() => { editorOf(frameOf(b)).focus(); });
+    expect(frameOf(b).contains(document.activeElement)).toBe(true);
+    return { a, b };
+  };
+
+  beforeEach(async () => { view = await mount(<SurfaceManager />); });
+  afterEach(async () => { await view.unmount(); });
+
+  it('[R2-15] a surface brought forward by its title bar takes the keys that follow; the one typed into before gets none of them', async () => {
+    const { a, b } = await openTwo();
+    await pressTitleBar(a);
+    expect(useSurfaces.getState().order.at(-1)).toBe(a);
+    expect(frameOf(a).contains(document.activeElement), 'the focus is in the surface in front').toBe(true);
+    expect(frameOf(b).contains(document.activeElement)).toBe(false);
+    await pressKey({ key: 'Tab', code: 'Tab', keyCode: 9 });
+    expect(textOf('b.tex'), 'the document behind is not typed into').toBe('content of b.tex\n');
+    expect(textOf('a.md')).not.toBe('content of a.md\n');
+    // and undo is the front document's undo
+    await pressKey({ key: 'z', ctrlKey: true });
+    expect(textOf('a.md')).toBe('content of a.md\n');
+    expect(textOf('b.tex')).toBe('content of b.tex\n');
+  });
+
+  it('[R2-15] a surface keeps its own cursor while another is in front', async () => {
+    const { a, b } = await openTwo();
+    await during(() => { editorOf(frameOf(b)).dispatch({ selection: { anchor: 8 } }); });
+    await pressTitleBar(a);
+    await pressTitleBar(b);
+    expect(frameOf(b).contains(document.activeElement)).toBe(true);
+    expect(editorOf(frameOf(b)).state.selection.main.head).toBe(8);
+  });
+
+  it('[R2-15] a surface dragged by its title bar is the one typed into when the drag ends', async () => {
+    const { a, b } = await openTwo();
+    const bar = frameOf(a).querySelector<HTMLElement>('[data-surface-titlebar]')!;
+    bar.setPointerCapture = () => {};
+    bar.releasePointerCapture = () => {};
+    await during(() => pointer(bar, 'pointerdown', { x: 12, y: 12 }));
+    await during(() => pointer(bar, 'pointermove', { x: 80, y: 60 }));
+    await during(() => pointer(bar, 'pointerup', { x: 80, y: 60 }));
+    expect(frameOf(a).contains(document.activeElement)).toBe(true);
+    expect(frameOf(b).contains(document.activeElement)).toBe(false);
+  });
+
+  it('[R2-15] a surface brought back from the tray is the one typed into', async () => {
+    const { a, b } = await openTwo();
+    await during(() => setPlacement(a, 'minimized'));
+    await during(() => { editorOf(frameOf(b)).focus(); });
+    await during(() => view.container.querySelector<HTMLElement>(`[data-surface-chip="${a}"]`)!.click());
+    expect(frameOf(a).contains(document.activeElement)).toBe(true);
+    await pressKey({ key: 'Tab', code: 'Tab', keyCode: 9 });
+    expect(textOf('b.tex')).toBe('content of b.tex\n');
+  });
+
+  it('[R2-15] a surface with nothing to type into still takes the focus from the one behind it', async () => {
+    shell.seed('notes/big.txt', '');
+    shell.files.get(fileIdOf('notes/big.txt'))!.bytes = new Uint8Array(8 * 1024 * 1024 + 1);
+    const { b } = await openTwo();
+    let notice = '';
+    await during(async () => { notice = await opened(fileIdOf('notes/big.txt')); });
+    await during(() => { editorOf(frameOf(b)).focus(); });
+    await pressTitleBar(notice);
+    expect(frameOf(b).contains(document.activeElement), 'keys no longer go to the document behind').toBe(false);
+    expect(frameOf(notice).contains(document.activeElement)).toBe(true);
+  });
+});
+
+describe('a canvas that is left while a file is still opening', () => {
+  const twoCanvases = () => useProjects.setState({ projects: [{ id: 'canvas-A', name: 'A', createdAt: 0, updatedAt: 0 }, { id: 'canvas-B', name: 'B', createdAt: 0, updatedAt: 0 }], activeId: 'canvas-A', switching: false });
+  /** What leaving a canvas for another does to the surfaces (see useWorkspaceSync). */
+  const switchTo = (id: string) => {
+    useProjects.setState({ switching: true });
+    closeAllSurfaces();
+    useProjects.setState({ activeId: id, switching: false });
+  };
+  const settled = () => new Promise((resolve) => setTimeout(resolve, 10));
+  afterEach(() => useProjects.setState({ projects: [], activeId: null, switching: false }));
+
+  for (const step of ['reconcile', 'readText'] as const) {
+    it(`[R2-16] a file whose ${step === 'reconcile' ? 'record' : 'text'} arrives after the canvas was left opens no surface on the canvas that is there now`, async () => {
+      twoCanvases();
+      const slow = shell.holdNext(step);
+      const opening = openFileSurface(fileIdOf('notes/a.md'));
+      await settled();
+      switchTo('canvas-B');
+      slow.release();
+      await opening;
+      await settled();
+      expect(useSurfaces.getState().surfaces.map((s) => s.title), 'canvas B shows nothing of canvas A').toEqual([]);
+      saveLayout('canvas-B');
+      expect(localStorage.getItem('thoughtdag.surfaces.canvas-B')).toBeNull();
+      expect(documents.documentOf(fileIdOf('notes/a.md')), 'the document it opened for a view that never came is let go').toBeUndefined();
+    });
+  }
+
+  it('[R2-16] a layout that is still being put back when the canvas is left puts nothing on the next canvas, and is whole when its own canvas is opened again', async () => {
+    twoCanvases();
+    await opened(fileIdOf('notes/a.md'));
+    await opened(fileIdOf('notes/b.tex'));
+    saveLayout('canvas-A');
+    const saved = localStorage.getItem('thoughtdag.surfaces.canvas-A');
+    switchTo('canvas-B');
+    await settled();
+    switchTo('canvas-A');
+
+    const slow = shell.holdNext('reconcile');
+    const restoring = restoreLayout('canvas-A');
+    await settled();
+    switchTo('canvas-B');
+    slow.release();
+    await restoring;
+    await settled();
+    expect(useSurfaces.getState().surfaces.map((s) => s.title)).toEqual([]);
+    saveLayout('canvas-B');
+    expect(localStorage.getItem('thoughtdag.surfaces.canvas-B')).toBeNull();
+    expect(localStorage.getItem('thoughtdag.surfaces.canvas-A'), 'canvas A still remembers its own').toBe(saved);
+
+    // back on A: its layout is put back once, whole
+    switchTo('canvas-A');
+    await restoreLayout('canvas-A');
+    expect(useSurfaces.getState().surfaces.map((s) => s.title)).toEqual(['a.md', 'b.tex']);
+  });
+});
+
+describe('a surface whose document could not be put anywhere when it was closed', () => {
+  const refused = (channel: string) => async () => { throw new Error(`Error invoking remote method 'workspace:${channel}': Error: failed: no space left on the disk`); };
+  const settled = () => new Promise((resolve) => setTimeout(resolve, 10));
+  const typeInto = (name: string, text: string) => {
+    const doc = documents.documentOf(fileIdOf(`notes/${name}`))!;
+    documents.applyEdit(doc.documentId, { baseBufferRevision: doc.bufferRevision, changes: [{ from: doc.text.length, to: doc.text.length, insert: text }], originSurfaceId: 'someone' });
+  };
+  let working: Pick<NonNullable<typeof window.desktopWorkspace>, 'saveText' | 'putDraft'>;
+  beforeEach(() => {
+    useUiStore.setState({ toasts: [] });
+    working = { saveText: window.desktopWorkspace!.saveText, putDraft: window.desktopWorkspace!.putDraft };
+  });
+  afterEach(() => {
+    // the disk takes writes again: what was kept open is put away when the test's documents are let go
+    Object.assign(window.desktopWorkspace!, working);
+    useProjects.setState({ projects: [], activeId: null, switching: false });
+  });
+
+  it('[R2-03] comes back with what was typed, and the person is told why', async () => {
+    const id = await opened(fileIdOf('notes/a.md'));
+    updateRect(id, { x: 140, y: 90, width: 520, height: 380 });
+    typeInto('a.md', 'UNSAVED_Q7\n');
+    window.desktopWorkspace!.saveText = refused('save-text');
+    window.desktopWorkspace!.putDraft = refused('put-draft');
+    closeSurface(id);
+    expect(useSurfaces.getState().surfaces).toEqual([]);
+    await settled();
+    const back = useSurfaces.getState().surfaces;
+    expect(back.map((s) => s.title)).toEqual(['a.md']);
+    expect(back[0].rect).toEqual({ x: 140, y: 90, width: 520, height: 380 });
+    expect(documents.get(back[0].documentId)?.text).toBe('content of a.md\nUNSAVED_Q7\n');
+    expect(useUiStore.getState().toasts.map((toast) => toast.kind)).toEqual(['error']);
+    expect(useUiStore.getState().toasts[0].message).toContain('a.md');
+  });
+
+  it('[R2-03] is not opened on another canvas when it was closed by leaving its own; the text is kept and the person is told', async () => {
+    useProjects.setState({ projects: [{ id: 'canvas-A', name: 'A', createdAt: 0, updatedAt: 0 }, { id: 'canvas-B', name: 'B', createdAt: 0, updatedAt: 0 }], activeId: 'canvas-A', switching: false });
+    await opened(fileIdOf('notes/a.md'));
+    typeInto('a.md', 'UNSAVED_Q7\n');
+    window.desktopWorkspace!.saveText = refused('save-text');
+    window.desktopWorkspace!.putDraft = refused('put-draft');
+    useProjects.setState({ switching: true });
+    closeAllSurfaces();
+    useProjects.setState({ activeId: 'canvas-B', switching: false });
+    await settled();
+    expect(useSurfaces.getState().surfaces).toEqual([]);
+    expect(documents.documentOf(fileIdOf('notes/a.md'))?.text).toBe('content of a.md\nUNSAVED_Q7\n');
+    expect(useUiStore.getState().toasts.map((toast) => toast.kind)).toEqual(['error']);
   });
 });

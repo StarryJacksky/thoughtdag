@@ -12,7 +12,10 @@
 //   - A save never lands on top of a change made elsewhere. That is a
 //     conflict, and the person settles it.
 //   - What was typed is not lost: it is in the file, or in a draft, before
-//     the document is let go.
+//     the document is let go. When neither could be written the document is
+//     not let go: it stays open without a view, and the view is told.
+//   - An answer that arrives late (a read, a draft write, a save) never
+//     undoes what a later one already settled.
 //
 // The text shown uses plain line feeds; what is written back keeps the
 // file's own line endings (its byte-order mark is the shell's to keep).
@@ -28,6 +31,8 @@ export const AUTOSAVE_MS = 1000;
 export const DRAFT_MS = 250;
 /** A save that keeps failing is tried again this many times before it waits for the person. */
 const MAX_RETRIES = 3;
+/** How long a document that could not be put anywhere waits before it tries again to be let go. */
+export const HELD_RETRY_MS = 5000;
 
 export interface DocumentChange {
   /** edit: someone typed. reload: the buffer was replaced by what the file holds. state: only the state changed. */
@@ -60,6 +65,13 @@ export interface DocumentStatus {
   views: string[];
 }
 
+/** What became of a view that was closed. */
+export type CloseResult =
+  /** the view is gone; what was typed is in the file or in a draft, or other views still show the document */
+  | { held: false }
+  /** neither the file nor a draft could be written: the document stays open without a view, so that the text is not lost */
+  | { held: true; fileId: string; documentId: string };
+
 export type EditResult =
   | { ok: true; bufferRevision: number }
   | { ok: false; reason: 'stale' | 'invalid' | 'readonly' | 'unknown-document'; bufferRevision: number };
@@ -82,16 +94,21 @@ export interface DocumentService {
   /** Settle a conflict: take the file's content, write mine over it, or put both in the buffer to sort out by hand. */
   resolveConflict(documentId: string, choice: 'mine' | 'theirs' | 'both', labels?: { mine: string; theirs: string }): Promise<void>;
   subscribe(documentId: string, listener: DocumentListener): () => void;
-  /** A view stops showing its document. When it was the last one, unsaved typing is saved or kept as a draft before the document is let go. */
-  closeView(surfaceId: string): Promise<void>;
+  /**
+   * A view stops showing its document. When it was the last one, unsaved
+   * typing is saved or kept as a draft before the document is let go. When
+   * neither could be done the document is kept (`held`), and tries again
+   * by itself; a view that opens the file meanwhile gets the same buffer.
+   */
+  closeView(surfaceId: string): Promise<CloseResult>;
   /** What the workspace reported about a file: the documents of that file catch up. */
   noteWorkspaceEvent(event: WorkspaceEvent): void;
   /** The workspaces the open documents are in: the page has to be listening to them. */
   workspaceIds(): string[];
   /** Put every open document's unsaved typing in a draft now. */
   keepDrafts(): Promise<void>;
-  /** Let go of everything: timers stopped, unsaved typing kept as drafts. */
-  dispose(): Promise<void>;
+  /** Let go of everything: timers stopped, unsaved typing kept as drafts. Resolves with the files whose typing could not be kept: their documents stay open. */
+  dispose(): Promise<string[]>;
 }
 
 interface Open {
@@ -117,10 +134,20 @@ interface Open {
   /** operation ids of saves this document sent: news of them is not news */
   sent: Set<string>;
   failures: number;
-  /** the draft on disk says this much; null when there is none */
-  drafted: string | null;
+  /** what the draft on disk is known to say; null when there is none */
+  drafted: { text: string; baseRevision: ContentHash; byHand: boolean } | null;
+  /** draft writes and removals of this file, one after the other in the order they were asked for */
+  draftTurn: Promise<unknown>;
   /** the buffer holds both sides of a conflict for the person to sort out: it is written only when they say so */
   byHand: boolean;
+  /** counts the views that opened it: a close that started before the latest of them is no longer the one to let it go */
+  lease: number;
+  /** counts the reads of the file: only the latest one asked for may change the buffer */
+  readTurn: number;
+  /** counts the confirmed saves: a read that was under way across one may be older than it */
+  savedTurn: number;
+  /** it could not be put anywhere when its last view closed: the next try to let it go */
+  retry: ReturnType<typeof setTimeout> | null;
   closed: boolean;
 }
 
@@ -159,19 +186,43 @@ export function createDocumentService({ drafts = workspaceDrafts, now = () => Da
 
   // ── drafts ───────────────────────────────────────────────────────────
 
-  async function keepDraft(doc: Open): Promise<void> {
+  /** One draft write or removal of a file at a time. A later one never overtakes an earlier one on its way to the disk. */
+  const inTurn = <T,>(doc: Open, run: () => Promise<T>): Promise<T> => {
+    const next = doc.draftTurn.then(run, run);
+    doc.draftTurn = next.catch(() => undefined);
+    return next;
+  };
+  /** Whether what was typed is somewhere other than this buffer: the file holds it, or the draft does. */
+  const safe = (doc: Open) => !dirty(doc) || (doc.drafted !== null && doc.drafted.text === doc.model.text);
+
+  /**
+   * Bring the draft on disk to what the buffer needs now: the unsaved text,
+   * over the content it was typed on, or no draft when nothing is unsaved.
+   * What is written is the buffer as it is when this turn comes, never as
+   * it was when the turn was asked for. Resolves with whether the buffer
+   * is safe.
+   */
+  function keepDraft(doc: Open): Promise<boolean> {
     if (doc.drafting) { clearTimeout(doc.drafting); doc.drafting = null; }
-    const text = doc.model.text;
-    if (!dirty(doc)) return dropDraft(doc);
-    if (doc.drafted === text) return;
-    try { await drafts.put(doc.model.fileId, text, doc.model.sourceContentHash); doc.drafted = text; } catch { /* a draft that could not be kept is tried again with the next keystroke */ }
+    return inTurn(doc, async () => {
+      if (!dirty(doc)) {
+        if (doc.drafted === null) return true;
+        // it is found stale and let go the next time the file is opened, if this fails
+        try { await drafts.clear(doc.model.fileId); doc.drafted = null; } catch { /* tried again with the next change */ }
+        return true;
+      }
+      // the content the typing stands on: while a conflict is not settled that is still the content before the change
+      const want = { text: doc.model.text, baseRevision: doc.model.sourceContentHash, byHand: doc.byHand };
+      if (doc.drafted && doc.drafted.text === want.text && doc.drafted.baseRevision === want.baseRevision && doc.drafted.byHand === want.byHand) return true;
+      try {
+        await drafts.put(doc.model.fileId, want.text, want.baseRevision, { byHand: want.byHand });
+        doc.drafted = want;
+      } catch { /* a draft that could not be kept is tried again with the next keystroke */ }
+      return safe(doc);
+    });
   }
-  async function dropDraft(doc: Open): Promise<void> {
-    if (doc.drafting) { clearTimeout(doc.drafting); doc.drafting = null; }
-    if (doc.drafted === null) return;
-    doc.drafted = null;
-    try { await drafts.clear(doc.model.fileId); } catch { /* it is found stale and let go the next time the file is opened */ }
-  }
+  /** The buffer is what the file holds: its draft, if there is one, has nothing more to say. */
+  const dropDraft = (doc: Open): Promise<boolean> => keepDraft(doc);
   const scheduleDraft = (doc: Open) => {
     if (doc.drafting) clearTimeout(doc.drafting);
     doc.drafting = setTimeout(() => { doc.drafting = null; void keepDraft(doc); }, DRAFT_MS);
@@ -185,12 +236,19 @@ export function createDocumentService({ drafts = workspaceDrafts, now = () => Da
   };
   const cancelSave = (doc: Open) => { if (doc.autosave) { clearTimeout(doc.autosave); doc.autosave = null; } };
 
-  /** What the file holds now, read for the person who has to choose between it and the buffer. */
-  async function conflictWith(doc: Open, theirsRevision: ContentHash | null): Promise<void> {
+  /**
+   * The file holds something the buffer was not typed on. `theirs` is what
+   * it holds, when it was already read; otherwise it is read here, for the
+   * person who has to choose between it and the buffer.
+   */
+  async function conflictWith(doc: Open, theirsRevision: ContentHash | null, theirs?: string): Promise<void> {
     cancelSave(doc);
-    let theirsText: string | null = null;
-    if (theirsRevision !== null) {
+    let theirsText: string | null = theirs ?? null;
+    if (theirsText === null && theirsRevision !== null) {
+      const turn = ++doc.readTurn;
       try { const read = await readText(doc.model.fileId); theirsText = shown(read.text); theirsRevision = read.revision; } catch { /* shown without the other side's text */ }
+      // a later read was asked for meanwhile: what the file holds is its to say
+      if (turn !== doc.readTurn) return;
     }
     if (doc.closed) return;
     // the file may hold exactly what the buffer does: then there is nothing to choose between
@@ -223,6 +281,7 @@ export function createDocumentService({ drafts = workspaceDrafts, now = () => Da
     if (result.status === 'saved') {
       doc.attempt = null;
       doc.failures = 0;
+      doc.savedTurn++;
       doc.saved = text;
       doc.problem = null;
       // typing that arrived while this save was under way is not covered by it
@@ -257,9 +316,11 @@ export function createDocumentService({ drafts = workspaceDrafts, now = () => Da
   function save(doc: Open, against?: ContentHash): Promise<SaveResult> {
     cancelSave(doc);
     if (doc.saving) {
-      // one save of a file at a time: this one follows the one under way
+      // one save of a file at a time: this one follows the one under way. It is told what became of the save
+      // that covers it: the one that follows, when there is more to write; otherwise the one it waited for,
+      // whatever that was. Nothing is called saved because no save happens to be under way.
       doc.saveAgain = true;
-      return doc.saving.then(() => (doc.saving ?? Promise.resolve<SaveResult>({ status: 'saved', revision: doc.model.sourceContentHash, sourceRevision: doc.model.sourceRevision })));
+      return doc.saving.then((waitedFor) => doc.saving ?? waitedFor);
     }
     if (doc.model.state === 'readonly') return Promise.resolve({ status: 'readonly', reason: 'the file cannot be written' });
     if (doc.problem?.kind === 'lost') return Promise.resolve({ status: 'conflict', currentRevision: null });
@@ -339,8 +400,10 @@ export function createDocumentService({ drafts = workspaceDrafts, now = () => Da
       problem: null,
       restoredFromDraft: false,
       autosave: null, drafting: null, saving: null, saveAgain: false, attempt: null, sent: new Set(), failures: 0,
-      drafted: draft ? draft.text : null,
+      drafted: draft ? { text: draft.text, baseRevision: draft.baseRevision, byHand: draft.byHand === true } : null,
+      draftTurn: Promise.resolve(),
       byHand: false,
+      lease: 0, readTurn: 0, savedTurn: 0, retry: null,
       closed: false,
     };
     if (draft && doc.model.state !== 'readonly') {
@@ -354,72 +417,114 @@ export function createDocumentService({ drafts = workspaceDrafts, now = () => Da
         doc.history.push(changes, inverse, null, now());
         doc.model = { ...doc.model, text: draft.text, bufferRevision: 1, state: 'dirty' };
         doc.restoredFromDraft = true;
-        if (draft.baseRevision === read.revision) scheduleSave(doc);
-        // typed over content the file no longer holds: the person chooses, nothing is written over the change
-        else { doc.problem = { kind: 'conflict', theirsRevision: read.revision, theirsText: text }; doc.model = { ...doc.model, state: 'conflict' }; }
+        // both sides of a conflict, left for the person to sort out: still theirs to save
+        doc.byHand = draft.byHand === true;
+        if (draft.baseRevision === read.revision) { if (!doc.byHand) scheduleSave(doc); }
+        // typed over content the file no longer holds: the person chooses, nothing is written over the change.
+        // Having seen what the file holds now is not having accepted it: the typing still stands on what it was typed over.
+        else { doc.problem = { kind: 'conflict', theirsRevision: read.revision, theirsText: text }; doc.model = { ...doc.model, sourceContentHash: draft.baseRevision, state: 'conflict' }; }
       }
     }
     return doc;
   }
 
   async function open(fileId: string, surfaceId: string): Promise<DocumentModel> {
-    let doc = byFile.get(fileId);
-    if (!doc) {
-      // everyone who opens the file while it is being read waits for the one reading
-      let pending = opening.get(fileId);
-      if (!pending) {
-        pending = load(fileId).then((loaded) => {
-          byFile.set(fileId, loaded);
-          byId.set(loaded.model.documentId, loaded);
-          return loaded;
-        }).finally(() => opening.delete(fileId));
-        opening.set(fileId, pending);
-      }
-      doc = await pending;
-    }
     const before = viewOf.get(surfaceId);
-    if (before && before !== doc) await closeView(surfaceId);
-    doc.views.add(surfaceId);
-    viewOf.set(surfaceId, doc);
-    return doc.model;
+    if (before && before.model.fileId !== fileId) await closeView(surfaceId);
+    for (;;) {
+      let doc = byFile.get(fileId);
+      if (!doc) {
+        // everyone who opens the file while it is being read waits for the one reading
+        let pending = opening.get(fileId);
+        if (!pending) {
+          pending = load(fileId).then((loaded) => {
+            byFile.set(fileId, loaded);
+            byId.set(loaded.model.documentId, loaded);
+            return loaded;
+          }).finally(() => opening.delete(fileId));
+          opening.set(fileId, pending);
+        }
+        doc = await pending;
+      }
+      if (doc.closed) continue; // let go while this view was on its way: it is opened afresh
+      // a close that is still waiting for the disk is no longer the one to let this document go
+      doc.lease++;
+      if (doc.retry) { clearTimeout(doc.retry); doc.retry = null; }
+      doc.views.add(surfaceId);
+      viewOf.set(surfaceId, doc);
+      return doc.model;
+    }
   }
 
-  /** Let a document go: its unsaved typing is in the file or in a draft first. */
-  async function release(doc: Open): Promise<void> {
-    cancelSave(doc);
-    if (doc.saving) await doc.saving.catch(() => undefined);
-    const settled = doc.model.state !== 'readonly' && doc.problem === null && !doc.byHand;
-    if (dirty(doc) && settled) await save(doc);
-    if (doc.saving) await doc.saving.catch(() => undefined);
-    if (doc.views.size > 0) return; // a view opened it again while it was being saved
-    await keepDraft(doc);
+  const forget = (doc: Open) => {
     doc.closed = true;
     cancelSave(doc);
     if (doc.drafting) { clearTimeout(doc.drafting); doc.drafting = null; }
+    if (doc.retry) { clearTimeout(doc.retry); doc.retry = null; }
     doc.listeners.clear();
+    for (const view of doc.views) if (viewOf.get(view) === doc) viewOf.delete(view);
+    doc.views.clear();
     if (byFile.get(doc.model.fileId) === doc) byFile.delete(doc.model.fileId);
     byId.delete(doc.model.documentId);
+  };
+
+  /**
+   * Let a document go: its unsaved typing is in the file or in a draft
+   * first. Every wait for the disk is a moment in which a view may open
+   * the file again; after each of them this looks again, and stands down
+   * when one did.
+   */
+  async function release(doc: Open): Promise<CloseResult> {
+    const lease = doc.lease;
+    const overtaken = () => doc.closed || doc.views.size > 0 || doc.lease !== lease;
+    if (doc.retry) { clearTimeout(doc.retry); doc.retry = null; }
+    cancelSave(doc);
+    if (doc.saving) await doc.saving.catch(() => undefined);
+    if (overtaken()) return { held: false };
+    // a save that failed is worth one more try on the way out; a conflict, a lost file and a merge by hand are the person's to settle
+    const settled = doc.model.state !== 'readonly' && (doc.problem === null || doc.problem.kind === 'error') && !doc.byHand;
+    if (dirty(doc) && settled) await save(doc);
+    if (doc.saving) await doc.saving.catch(() => undefined);
+    if (overtaken()) return { held: false };
+    await keepDraft(doc);
+    if (overtaken()) return { held: false };
+    if (!safe(doc)) {
+      // neither the file nor a draft has it: this buffer is the only place the text is, so it stays
+      doc.retry = setTimeout(() => { doc.retry = null; if (!doc.closed && doc.views.size === 0) void release(doc); }, HELD_RETRY_MS);
+      return { held: true, fileId: doc.model.fileId, documentId: doc.model.documentId };
+    }
+    forget(doc);
+    return { held: false };
   }
 
-  async function closeView(surfaceId: string): Promise<void> {
+  async function closeView(surfaceId: string): Promise<CloseResult> {
     const doc = viewOf.get(surfaceId);
-    if (!doc) return;
+    if (!doc) return { held: false };
     viewOf.delete(surfaceId);
     doc.views.delete(surfaceId);
-    if (doc.views.size === 0) await release(doc);
+    return doc.views.size === 0 ? release(doc) : { held: false };
   }
 
   // ── the file changing underneath ─────────────────────────────────────
 
   async function reload(doc: Open): Promise<void> {
+    const turn = ++doc.readTurn;
+    const savedTurn = doc.savedTurn;
     let read: TextRevision;
     try { read = await readText(doc.model.fileId); } catch { return; }
-    if (doc.closed) return;
+    // only the latest read asked for may speak: an older one that arrives late says what the file held then
+    if (doc.closed || turn !== doc.readTurn) return;
+    if (savedTurn !== doc.savedTurn) {
+      // a save was confirmed while this was being read: it may be of the file before that save, so it is not believed.
+      // If it does not say what the save left, the file is read again.
+      if (read.revision !== doc.model.sourceContentHash) return reload(doc);
+      return;
+    }
     const text = shown(read.text);
     doc.newline = read.newline;
     if (dirty(doc)) {
       // unsaved typing and a change from elsewhere: a conflict, unless the file now holds what was already saved
-      if (read.revision !== doc.model.sourceContentHash) await conflictWith(doc, read.revision);
+      if (read.revision !== doc.model.sourceContentHash) await conflictWith(doc, read.revision, text);
       return;
     }
     if (text === doc.model.text) {
@@ -526,13 +631,16 @@ export function createDocumentService({ drafts = workspaceDrafts, now = () => Da
     workspaceIds: () => [...new Set([...byId.values()].map((doc) => doc.workspaceId))].sort(),
     async keepDrafts() { await Promise.all([...byId.values()].map((doc) => keepDraft(doc))); },
     async dispose() {
+      const held: string[] = [];
       for (const doc of [...byId.values()]) {
         cancelSave(doc);
+        if (doc.retry) { clearTimeout(doc.retry); doc.retry = null; }
         await keepDraft(doc);
-        doc.closed = true;
-        doc.listeners.clear();
+        // what could not be put anywhere is not thrown away with the rest
+        if (!safe(doc)) { held.push(doc.model.fileId); continue; }
+        forget(doc);
       }
-      byId.clear(); byFile.clear(); viewOf.clear();
+      return held;
     },
   };
 }

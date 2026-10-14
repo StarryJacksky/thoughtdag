@@ -550,6 +550,36 @@ test.describe.serial('documents open beside the canvas, in the desktop shell', (
     await expect(sp.locator('.react-flow__node textarea').first()).toHaveValue('What do these four files have in common?');
   });
 
+  test('a frame brought forward by its title bar alone takes the keys that follow, and the one typed into before gets none of them', async () => {
+    // the person is typing in two.tex
+    await bringForward('two.tex');
+    await surface('two.tex').locator('.cm-content').click();
+    await sp.keyboard.press('ControlOrMeta+End');
+    const before = { one: await textIn(surface('one.md')), two: await textIn(surface('two.tex')) };
+    // and then presses the title bar of one.md, away from its buttons: nothing but that
+    const id = await surface('one.md').getAttribute('data-surface');
+    const point = await sp.evaluate((surfaceId) => {
+      type El = { closest(selector: string): { getAttribute(name: string): string | null } | null; getBoundingClientRect(): Box };
+      const dom = globalThis as unknown as { document: { querySelector(selector: string): El | null; elementFromPoint(x: number, y: number): El | null } };
+      const bar = dom.document.querySelector(`[data-surface="${surfaceId}"] [data-surface-titlebar]`)!.getBoundingClientRect();
+      for (let x = bar.left + 8; x < bar.left + bar.width - 8; x += 8) {
+        const at = dom.document.elementFromPoint(x, bar.top + bar.height / 2);
+        if (at?.closest('[data-surface]')?.getAttribute('data-surface') === surfaceId && at.closest('[data-surface-titlebar]') && !at.closest('button')) return { x, y: bar.top + bar.height / 2 };
+      }
+      return null;
+    }, id);
+    expect(point, 'some part of the title bar of one.md shows').not.toBeNull();
+    await sp.mouse.click(point!.x, point!.y);
+    await sp.keyboard.type('TITLEBAR_KEYS_Y7');
+    expect(await textIn(surface('one.md')), 'the keys went to the frame in front').toContain('TITLEBAR_KEYS_Y7');
+    expect(await textIn(surface('two.tex')), 'and not to the one that was typed into before').toBe(before.two);
+    // undo is the front document's undo
+    await sp.keyboard.press('ControlOrMeta+z');
+    expect(await textIn(surface('one.md'))).toBe(before.one);
+    expect(await textIn(surface('two.tex'))).toBe(before.two);
+    await expect(sp.locator('.react-flow__node')).toHaveCount(1);
+  });
+
   test('a frame is moved by its title bar, resized from its corner, and never smaller than its smallest size', async () => {
     await bringForward('one.md');
     const before = await boxOf('one.md');
@@ -731,11 +761,33 @@ test.describe.serial('editors and readers, in the desktop shell', () => {
       selection.addRange(range);
     });
     await pdf.locator('[data-reader-quote]').click();
-    await pdf.locator('[data-surface-close]').click();
     const note = ep.locator('.react-flow__node').filter({ hasText: 'PDF_PAGE_TWO_TEXT' });
     await expect(note).toHaveCount(1);
     await expect(note).toContainText('paper.pdf p.2');
     await expect(ep.locator('.react-flow__edge')).toHaveCount(0);
+  });
+
+  test('a selection that runs from one page of a PDF onto the next is quoted with both pages, whichever way it was dragged', async () => {
+    const pdf = surface('paper.pdf');
+    for (const backwards of [false, true]) {
+      await ep.evaluate((reversed) => {
+        type Node = { textContent: string | null; firstChild: Node | null };
+        const dom = globalThis as unknown as { document: { querySelector(s: string): { querySelectorAll(s: string): Iterable<Node> } | null }; getSelection(): { removeAllRanges(): void; setBaseAndExtent(a: Node, ao: number, b: Node, bo: number): void } };
+        const spanOf = (pageNo: number, words: string) => [...dom.document.querySelector(`[data-page="${pageNo}"] .tdag-textlayer`)!.querySelectorAll('span')].find((n) => (n.textContent ?? '').includes(words))!.firstChild!;
+        const [one, two] = [spanOf(1, 'PDF_PAGE_ONE_TEXT'), spanOf(2, 'PDF_PAGE_TWO_TEXT')];
+        const selection = dom.getSelection();
+        selection.removeAllRanges();
+        if (reversed) selection.setBaseAndExtent(two, 12, one, 4); else selection.setBaseAndExtent(one, 4, two, 12);
+      }, backwards);
+      await pdf.locator('[data-reader-quote]').click();
+    }
+    const notes = ep.locator('.react-flow__node').filter({ hasText: 'PAGE_ONE_TEXT' });
+    await expect(notes).toHaveCount(2);
+    for (const note of await notes.all()) {
+      await expect(note).toContainText('PAGE_TWO');
+      await expect(note).toContainText('paper.pdf p.1, 2');
+    }
+    await pdf.locator('[data-surface-close]').click();
   });
 
   test('a Word document shows the text taken out of it and says so; the file itself is not changed and is not typed into', async () => {
@@ -750,6 +802,40 @@ test.describe.serial('editors and readers, in the desktop shell', () => {
     await expect(docx.locator('[data-surface-save]')).toHaveCount(0);
     await docx.locator('[data-surface-close]').click();
     expect(fs.readFileSync(disk('draft.docx')).equals(before)).toBe(true);
+  });
+
+  test('words that stand twice in a Word document are quoted from the place that was selected, and the reader follows the file when it is replaced', async () => {
+    fs.writeFileSync(disk('twice.docx'), docxWith(['First context REPEATED_WORDS after one', 'between', 'Second context REPEATED_WORDS after two']));
+    await ep.locator('[data-tree-refresh]').click();
+    await openFromTree('twice.docx');
+    const docx = surface('twice.docx');
+    await expect(docx.locator('[data-reader-text]')).toContainText('Second context REPEATED_WORDS');
+    // the person selects the second of the two
+    const line = await ep.evaluate(() => {
+      type Text = { data: string };
+      const dom = globalThis as unknown as { document: { querySelector(s: string): { firstChild: Text } | null }; getSelection(): { removeAllRanges(): void; setBaseAndExtent(a: Text, ao: number, b: Text, bo: number): void } };
+      const text = dom.document.querySelector('[data-reader-text]')!.firstChild;
+      const at = text.data.lastIndexOf('REPEATED_WORDS');
+      const selection = dom.getSelection();
+      selection.removeAllRanges();
+      selection.setBaseAndExtent(text, at, text, at + 'REPEATED_WORDS'.length);
+      return text.data.slice(0, at).split('\n').length;
+    });
+    expect(line).toBeGreaterThan(1);
+    await docx.locator('[data-reader-quote]').click();
+    const note = ep.locator('.react-flow__node').filter({ hasText: 'REPEATED_WORDS' });
+    await expect(note).toHaveCount(1);
+    await expect(note, 'the line of the second, not of the first').toContainText(`twice.docx L${line})`);
+
+    // another program replaces the document: the reader shows what it holds now
+    fs.writeFileSync(disk('twice.docx'), docxWith(['REPLACED_BY_ANOTHER_PROGRAM_Z4']));
+    await expect(docx.locator('[data-reader-text]')).toContainText('REPLACED_BY_ANOTHER_PROGRAM_Z4', { timeout: 15_000 });
+    await expect(docx.locator('[data-reader-text]')).not.toContainText('REPEATED_WORDS');
+    // and says so when the file is gone, instead of going on showing it
+    fs.rmSync(disk('twice.docx'));
+    await expect(docx.locator('[data-reader-gone]')).toBeVisible({ timeout: 15_000 });
+    await expect(docx.locator('[data-reader-quote]')).toHaveCount(0);
+    await docx.locator('[data-surface-close]').click();
   });
 
   test('an image is shown, and an HTML page is shown without any of its scripts running', async () => {

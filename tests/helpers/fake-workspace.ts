@@ -250,9 +250,9 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
       emit(event(fileId, 'content', opId));
       return { status: 'saved' as const, revision: fakeRevision(content), sourceRevision: null };
     }),
-    putDraft: door('putDraft', null, (fileId: string, draft: { text: string; baseRevision: string }) => {
+    putDraft: door('putDraft', null, (fileId: string, draft: { text: string; baseRevision: string; byHand?: boolean }) => {
       if (!files.has(fileId)) throw new Error('unknown-file: that file is not known to an open workspace');
-      const kept: DocumentDraft = { fileId, text: draft.text, baseRevision: draft.baseRevision, savedAt: '2026-10-05T00:00:00Z' };
+      const kept: DocumentDraft = { fileId, text: draft.text, baseRevision: draft.baseRevision, savedAt: '2026-10-05T00:00:00Z', ...(draft.byHand ? { byHand: true } : {}) };
       drafts.set(fileId, kept);
       return kept;
     }),

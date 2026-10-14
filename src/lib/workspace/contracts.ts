@@ -81,8 +81,9 @@ export type ResourceSelector =
   /** A passage, anchored by its own text and the text around it. `lines` help a
    *  reader find it; relocating always verifies the quote, never the line number. */
   | { kind: 'text'; quote: string; prefix: string; suffix: string; baseRevision?: ContentHash; lines?: [number, number] }
-  /** Pages count from 1; `rect` is [x0, y0, x1, y1] in page-normalized coordinates. */
-  | { kind: 'pdf'; pages: number[]; rect?: [number, number, number, number] }
+  /** Pages count from 1; `rect` is [x0, y0, x1, y1] in page-normalized coordinates.
+   *  `baseRevision` is the content the pages were quoted from, when known. */
+  | { kind: 'pdf'; pages: number[]; rect?: [number, number, number, number]; baseRevision?: ContentHash }
   | { kind: 'mindmap'; nodeIds: string[]; descendants: boolean };
 
 export type ResourceVersion = { kind: 'live' } | { kind: 'snapshot'; snapshotId: string };
@@ -150,12 +151,16 @@ export interface TrashReceipt {
 }
 
 /** Text typed into a file and not yet written to it, kept so it is not lost.
- *  `baseRevision` is the content it was typed over. Never model input by default. */
+ *  `baseRevision` is the content it was typed over: while a conflict with a
+ *  later change is not settled, it stays the content before that change.
+ *  `byHand` says the text is for the person to sort out and save themselves;
+ *  it is never written to the file by itself. Never model input by default. */
 export interface DocumentDraft {
   fileId: string;
   text: string;
   baseRevision: ContentHash;
   savedAt: string;
+  byHand?: boolean;
 }
 
 /** Something kept in a workspace's recovery area after it was trashed there. */

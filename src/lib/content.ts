@@ -52,9 +52,12 @@ export function spawnContentNode(
   kind: 'note' | 'file' | 'link',
   position: { x: number; y: number },
   init?: { question?: string; linkUrl?: string },
+  /** more of the node's data, there from the first moment: it is in the step that undo and redo know */
+  more?: Partial<ThoughtNode['data']>,
 ): string {
   const st = useStore.getState();
-  const node = buildContentNode(kind, position, init);
+  const built = buildContentNode(kind, position, init);
+  const node = more ? { ...built, data: { ...built.data, ...more } } : built;
   st.setNodes([...st.nodes, node]);
   st.pushHistory();
   if (node.data.question) triggerParadigmCascade(useStore.getState, node.id);

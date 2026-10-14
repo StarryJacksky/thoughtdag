@@ -182,8 +182,8 @@ function checkedSource(result: SourceRead): SourceRead {
 }
 
 /** Keep text typed into a file and not yet written to it. One draft per file; a new one replaces the old. */
-export async function putDraft(fileId: string, text: string, baseRevision: ContentHash): Promise<DocumentDraft> {
-  return checked('DocumentDraft', await call((b) => b.putDraft(fileId, { text, baseRevision })));
+export async function putDraft(fileId: string, text: string, baseRevision: ContentHash, more: { byHand?: boolean } = {}): Promise<DocumentDraft> {
+  return checked('DocumentDraft', await call((b) => b.putDraft(fileId, { text, baseRevision, ...(more.byHand ? { byHand: true } : {}) })));
 }
 
 /** The draft kept for a file, or null. */

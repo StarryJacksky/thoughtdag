@@ -1,0 +1,137 @@
+# Round 2 review: the renderer regression tests, run on the reviewed commit 434f405 before any fix.
+# Each [R2-..] line marked × is the defect showing. Tests of the same number that do not appear here
+# already held on the reviewed commit and are kept as guards.
+#
+# The full unit run on the reviewed commit also ended with an unhandled rejection from the Word reader
+# ("Could not find file in options"): the tests loaded the Node build of the library, which refuses the
+# bytes of every document (QA01). That is fixed in the test setup; the Word tests below were run with it
+# fixed, so that they fail for what the reader does and not for how the library was loaded.
+
+## tests/unit/document-service.test.ts  (R2-03, 04, 05, 06, 11, 12, 13)
+     × [R2-03] keeps the buffer when neither the file nor a draft could be written, and says the view could not be let go 3ms
+     × [R2-03] does not take an older draft for the newest typing when the newer draft could not be written 1ms
+     × [R2-03] a document left without a view because nothing could be written is put away by itself once writing works 1ms
+     × [R2-03] letting go of the whole service keeps a document whose typing could not be put anywhere, and names it 0ms
+     × [R2-04] a draft that takes long to write does not replace the newer one asked for after it 0ms
+     × [R2-04] a draft that takes long to write is still let go when the typing was taken back meanwhile 1ms
+     × [R2-05] a recovered draft in conflict stays in conflict however often it is typed into, closed and opened again 1ms
+     × [R2-06] a view that opens the file again while the last one is still closing keeps the document 0ms
+     × [R2-11] both sides kept in the buffer are not written by themselves after the file is closed and opened again 1ms
+     × [R2-12] a save asked for while another is under way is told what became of it, not that it was saved 0ms
+     × [R2-12] a save that follows one that found the file changed is told of the conflict 0ms
+     × [R2-13] an older reading of the file that arrives late does not replace a newer one 0ms
+     × [R2-13] a reading that was under way when a save was confirmed does not put back what the file held before that save 1ms
+⎯⎯⎯⎯⎯⎯ Failed Tests 13 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/unit/document-service.test.ts > when the disk is slow or refuses > [R2-03] keeps the buffer when neither the file nor a draft could be written, and says the view could not be let go
+AssertionError: the buffer is the only place the text is: it is still there: expected undefined to be 'FIRST_LINE_K4\nUNSAVED_Q7\n' // Object.is equality
+ FAIL  tests/unit/document-service.test.ts > when the disk is slow or refuses > [R2-03] does not take an older draft for the newest typing when the newer draft could not be written
+AssertionError: expected undefined to be 'FIRST_LINE_K4\nolder\nNEWEST_W3\n' // Object.is equality
+ FAIL  tests/unit/document-service.test.ts > when the disk is slow or refuses > [R2-03] a document left without a view because nothing could be written is put away by itself once writing works
+AssertionError: expected 'FIRST_LINE_K4\n' to be 'FIRST_LINE_K4\nUNSAVED_Q7\n' // Object.is equality
+ FAIL  tests/unit/document-service.test.ts > when the disk is slow or refuses > [R2-03] letting go of the whole service keeps a document whose typing could not be put anywhere, and names it
+AssertionError: expected undefined to be 'FIRST_LINE_K4\nUNSAVED_Q7\n' // Object.is equality
+ FAIL  tests/unit/document-service.test.ts > when the disk is slow or refuses > [R2-04] a draft that takes long to write does not replace the newer one asked for after it
+AssertionError: expected 'FIRST_LINE_K4\nOLD\n' to be 'FIRST_LINE_K4\nOLD\nLATEST\n' // Object.is equality
+ FAIL  tests/unit/document-service.test.ts > when the disk is slow or refuses > [R2-04] a draft that takes long to write is still let go when the typing was taken back meanwhile
+AssertionError: the late write is followed by its removal, not left behind: expected true to be false // Object.is equality
+ FAIL  tests/unit/document-service.test.ts > when the disk is slow or refuses > [R2-05] a recovered draft in conflict stays in conflict however often it is typed into, closed and opened again
+AssertionError: the draft still says what it was typed over, not what the file was seen to hold: expected { fileId: 'file_1', …(3) } to match object { …(2) }
+ FAIL  tests/unit/document-service.test.ts > when the disk is slow or refuses > [R2-06] a view that opens the file again while the last one is still closing keeps the document
+AssertionError: the document is still open: expected undefined to be 'FIRST_LINE_K4\nMINE_Z5\nMINE_2\nLATES…' // Object.is equality
+ FAIL  tests/unit/document-service.test.ts > when the disk is slow or refuses > [R2-11] both sides kept in the buffer are not written by themselves after the file is closed and opened again
+AssertionError: still for the person to sort out: nothing is written until they say so: expected '<<<<<<< mine\nFIRST_LINE_K4\nMINE_Z5\…' to be 'EXTERNAL_M2\n' // Object.is equality
+ FAIL  tests/unit/document-service.test.ts > when the disk is slow or refuses > [R2-12] a save asked for while another is under way is told what became of it, not that it was saved
+AssertionError: the text is not in the file: it was not saved: expected 'saved' to be 'error' // Object.is equality
+ FAIL  tests/unit/document-service.test.ts > when the disk is slow or refuses > [R2-12] a save that follows one that found the file changed is told of the conflict
+AssertionError: expected 'saved' to be 'conflict' // Object.is equality
+ FAIL  tests/unit/document-service.test.ts > when the disk is slow or refuses > [R2-13] an older reading of the file that arrives late does not replace a newer one
+AssertionError: expected { documentId: 'doc_1_83798dcd', …(6) } to match object { text: 'EXTERNAL_2\n', …(2) }
+ FAIL  tests/unit/document-service.test.ts > when the disk is slow or refuses > [R2-13] a reading that was under way when a save was confirmed does not put back what the file held before that save
+AssertionError: expected { documentId: 'doc_1_01bce3a9', …(6) } to match object { …(3) }
+ Test Files  1 failed (1)
+      Tests  13 failed | 38 passed (51)
+
+## tests/unit/graph-resource.test.ts  (R2-14, 17)
+# (The last line of this part, "referencedVaultIds is not a function", is not a defect of the reviewed commit:
+#  that test guards the fix itself, whose sweep of unused bytes must know the new keys. It could not pass before the fix existed.)
+     × [R2-14] keeps what was decided about its content while the file was too large to read, and after it can be read again 110ms
+     × [R2-14] keeps what was decided about its content while the file was not text any more, and after it can be read again 105ms
+     × [R2-14] keeps the identity of the copy through an undo that brings back the canvas while the file cannot be read 105ms
+     × [R2-17] a newer copy of the file does not replace the bytes an older copy of the canvas still reads 7ms
+     × [R2-17] the vault is not swept of the bytes a refreshed copy reads 7ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/unit/graph-resource.test.ts > a file node whose file could not be copied for a while > [R2-14] keeps what was decided about its content while the file was too large to read, and after it can be read again
+AssertionError: the copy that came back is the attachment it was: expected 'node-1791942519730-67' to be 'node-1791942519678-66' // Object.is equality
+ FAIL  tests/unit/graph-resource.test.ts > a file node whose file could not be copied for a while > [R2-14] keeps what was decided about its content while the file was not text any more, and after it can be read again
+AssertionError: the copy that came back is the attachment it was: expected 'node-1791942519841-70' to be 'node-1791942519789-69' // Object.is equality
+ FAIL  tests/unit/graph-resource.test.ts > a file node whose file could not be copied for a while > [R2-14] keeps the identity of the copy through an undo that brings back the canvas while the file cannot be read
+AssertionError: expected 'node-1791942519947-73' to be 'node-1791942519894-72' // Object.is equality
+ FAIL  tests/unit/graph-resource.test.ts > a file whose bytes are kept outside the node (a PDF) > [R2-17] a newer copy of the file does not replace the bytes an older copy of the canvas still reads
+AssertionError: the other canvas still has the text and the bytes of the first version: expected 'JVBERi0xLjQgVkVSU0lPTl9UV09fUDIgLi4uL…' to be 'JVBERi0xLjQgVkVSU0lPTl9PTkVfUDEgLi4uL…' // Object.is equality
+ FAIL  tests/unit/graph-resource.test.ts > a file whose bytes are kept outside the node (a PDF) > [R2-17] the vault is not swept of the bytes a refreshed copy reads
+TypeError: referencedVaultIds is not a function
+ Test Files  1 failed (1)
+      Tests  5 failed | 28 passed (33)
+
+## tests/unit/surface-manager.test.tsx  (R2-15, 16, and what a surface does when R2-03 happens)
+     × [R2-15] a surface brought forward by its title bar takes the keys that follow; the one typed into before gets none of them 14ms
+     × [R2-15] a surface dragged by its title bar is the one typed into when the drag ends 14ms
+     × [R2-15] a surface brought back from the tray is the one typed into 17ms
+     × [R2-15] a surface with nothing to type into still takes the focus from the one behind it 16ms
+     × [R2-16] a file whose record arrives after the canvas was left opens no surface on the canvas that is there now 24ms
+     × [R2-16] a file whose text arrives after the canvas was left opens no surface on the canvas that is there now 23ms
+     × [R2-16] a layout that is still being put back when the canvas is left puts nothing on the next canvas, and is whole when its own canvas is opened again 34ms
+     × [R2-03] comes back with what was typed, and the person is told why 11ms
+     × [R2-03] is not opened on another canvas when it was closed by leaving its own; the text is kept and the person is told 12ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 9 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/unit/surface-manager.test.tsx > the surface in front is the one that is typed into > [R2-15] a surface brought forward by its title bar takes the keys that follow; the one typed into before gets none of them
+AssertionError: the focus is in the surface in front: expected false to be true // Object.is equality
+ FAIL  tests/unit/surface-manager.test.tsx > the surface in front is the one that is typed into > [R2-15] a surface dragged by its title bar is the one typed into when the drag ends
+AssertionError: expected false to be true // Object.is equality
+ FAIL  tests/unit/surface-manager.test.tsx > the surface in front is the one that is typed into > [R2-15] a surface brought back from the tray is the one typed into
+AssertionError: expected false to be true // Object.is equality
+ FAIL  tests/unit/surface-manager.test.tsx > the surface in front is the one that is typed into > [R2-15] a surface with nothing to type into still takes the focus from the one behind it
+AssertionError: keys no longer go to the document behind: expected true to be false // Object.is equality
+ FAIL  tests/unit/surface-manager.test.tsx > a canvas that is left while a file is still opening > [R2-16] a file whose record arrives after the canvas was left opens no surface on the canvas that is there now
+ FAIL  tests/unit/surface-manager.test.tsx > a canvas that is left while a file is still opening > [R2-16] a file whose text arrives after the canvas was left opens no surface on the canvas that is there now
+AssertionError: canvas B shows nothing of canvas A: expected [ 'a.md' ] to deeply equal []
+ FAIL  tests/unit/surface-manager.test.tsx > a canvas that is left while a file is still opening > [R2-16] a layout that is still being put back when the canvas is left puts nothing on the next canvas, and is whole when its own canvas is opened again
+AssertionError: expected [ 'a.md', 'b.tex' ] to deeply equal []
+ FAIL  tests/unit/surface-manager.test.tsx > a surface whose document could not be put anywhere when it was closed > [R2-03] comes back with what was typed, and the person is told why
+AssertionError: expected [] to deeply equal [ 'a.md' ]
+ FAIL  tests/unit/surface-manager.test.tsx > a surface whose document could not be put anywhere when it was closed > [R2-03] is not opened on another canvas when it was closed by leaving its own; the text is kept and the person is told
+AssertionError: expected 'content of a.md\nUNSAVED_Q7\nUNSAVED_…' to be 'content of a.md\nUNSAVED_Q7\n' // Object.is equality
+ Test Files  1 failed (1)
+      Tests  9 failed | 24 passed (33)
+
+## tests/unit/reader-quotes.test.tsx  (R2-18, 19, 20, 21)
+     × [R2-18] still says where it is from after it was undone and redone, and after something else was undone 24ms
+     × [R2-19] names the place that was selected when the same words stand earlier in the text too 741ms
+     × [R2-19] names the same place when the selection was dragged backwards 540ms
+     × [R2-19] tells one of two identical paragraphs from the other 529ms
+     × [R2-20] names every page the selection runs over, whichever way it was dragged 26ms
+     × [R2-20] quotes nothing when the selection runs out of the reader 14ms
+     × [R2-21] says which version of the file the pages were quoted from 13ms
+     × [R2-21] shows what the file holds now, and a quote taken after that is of the new version 1050ms
+     × [R2-21] says the file is gone when it is, takes no quote of what it last showed, and shows it again when it is back 1053ms
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 9 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/unit/reader-quotes.test.tsx > a quote put on the canvas > [R2-18] still says where it is from after it was undone and redone, and after something else was undone
+AssertionError: the note that came back still knows what it quotes: expected undefined to deeply equal { fileId: 'file_1', …(3) }
+ FAIL  tests/unit/reader-quotes.test.tsx > a passage quoted from a Word document > [R2-19] names the place that was selected when the same words stand earlier in the text too
+AssertionError: First context : expected false to be true // Object.is equality
+ FAIL  tests/unit/reader-quotes.test.tsx > a passage quoted from a Word document > [R2-19] names the same place when the selection was dragged backwards
+AssertionError: expected false to be true // Object.is equality
+ FAIL  tests/unit/reader-quotes.test.tsx > a passage quoted from a Word document > [R2-19] tells one of two identical paragraphs from the other
+AssertionError: expected [ 1, 1 ] to deeply equal [ 3, 3 ]
+ FAIL  tests/unit/reader-quotes.test.tsx > a passage quoted from a PDF > [R2-20] names every page the selection runs over, whichever way it was dragged
+AssertionError: expected { kind: 'pdf', pages: [ 1 ] } to match object { kind: 'pdf', pages: [ 1, 2 ] }
+ FAIL  tests/unit/reader-quotes.test.tsx > a passage quoted from a PDF > [R2-20] quotes nothing when the selection runs out of the reader
+AssertionError: expected [ { ref: { …(4) }, …(1) } ] to deeply equal []
+ FAIL  tests/unit/reader-quotes.test.tsx > a passage quoted from a PDF > [R2-21] says which version of the file the pages were quoted from
+AssertionError: expected { kind: 'pdf', pages: [ 1 ] } to match object { kind: 'pdf', pages: [ 1 ], …(1) }
+ FAIL  tests/unit/reader-quotes.test.tsx > a reader whose file changes > [R2-21] shows what the file holds now, and a quote taken after that is of the new version
+AssertionError: the file was read again: expected 1 to be 2 // Object.is equality
+ FAIL  tests/unit/reader-quotes.test.tsx > a reader whose file changes > [R2-21] says the file is gone when it is, takes no quote of what it last showed, and shows it again when it is back
+AssertionError: expected null not to be null
+ Test Files  1 failed (1)
+      Tests  9 failed | 2 passed (11)

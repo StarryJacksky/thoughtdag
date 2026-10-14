@@ -82,9 +82,8 @@ export function quoteOnCanvas(ref: ResourceRef, words: string, fileName: string,
   const where = ref.selector.kind === 'pdf' ? `${fileName} p.${ref.selector.pages.join(', ')}`
     : ref.selector.kind === 'text' && ref.selector.lines ? `${fileName} L${ref.selector.lines[0]}${ref.selector.lines[1] !== ref.selector.lines[0] ? `-${ref.selector.lines[1]}` : ''}`
       : fileName;
-  const id = spawnContentNode('note', freeSpot(at), { question: `${quoted.split('\n').map((line) => `> ${line}`).join('\n')}\n\n(${where})` });
-  useStore.setState((st) => ({ nodes: st.nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, quoteRef: ref } } : n)) }));
-  return id;
+  // the note and what it quotes are one step: a note that is undone and redone still knows where its words are from
+  return spawnContentNode('note', freeSpot(at), { question: `${quoted.split('\n').map((line) => `> ${line}`).join('\n')}\n\n(${where})` }, { quoteRef: ref });
 }
 
 /**

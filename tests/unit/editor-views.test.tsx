@@ -12,12 +12,20 @@ import { validateDTO, type ResourceRef } from '../../src/lib/workspace/contracts
 import { useStore } from '../../src/store';
 import { bootProjects, useProjects } from '../../src/store/projects';
 import { fakeRevision, installFakeWorkspace, type FakeWorkspace } from '../helpers/fake-workspace';
+import { docxWith } from '../helpers/synthetic-docx';
 import { during, keyHeardByWindow, mount, withoutLayout, type Mounted } from '../helpers/render';
 
 // The editors and readers a surface shows: that typing in an editor is an
 // edit of the shared document and nothing else, that a word being composed
 // is not sent half-made, and that what a file contains is shown and never
 // run.
+
+/** Open a file in a surface on the canvas that is open, and its surface's id. */
+const opened = async (...args: Parameters<typeof openFileSurface>): Promise<string> => {
+  const id = await openFileSurface(...args);
+  if (id === null) throw new Error('the canvas was left while the file was opening');
+  return id;
+};
 
 let shell: FakeWorkspace;
 let view: Mounted | null = null;
@@ -26,7 +34,7 @@ const editorIn = (root: ParentNode) => EditorView.findFromDOM(root.querySelector
 /** Type at a place in an editor the way the editor reports typing. */
 const type = (editor: EditorView, at: number, text: string, userEvent = 'input.type') => editor.dispatch({ changes: { from: at, insert: text }, userEvent });
 const key = (editor: EditorView, init: KeyboardEventInit) => editor.contentDOM.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init }));
-const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
+const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 5));
 
 beforeAll(async () => {
   withoutLayout();
@@ -153,7 +161,7 @@ describe('a word being composed by an input method', () => {
   it('does not reach the canvas: the keys that pick the word never send a question or undo something there', async () => {
     const doc = await documents.open(fileIdOf('notes/a.md'), 'view-1');
     // the editor as it sits in a surface: inside a frame that keeps what is typed in it to itself
-    const id = await openFileSurface(fileIdOf('notes/a.md'));
+    const id = await opened(fileIdOf('notes/a.md'));
     view = await mount(<SurfaceManager />);
     const editor = editorIn(view.container.querySelector(`[data-surface="${id}"]`)!);
     editor.contentDOM.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
@@ -228,23 +236,39 @@ describe('a file that is read, not typed into', () => {
   it('opens in a surface with a reader and no document: nothing of it can be typed into or saved', async () => {
     shell.seed('figures/plot.png', '');
     shell.files.get(fileIdOf('figures/plot.png'))!.bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
-    const id = await openFileSurface(fileIdOf('figures/plot.png'));
+    const id = await opened(fileIdOf('figures/plot.png'));
     const surface = useSurfaces.getState().surfaces.find((s) => s.surfaceId === id)!;
     expect(surface).toMatchObject({ kind: 'image', reading: true, notice: null });
     expect(documents.documentOf(fileIdOf('figures/plot.png'))).toBeUndefined();
     expect(shell.calls.filter((c) => c.method === 'readText')).toEqual([]);
   });
 
+  // The two cases are separate on purpose: a reader that fails on every Word document would pass a test
+  // that accepts either outcome. (It did: the tests used to load the build of the Word library that is
+  // meant for Node, which refuses the bytes of any document. See tests/setup/mammoth-browser.ts.)
   it('a Word document shows the text taken out of it and says that is what it is', async () => {
-    // a real .docx is a zip; the reader is given one that cannot be read, and must say so rather than show nothing
     shell.seed('notes/draft.docx', '');
-    shell.files.get(fileIdOf('notes/draft.docx'))!.bytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04]);
-    const id = await openFileSurface(fileIdOf('notes/draft.docx'));
+    shell.files.get(fileIdOf('notes/draft.docx'))!.bytes = docxWith(['A synthetic first paragraph Q1.', 'And a second one Q2.']);
+    const id = await opened(fileIdOf('notes/draft.docx'));
     expect(useSurfaces.getState().surfaces.find((s) => s.surfaceId === id)).toMatchObject({ reading: true });
     view = await mount(<div><ResourceReader resourceRef={whole(fileIdOf('notes/draft.docx'))} name="draft.docx" /></div>);
-    await during(async () => { for (let i = 0; i < 40 && view!.container.querySelector('[data-reader-loading]'); i++) await tick(); });
-    expect(view.container.querySelector('[data-reader-failed], [data-reader-derived]')).not.toBeNull();
-    expect(view.container.querySelector('.cm-editor')).toBeNull();
+    for (let i = 0; i < 200 && view.container.querySelector('[data-reader-loading]'); i++) await during(tick);
+    expect(view.container.querySelector('[data-reader-failed]'), 'a document that can be read is read').toBeNull();
+    expect(view.container.querySelector('[data-reader-derived]'), 'it says that this is the text taken out of the document').not.toBeNull();
+    const shown = view.container.querySelector('[data-reader-text]')!.textContent!;
+    expect(shown).toContain('A synthetic first paragraph Q1.');
+    expect(shown).toContain('And a second one Q2.');
+    expect(view.container.querySelector('.cm-editor'), 'it is read, not typed into').toBeNull();
+  });
+
+  it('a Word document that cannot be read says so instead of showing nothing', async () => {
+    // a real .docx is a zip: this one is the first four bytes of one and nothing more
+    shell.seed('notes/broken.docx', '');
+    shell.files.get(fileIdOf('notes/broken.docx'))!.bytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04]);
+    view = await mount(<div><ResourceReader resourceRef={whole(fileIdOf('notes/broken.docx'))} name="broken.docx" /></div>);
+    for (let i = 0; i < 200 && view.container.querySelector('[data-reader-loading]'); i++) await during(tick);
+    expect(view.container.querySelector('[data-reader-failed]')).not.toBeNull();
+    expect(view.container.querySelector('[data-reader-derived], [data-reader-text]')).toBeNull();
   });
 });
 
@@ -252,7 +276,7 @@ describe('a file that cannot be opened to type into', () => {
   it('a text file above the limit opens a surface that says so and offers to show the file, and no document is opened', async () => {
     shell.seed('data/huge.csv', 'a,b\n');
     shell.failNext('readText', 'too-large', 'the file is too large to be read here');
-    const id = await openFileSurface(fileIdOf('data/huge.csv'));
+    const id = await opened(fileIdOf('data/huge.csv'));
     expect(useSurfaces.getState().surfaces.find((s) => s.surfaceId === id)).toMatchObject({ notice: 'too-large', reading: false });
     expect(documents.documentOf(fileIdOf('data/huge.csv'))).toBeUndefined();
     view = await mount(<SurfaceManager />);
@@ -266,7 +290,7 @@ describe('a file that cannot be opened to type into', () => {
   it('a file that is not text says that it is not', async () => {
     shell.seed('data/blob.bin', '');
     shell.failNext('readText', 'not-text', 'the file is not text that can be opened for editing');
-    const id = await openFileSurface(fileIdOf('data/blob.bin'));
+    const id = await opened(fileIdOf('data/blob.bin'));
     expect(useSurfaces.getState().surfaces.find((s) => s.surfaceId === id)).toMatchObject({ notice: 'not-text' });
   });
 });

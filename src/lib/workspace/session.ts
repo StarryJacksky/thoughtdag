@@ -10,6 +10,7 @@ import { setProjectWorkspace, useProjects } from '../../store/projects';
 import { chooseRoot, listWorkspaces, openDefaultWorkspace, workspaceAvailable, WorkspaceError, workspaceWatched } from './client';
 import type { WorkspaceRecord } from './contracts';
 import { subscribeWorkspace } from './events';
+import { noteFileEvent } from './file-news';
 import { documents } from '../documents/document-service';
 import { canvasVisit } from './canvas-visit';
 import { applyWorkspaceEvent, syncResourceNodes } from './graph-resource';
@@ -138,6 +139,8 @@ export async function watchWorkspaces(workspaceIds: string[]): Promise<() => voi
     applyWorkspaceEvent(event);
     // a file that is open for typing hears of it too: its buffer reloads, or says there is a conflict
     documents.noteWorkspaceEvent(event);
+    // and so does a reader that shows it
+    noteFileEvent(event);
     if (useWorkspacePanel.getState().workspace?.workspaceId === event.workspaceId) reloadTree();
   }).catch(() => () => {})));
   // a folder that cannot be watched is said to be so, instead of looking as if nothing ever changes in it

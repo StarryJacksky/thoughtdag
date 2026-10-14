@@ -1,4 +1,4 @@
-import { useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { FileText, Maximize2, Minimize2, Minus, PanelLeft, PanelRight, X } from 'lucide-react';
 import { closeSurface, focusSurface, restoreSurface, setPlacement, shownRect, updateRect, useSurfaces, TITLE_BAR_HEIGHT, type Rect, type Surface } from '../../lib/documents/surface-store';
 import { useT } from '../../i18n';
@@ -8,6 +8,13 @@ import { useT } from '../../i18n';
 // close it. It takes the pointer only while it is being dragged, and what is
 // typed inside it goes no further than the frame: the canvas's own
 // shortcuts never hear it.
+//
+// The frame in front is the one that is typed into. Whatever brings a
+// surface forward (a press anywhere on it, its title bar included, a drag,
+// coming back from the tray, being opened) also brings the focus into it:
+// to its editor, which keeps its own cursor, or to the frame itself when
+// it has nothing to type into. The surface that was typed into before
+// gets no key after that.
 
 interface Props {
   surface: Surface;
@@ -15,9 +22,24 @@ interface Props {
   children: ReactNode;
 }
 
+/** Where typing goes in a frame: its editor, if it has one. */
+const typingPlaceIn = (frame: HTMLElement) => frame.querySelector<HTMLElement>('.cm-content, textarea');
+
 export default function SurfaceFrame({ surface, zIndex, children }: Props) {
   const t = useT();
   const container = useSurfaces((s) => s.container);
+  const frame = useRef<HTMLDivElement>(null);
+  // this surface was brought forward: `turn` goes up each time any surface is, `mine` says whether it was this one
+  const turn = useSurfaces((s) => (s.active.surfaceId === surface.surfaceId ? s.active.turn : 0));
+  const away = surface.placement === 'minimized';
+  useLayoutEffect(() => {
+    const el = frame.current;
+    if (!el || turn === 0 || away) return;
+    // the focus is somewhere in this frame already (a click into its text, one of its buttons): it is left there
+    if (el.contains(document.activeElement)) return;
+    (typingPlaceIn(el) ?? el).focus({ preventScroll: true });
+  }, [turn, away]);
+
   // the drag under way: where the pointer and the frame were when it began
   const drag = useRef<{ kind: 'move' | 'resize'; pointerId: number; x: number; y: number; rect: Rect } | null>(null);
   const shown = shownRect(surface, container);
@@ -52,13 +74,18 @@ export default function SurfaceFrame({ surface, zIndex, children }: Props) {
 
   return (
     <div
+      ref={frame}
       data-surface={surface.surfaceId}
       data-surface-placement={surface.placement}
+      // the frame can hold the focus itself, so that a surface with nothing to type into still takes it from the one behind
+      tabIndex={-1}
+      // a press on a part of the frame that is not itself a place for the focus lands on the frame: it is passed on to the editor
+      onFocus={(e) => { if (e.target === e.currentTarget) typingPlaceIn(e.currentTarget)?.focus({ preventScroll: true }); }}
       onPointerDown={() => focusSurface(surface.surfaceId)}
       // what is typed in a surface is the document's: none of it reaches the canvas's shortcuts
       onKeyDown={(e) => e.stopPropagation()}
       onKeyUp={(e) => e.stopPropagation()}
-      className={`absolute flex flex-col bg-card border border-line shadow-lg overflow-hidden ${floating ? 'rounded-xl' : ''}`}
+      className={`absolute flex flex-col bg-card border border-line shadow-lg overflow-hidden outline-none ${floating ? 'rounded-xl' : ''}`}
       style={{ left: shown.x, top: shown.y, width: shown.width, height: shown.height, zIndex, pointerEvents: 'auto' }}
     >
       <div

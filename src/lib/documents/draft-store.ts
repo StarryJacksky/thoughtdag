@@ -7,15 +7,15 @@ import { clearDraft, getDraft, putDraft } from '../workspace/client';
 import type { ContentHash, DocumentDraft } from '../workspace/contracts';
 
 export interface DraftStore {
-  /** keep `text`, typed over the content `baseRevision`, as the file's one draft */
-  put(fileId: string, text: string, baseRevision: ContentHash): Promise<void>;
+  /** keep `text`, typed over the content `baseRevision`, as the file's one draft; `byHand` says it is not to be saved without the person saying so */
+  put(fileId: string, text: string, baseRevision: ContentHash, more?: { byHand?: boolean }): Promise<void>;
   get(fileId: string): Promise<DocumentDraft | null>;
   clear(fileId: string): Promise<void>;
 }
 
 /** Drafts kept in the workspace the file is in. */
 export const workspaceDrafts: DraftStore = {
-  put: async (fileId, text, baseRevision) => { await putDraft(fileId, text, baseRevision); },
+  put: async (fileId, text, baseRevision, more) => { await putDraft(fileId, text, baseRevision, more); },
   get: (fileId) => getDraft(fileId),
   clear: async (fileId) => { await clearDraft(fileId); },
 };

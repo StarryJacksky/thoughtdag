@@ -521,3 +521,252 @@ describe('who the service listens to', () => {
     expect(heard).toEqual([1]);
   });
 });
+
+// What a slow or a failing disk must not cost. Each of these was found by
+// review (the R2 numbers are that review's): an answer that arrives late,
+// or not at all, must never take what was typed or write over a change.
+describe('when the disk is slow or refuses', () => {
+  const refused = (channel: string) => async () => { throw new Error(`Error invoking remote method 'workspace:${channel}': Error: failed: no space left on the disk`); };
+  const externalEdit = (content: string) => {
+    shell.files.get(fileId)!.content = content;
+    documents.noteWorkspaceEvent({ workspaceId: 'ws_1', fileId, change: 'content', observedRevision: fakeRevision(content), opId: null, record: shell.record(fileId) });
+  };
+  /** A document whose typing is in conflict with what the file now holds, and whose draft is already kept. */
+  const inConflict = async () => {
+    const doc = await documents.open(fileId, 'view-1');
+    typeAtEnd(doc, 'MINE_Z5\n');
+    externalEdit('EXTERNAL_M2\n');
+    await settle();
+    expect(documents.get(doc.documentId)!.state).toBe('conflict');
+    return doc;
+  };
+
+  it('[R2-03] keeps the buffer when neither the file nor a draft could be written, and says the view could not be let go', async () => {
+    const doc = await documents.open(fileId, 'view-1');
+    const bridge = window.desktopWorkspace!;
+    const working = { saveText: bridge.saveText, putDraft: bridge.putDraft };
+    bridge.saveText = refused('save-text');
+    bridge.putDraft = refused('put-draft');
+    typeAtEnd(doc, 'UNSAVED_Q7\n');
+
+    const closed = await documents.closeView('view-1');
+    expect(onDisk()).toBe('FIRST_LINE_K4\n');
+    expect(shell.drafts.has(fileId)).toBe(false);
+    expect(documents.documentOf(fileId)?.text, 'the buffer is the only place the text is: it is still there').toBe('FIRST_LINE_K4\nUNSAVED_Q7\n');
+    expect(closed).toEqual({ held: true, fileId, documentId: doc.documentId });
+    // a view that opens the file again gets that same buffer
+    expect(await documents.open(fileId, 'view-2')).toMatchObject({ documentId: doc.documentId, text: 'FIRST_LINE_K4\nUNSAVED_Q7\n' });
+
+    // once the disk takes writes again the text is put away and the document let go
+    Object.assign(bridge, working);
+    expect(await documents.closeView('view-2')).toEqual({ held: false });
+    expect(onDisk()).toBe('FIRST_LINE_K4\nUNSAVED_Q7\n');
+    expect(documents.documentOf(fileId)).toBeUndefined();
+  });
+
+  it('[R2-03] does not take an older draft for the newest typing when the newer draft could not be written', async () => {
+    const doc = await documents.open(fileId, 'view-1');
+    const bridge = window.desktopWorkspace!;
+    typeAtEnd(doc, 'older\n');
+    await vi.advanceTimersByTimeAsync(DRAFT_MS);
+    expect(shell.drafts.get(fileId)?.text).toBe('FIRST_LINE_K4\nolder\n');
+    bridge.saveText = refused('save-text');
+    bridge.putDraft = refused('put-draft');
+    typeAtEnd(doc, 'NEWEST_W3\n');
+
+    const closed = await documents.closeView('view-1');
+    expect(documents.documentOf(fileId)?.text).toBe('FIRST_LINE_K4\nolder\nNEWEST_W3\n');
+    expect(closed.held).toBe(true);
+  });
+
+  it('[R2-03] a document left without a view because nothing could be written is put away by itself once writing works', async () => {
+    const doc = await documents.open(fileId, 'view-1');
+    const bridge = window.desktopWorkspace!;
+    const working = { saveText: bridge.saveText, putDraft: bridge.putDraft };
+    bridge.saveText = refused('save-text');
+    bridge.putDraft = refused('put-draft');
+    typeAtEnd(doc, 'UNSAVED_Q7\n');
+    await documents.closeView('view-1');
+    Object.assign(bridge, working);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(onDisk()).toBe('FIRST_LINE_K4\nUNSAVED_Q7\n');
+    expect(documents.documentOf(fileId)).toBeUndefined();
+  });
+
+  it('[R2-03] letting go of the whole service keeps a document whose typing could not be put anywhere, and names it', async () => {
+    const doc = await documents.open(fileId, 'view-1');
+    window.desktopWorkspace!.saveText = refused('save-text');
+    window.desktopWorkspace!.putDraft = refused('put-draft');
+    typeAtEnd(doc, 'UNSAVED_Q7\n');
+    const held = await documents.dispose();
+    expect(documents.documentOf(fileId)?.text).toBe('FIRST_LINE_K4\nUNSAVED_Q7\n');
+    expect(held).toEqual([fileId]);
+  });
+
+  it('[R2-04] a draft that takes long to write does not replace the newer one asked for after it', async () => {
+    const doc = await documents.open(fileId, 'view-1');
+    const slow = shell.holdNext('putDraft');
+    typeAtEnd(doc, 'OLD\n');
+    await vi.advanceTimersByTimeAsync(DRAFT_MS); // the first draft is on its way and held up
+    typeAtEnd(doc, 'LATEST\n');
+    await vi.advanceTimersByTimeAsync(DRAFT_MS);
+    slow.release();
+    await settle();
+    expect(shell.drafts.get(fileId)?.text).toBe('FIRST_LINE_K4\nOLD\nLATEST\n');
+    // and it is what a restart finds
+    const afterRestart = createDocumentService();
+    expect((await afterRestart.open(fileId, 'view-9')).text).toBe('FIRST_LINE_K4\nOLD\nLATEST\n');
+    await afterRestart.dispose();
+  });
+
+  it('[R2-04] a draft that takes long to write is still let go when the typing was taken back meanwhile', async () => {
+    const doc = await documents.open(fileId, 'view-1');
+    const slow = shell.holdNext('putDraft');
+    typeAtEnd(doc, 'TAKEN_BACK\n');
+    await vi.advanceTimersByTimeAsync(DRAFT_MS);
+    documents.undo(doc.documentId, 'view-1'); // clean again: no draft is wanted
+    await settle();
+    slow.release();
+    await settle();
+    expect(documents.get(doc.documentId)!.state).toBe('clean');
+    expect(shell.drafts.has(fileId), 'the late write is followed by its removal, not left behind').toBe(false);
+  });
+
+  it('[R2-05] a recovered draft in conflict stays in conflict however often it is typed into, closed and opened again', async () => {
+    shell.drafts.set(fileId, { fileId, text: 'FIRST_LINE_K4\nMINE_Z5\n', baseRevision: fakeRevision('FIRST_LINE_K4\n'), savedAt: '2026-10-05T00:00:00Z' });
+    shell.files.get(fileId)!.content = 'EXTERNAL_M2\n';
+    const doc = await documents.open(fileId, 'view-1');
+    expect(doc.state).toBe('conflict');
+    typeAtEnd(doc, 'EDITED\n');
+    await documents.closeView('view-1');
+    expect(shell.drafts.get(fileId), 'the draft still says what it was typed over, not what the file was seen to hold').toMatchObject({ text: 'FIRST_LINE_K4\nMINE_Z5\nEDITED\n', baseRevision: fakeRevision('FIRST_LINE_K4\n') });
+
+    for (const service of [documents, createDocumentService()]) {
+      const again = await service.open(fileId, 'view-1');
+      expect(again).toMatchObject({ text: 'FIRST_LINE_K4\nMINE_Z5\nEDITED\n', state: 'conflict' });
+      expect(service.status(again.documentId)!.problem).toMatchObject({ kind: 'conflict', theirsText: 'EXTERNAL_M2\n' });
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_MS * 5);
+      expect(onDisk(), 'nothing is written over the change until the person chooses').toBe('EXTERNAL_M2\n');
+      await service.closeView('view-1');
+      if (service !== documents) await service.dispose();
+    }
+    expect(saves().length).toBe(0);
+  });
+
+  it('[R2-06] a view that opens the file again while the last one is still closing keeps the document', async () => {
+    const doc = await inConflict();
+    typeAtEnd(doc, 'MINE_2\n');
+    const slow = shell.holdNext('putDraft');
+    const closing = documents.closeView('view-1'); // waits for the draft of MINE_2
+    await settle();
+
+    const again = await documents.open(fileId, 'view-2');
+    expect(again.documentId).toBe(doc.documentId);
+    const heard: string[] = [];
+    documents.subscribe(doc.documentId, (model) => heard.push(model.text));
+    typeAtEnd(again, 'LATEST\n', 'view-2');
+    slow.release();
+    const closed = await closing;
+    await settle();
+
+    expect(documents.get(doc.documentId)?.text, 'the document is still open').toBe('FIRST_LINE_K4\nMINE_Z5\nMINE_2\nLATEST\n');
+    expect(closed).toEqual({ held: false });
+    expect(documents.status(doc.documentId)!.views).toEqual(['view-2']);
+    typeAtEnd(again, '!', 'view-2');
+    expect(heard.at(-1), 'and its views are still told').toBe('FIRST_LINE_K4\nMINE_Z5\nMINE_2\nLATEST\n!');
+    await vi.advanceTimersByTimeAsync(DRAFT_MS);
+    expect(shell.drafts.get(fileId)?.text).toBe('FIRST_LINE_K4\nMINE_Z5\nMINE_2\nLATEST\n!');
+  });
+
+  it('[R2-11] both sides kept in the buffer are not written by themselves after the file is closed and opened again', async () => {
+    const doc = await inConflict();
+    await documents.resolveConflict(doc.documentId, 'both', { mine: 'mine', theirs: 'on disk' });
+    await documents.closeView('view-1');
+    expect(onDisk()).toBe('EXTERNAL_M2\n');
+
+    const afterRestart = createDocumentService();
+    const again = await afterRestart.open(fileId, 'view-1');
+    expect(again.text.startsWith('<<<<<<< mine\n')).toBe(true);
+    expect(again.state).toBe('dirty');
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_MS * 5);
+    expect(onDisk(), 'still for the person to sort out: nothing is written until they say so').toBe('EXTERNAL_M2\n');
+    expect(shell.drafts.get(fileId)).toMatchObject({ byHand: true });
+    // typing into it does not start the clock either
+    afterRestart.applyEdit(again.documentId, { baseBufferRevision: again.bufferRevision, changes: insert(again.text.length, 'sorted\n'), originSurfaceId: 'view-1' });
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_MS * 5);
+    expect(onDisk()).toBe('EXTERNAL_M2\n');
+    expect((await afterRestart.save(again.documentId)).status).toBe('saved');
+    expect(onDisk().endsWith('sorted\n')).toBe(true);
+    await afterRestart.dispose();
+  });
+
+  it('[R2-12] a save asked for while another is under way is told what became of it, not that it was saved', async () => {
+    const doc = await documents.open(fileId, 'view-1');
+    typeAtEnd(doc, 'one\n');
+    const slow = shell.holdNext('saveText');
+    shell.failNext('saveText', 'failed', 'no space left on the disk');
+    const first = documents.save(doc.documentId);
+    await settle();
+    const second = documents.save(doc.documentId);
+    slow.release();
+    expect((await first).status).toBe('error');
+    expect((await second).status, 'the text is not in the file: it was not saved').toBe('error');
+    expect(onDisk()).toBe('FIRST_LINE_K4\n');
+    expect(documents.get(doc.documentId)!.state).toBe('error');
+  });
+
+  it('[R2-12] a save that follows one that found the file changed is told of the conflict', async () => {
+    const doc = await documents.open(fileId, 'view-1');
+    typeAtEnd(doc, 'one\n');
+    const slow = shell.holdNext('saveText');
+    const first = documents.save(doc.documentId);
+    await settle();
+    const second = documents.save(doc.documentId);
+    shell.files.get(fileId)!.content = 'EXTERNAL_M2\n';
+    slow.release();
+    expect((await first).status).toBe('conflict');
+    expect((await second).status).toBe('conflict');
+    expect(onDisk()).toBe('EXTERNAL_M2\n');
+  });
+
+  it('[R2-12] a save asked for after more was typed during another answers for the text it was asked to save', async () => {
+    const doc = await documents.open(fileId, 'view-1');
+    typeAtEnd(doc, 'one\n');
+    const slow = shell.holdNext('saveText');
+    const first = documents.save(doc.documentId);
+    await settle();
+    typeAtEnd(doc, 'two\n');
+    const second = documents.save(doc.documentId);
+    slow.release();
+    expect(await first).toMatchObject({ status: 'saved', revision: fakeRevision('FIRST_LINE_K4\none\n') });
+    expect(await second).toMatchObject({ status: 'saved', revision: fakeRevision('FIRST_LINE_K4\none\ntwo\n') });
+    expect(onDisk()).toBe('FIRST_LINE_K4\none\ntwo\n');
+  });
+
+  it('[R2-13] an older reading of the file that arrives late does not replace a newer one', async () => {
+    const doc = await documents.open(fileId, 'view-1');
+    const late = shell.delayNext('readText'); // answered with what the file holds now, handed over later
+    externalEdit('EXTERNAL_1\n');
+    await settle();
+    externalEdit('EXTERNAL_2\n');
+    await settle();
+    expect(documents.get(doc.documentId)!.text).toBe('EXTERNAL_2\n');
+    late.release();
+    await settle();
+    expect(documents.get(doc.documentId)).toMatchObject({ text: 'EXTERNAL_2\n', state: 'clean', sourceContentHash: fakeRevision('EXTERNAL_2\n') });
+  });
+
+  it('[R2-13] a reading that was under way when a save was confirmed does not put back what the file held before that save', async () => {
+    const doc = await documents.open(fileId, 'view-1');
+    const late = shell.delayNext('readText');
+    // news that says nothing new, read all the same: the reading is of the file before the save below
+    documents.noteWorkspaceEvent({ workspaceId: 'ws_1', fileId, change: 'content', observedRevision: fakeRevision('SOMETHING_ELSE\n'), opId: null, record: shell.record(fileId) });
+    await settle();
+    typeAtEnd(doc, 'SAVED_AFTER\n');
+    expect((await documents.save(doc.documentId)).status).toBe('saved');
+    late.release();
+    await settle();
+    expect(documents.get(doc.documentId)).toMatchObject({ text: 'FIRST_LINE_K4\nSAVED_AFTER\n', state: 'clean', sourceContentHash: fakeRevision('FIRST_LINE_K4\nSAVED_AFTER\n') });
+    expect(onDisk()).toBe('FIRST_LINE_K4\nSAVED_AFTER\n');
+  });
+});

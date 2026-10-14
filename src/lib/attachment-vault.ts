@@ -15,8 +15,16 @@ import type { Attachment, ThoughtNode } from '../types';
 // Deleting a node does NOT delete its vault entries (undo must be able to
 // resurrect them); orphans are swept by gcVault() at boot instead.
 
+// A payload in the vault is never replaced. An attachment whose content
+// changes (the copy of a workspace file) keeps its id and points at a new
+// key (`vaultId`): whoever still holds the older attachment, an undo
+// snapshot or another canvas that was copied from this one, reads the
+// bytes that go with the text it has.
+
 const KEY_PREFIX = 'att-content:';
 const vaultKey = (attId: string) => `${KEY_PREFIX}${attId}`;
+/** The vault key an attachment's payload is under. */
+export const vaultIdOf = (att: Pick<Attachment, 'id' | 'vaultId'>): string => att.vaultId ?? att.id;
 
 const shouldVault = (att: Attachment): boolean =>
   att.type === 'application/pdf' && !!att.content && !att.contentInVault;
@@ -29,21 +37,11 @@ export async function internAttachment(att: Attachment): Promise<Attachment> {
   return { ...att, content: '', contentInVault: true };
 }
 
-/** Put a vaulted payload under another attachment id: an attachment that
-    is replaced by a newer copy of itself keeps its id, and its payload follows. */
-export async function moveVaulted(fromId: string, toId: string): Promise<void> {
-  if (fromId === toId) return;
-  const payload = await idbGet<string>(vaultKey(fromId));
-  if (payload === undefined) return;
-  await idbSet(vaultKey(toId), payload);
-  await idbDel(vaultKey(fromId));
-}
-
 /** The attachment's payload, wherever it lives. '' when the vault entry is
     missing (cleared storage) — callers surface their own error state. */
 export async function loadAttachmentContent(att: Attachment): Promise<string> {
   if (!att.contentInVault) return att.content;
-  return (await idbGet<string>(vaultKey(att.id))) ?? '';
+  return (await idbGet<string>(vaultKey(vaultIdOf(att)))) ?? '';
 }
 
 /** Exports and backups carry the FULL payload: a .thoughtdag.json must stay
@@ -59,6 +57,7 @@ export async function inlineVaultedContent(nodes: ThoughtNode[]): Promise<Though
       const content = await loadAttachmentContent(a);
       const rest = { ...a, content };
       delete rest.contentInVault;
+      delete rest.vaultId;
       inlined.push(rest);
     }
     out.push({ ...n, data: { ...n.data, attachments: inlined } });
@@ -81,8 +80,8 @@ export async function internNodes(nodes: ThoughtNode[]): Promise<ThoughtNode[]> 
 }
 
 /** Sweep vault entries no canvas references anymore. `referencedIds` must
-    cover EVERY project's attachments — run it from boot, after the project
-    list is known. */
+    cover EVERY project's attachments, by the key each one's payload is
+    under (`vaultIdOf`) — run it from boot, after the project list is known. */
 export async function gcVault(referencedIds: Set<string>): Promise<number> {
   const all = (await idbKeys()) as string[];
   let swept = 0;

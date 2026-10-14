@@ -3,7 +3,8 @@ import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { Loader2, Quote } from 'lucide-react';
 import type { Attachment } from '../../types';
 import { readSource, readView, WorkspaceError } from '../../lib/workspace/client';
-import type { ResourceRef } from '../../lib/workspace/contracts';
+import type { ContentHash, ResourceRef } from '../../lib/workspace/contracts';
+import { onFileEvent } from '../../lib/workspace/file-news';
 import { pdfQuote, textQuote } from '../../lib/documents/quotes';
 import { loadPdfjs, type Pdfjs } from '../../lib/pdfjs';
 import { HtmlMaterialView } from '../HtmlMaterialView';
@@ -18,6 +19,13 @@ import PdfPage from './PdfPage';
 //
 // Markup and scripts in a file are shown, never run: HTML goes through the
 // same sanitizing, sandboxed view the rest of the app reads HTML with.
+//
+// What is shown is one version of the file, and the reader knows which.
+// When the workspace reports another, the file is read again and what was
+// selected in the old one is let go; when the file is gone the reader says
+// so instead of showing what it last held. A quote names the place that
+// was selected (found from the selection itself, never by looking for its
+// words) and the version it was selected in.
 
 interface Props {
   resourceRef: ResourceRef;
@@ -28,10 +36,10 @@ interface Props {
 }
 
 type Loaded =
-  | { kind: 'image'; url: string }
-  | { kind: 'html'; attachment: Attachment; revision: string }
-  | { kind: 'pdf'; pdfjs: Pdfjs; doc: PDFDocumentProxy }
-  | { kind: 'derived-text'; text: string; revision: string };
+  | { kind: 'image'; url: string; revision: ContentHash }
+  | { kind: 'html'; attachment: Attachment; revision: ContentHash }
+  | { kind: 'pdf'; pdfjs: Pdfjs; doc: PDFDocumentProxy; revision: ContentHash }
+  | { kind: 'derived-text'; text: string; revision: ContentHash };
 
 const extensionOf = (name: string) => (name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toLowerCase() : '');
 const why = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -45,6 +53,27 @@ export default function ResourceReader({ resourceRef, name, onQuote }: Props) {
   const [page, setPage] = useState(1);
   const scroller = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(640);
+  // which reading of the file is wanted: it goes up when the workspace reports a version other than the one shown
+  const [reading, setReading] = useState(0);
+  // the file is not where it was: nothing of it is shown as if it were
+  const [lost, setLost] = useState(false);
+  const shownRevision = useRef<ContentHash | null>(null);
+
+  // what the workspace reports about this file while the reader is open
+  useEffect(() => onFileEvent(fileId, (event) => {
+    if (event.change === 'missing' || event.change === 'ambiguous') { setLost(true); return; }
+    const back = event.change === 'restored';
+    if (back) setLost(false);
+    // news of the version that is on screen is not a reason to read it again
+    if (!back && (event.change !== 'content' || event.observedRevision === shownRevision.current)) return;
+    // what was selected was selected in the old version: it is not carried over to the new one
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0 && scroller.current?.contains(selection.getRangeAt(0).commonAncestorContainer)) selection.removeAllRanges();
+    shownRevision.current = null;
+    setFailed(null);
+    setLoaded(null);
+    setReading((n) => n + 1);
+  }), [fileId]);
 
   useEffect(() => {
     let gone = false;
@@ -61,7 +90,7 @@ export default function ResourceReader({ resourceRef, name, onQuote }: Props) {
       if (extension === 'pdf') {
         const pdfjs = await loadPdfjs();
         doc = await pdfjs.getDocument({ data: bytes.slice() }).promise;
-        return { kind: 'pdf', pdfjs, doc } satisfies Loaded;
+        return { kind: 'pdf', pdfjs, doc, revision: read.contentHash } satisfies Loaded;
       }
       if (extension === 'docx') {
         const mammoth = await import('mammoth');
@@ -69,15 +98,15 @@ export default function ResourceReader({ resourceRef, name, onQuote }: Props) {
         return { kind: 'derived-text', text, revision: read.contentHash } satisfies Loaded;
       }
       url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: `image/${extension === 'jpg' ? 'jpeg' : extension}` }));
-      return { kind: 'image', url } satisfies Loaded;
+      return { kind: 'image', url, revision: read.contentHash } satisfies Loaded;
     })().then(
-      (result) => { if (gone) { if (url) URL.revokeObjectURL(url); void doc?.destroy(); } else setLoaded(result); },
+      (result) => { if (gone) { if (url) URL.revokeObjectURL(url); void doc?.destroy(); } else { shownRevision.current = result.revision; setLoaded(result); } },
       (e) => { if (!gone) setFailed(e instanceof WorkspaceError && e.code === 'too-large' ? t('surface.tooLargeToShow') : why(e)); },
     );
     return () => { gone = true; if (url) URL.revokeObjectURL(url); void doc?.destroy(); };
-    // the file and its kind are fixed for the life of the reader
+    // the file and its kind are fixed for the life of the reader; `reading` asks for the file to be read again
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fileId, extension]);
+  }, [fileId, extension, reading]);
 
   // pages are drawn as wide as the reader, within reason
   useEffect(() => {
@@ -103,28 +132,50 @@ export default function ResourceReader({ resourceRef, name, onQuote }: Props) {
   }, []);
 
   /**
-   * Quote what is selected. In a PDF the reference names the page the
-   * selection is on; in text it names the passage by its own words. With
-   * nothing selected there is nothing to quote.
+   * Quote what is selected. The place is taken from the selection itself:
+   * both its ends must be in this reader. In a PDF the reference names
+   * every page the selection runs over; in text it names the passage by
+   * where it starts and ends in the text that is shown, so that the same
+   * words standing elsewhere in it are not mistaken for it. With nothing
+   * selected, or a selection that runs out of the reader, there is nothing
+   * to quote.
    */
   const quote = () => {
-    if (!onQuote || !loaded) return;
+    const within = scroller.current;
+    if (!onQuote || !loaded || lost || !within) return;
     const selection = window.getSelection();
-    const words = selection && !selection.isCollapsed ? selection.toString() : '';
-    if (!words.trim() || !selection) return;
-    const anchor = selection.anchorNode instanceof Element ? selection.anchorNode : selection.anchorNode?.parentElement;
-    if (!anchor || !scroller.current?.contains(anchor)) return;
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
+    // a range runs from its start to its end whichever way the selection was dragged
+    const range = selection.getRangeAt(0);
+    if (!within.contains(range.startContainer) || !within.contains(range.endContainer)) return;
     if (loaded.kind === 'pdf') {
-      const on = anchor.closest<HTMLElement>('[data-page]');
-      const ref = on ? pdfQuote(fileId, Number(on.dataset.page)) : null;
+      const pages: number[] = [];
+      for (const holder of Array.from(within.querySelectorAll<HTMLElement>('[data-page]'))) {
+        if (!range.intersectsNode(holder)) continue;
+        // the part of the selection that is on this page: a page the selection only touches the edge of is not quoted
+        const part = range.cloneRange();
+        if (!holder.contains(range.startContainer)) part.setStart(holder, 0);
+        if (!holder.contains(range.endContainer)) part.setEnd(holder, holder.childNodes.length);
+        if (part.toString().trim()) pages.push(Number(holder.dataset.page));
+      }
+      const words = range.toString();
+      const ref = words.trim() ? pdfQuote(fileId, pages, undefined, loaded.revision) : null;
       if (ref) onQuote(ref, words);
     } else if (loaded.kind === 'derived-text') {
-      const at = loaded.text.indexOf(words);
-      const ref = at >= 0 ? textQuote(fileId, loaded.text, at, at + words.length, loaded.revision) : null;
+      const shown = within.querySelector<HTMLElement>('[data-reader-text]');
+      if (!shown || !shown.contains(range.startContainer) || !shown.contains(range.endContainer)) return;
+      const before = document.createRange();
+      before.selectNodeContents(shown);
+      before.setEnd(range.startContainer, range.startOffset);
+      const from = before.toString().length;
+      const to = from + range.toString().length;
+      const words = loaded.text.slice(from, to);
+      const ref = words.trim() ? textQuote(fileId, loaded.text, from, to, loaded.revision) : null;
       if (ref) onQuote(ref, words);
     }
   };
 
+  if (lost) return <p className="flex-1 px-4 py-6 text-xs text-amber-800 leading-relaxed" data-reader-gone>{t('surface.fileGone')}</p>;
   if (failed) return <p className="flex-1 px-4 py-6 text-xs text-ink-muted leading-relaxed" data-reader-failed>{fmt(t('workspace.failed'), { why: failed })}</p>;
   if (!loaded) {
     return (

@@ -8,10 +8,22 @@
 // (the canvas area), not of the screen. Whatever is asked, a surface is
 // never smaller than its smallest size and never somewhere its title bar
 // cannot be taken hold of.
+//
+// The surface in front is the one that is typed into: bringing a surface
+// forward is also what sends the keys to it (see `active`, which the frames
+// follow with the focus).
+//
+// Surfaces belong to the canvas that is open. A file that was asked to be
+// opened on one visit of a canvas and is ready only after that visit is
+// over opens nothing: its surface is not made, and the document that was
+// opened for it is let go again.
 
 import { create } from 'zustand';
 import type { SurfaceState } from '../workspace/contracts';
+import { canvasVisit } from '../workspace/canvas-visit';
 import { reconcileFile, WorkspaceError } from '../workspace/client';
+import { toast } from '../ui-store';
+import { fmt, t } from '../../i18n';
 import { documents } from './document-service';
 
 export type Rect = SurfaceState['rect'];
@@ -22,6 +34,8 @@ export type SurfaceKind = SurfaceState['kind'];
 /** A surface as the page holds it: the contract's state, plus what it shows by name and where it goes back to. */
 export interface Surface extends SurfaceState {
   fileId: string;
+  /** the workspace the file is in: the page listens to it for as long as the surface is open, so that what is shown follows the file */
+  workspaceId: string;
   title: string;
   /** where the surface was before it was maximized, docked or put away: what "restore" returns it to */
   back: { placement: Placement; rect: Rect } | null;
@@ -70,20 +84,24 @@ interface SurfacesState {
   /** surface ids from the one furthest back to the one in front */
   order: string[];
   container: Size;
+  /** the surface that was last brought forward, and a count that goes up each time one is: the frame of that surface takes the focus */
+  active: { surfaceId: string | null; turn: number };
 }
 
-export const useSurfaces = create<SurfacesState>(() => ({ surfaces: [], order: [], container: { width: 1280, height: 800 } }));
+export const useSurfaces = create<SurfacesState>(() => ({ surfaces: [], order: [], container: { width: 1280, height: 800 }, active: { surfaceId: null, turn: 0 } }));
 
 const change = (surfaceId: string, patch: (s: Surface) => Partial<Surface>) => useSurfaces.setState((state) => ({
   surfaces: state.surfaces.map((s) => (s.surfaceId === surfaceId ? { ...s, ...patch(s) } : s)),
 }));
 const newSurfaceId = () => `surface_${crypto.randomUUID()}`;
 
-/** Bring a surface in front of the others. */
+/** Bring a surface in front of the others. It is the one that is typed into from then on. */
 export function focusSurface(surfaceId: string): void {
-  useSurfaces.setState((state) => (state.order.at(-1) === surfaceId || !state.order.includes(surfaceId)
-    ? state
-    : { order: [...state.order.filter((id) => id !== surfaceId), surfaceId] }));
+  useSurfaces.setState((state) => {
+    if (!state.order.includes(surfaceId)) return state;
+    const active = { surfaceId, turn: (state.active?.turn ?? 0) + 1 };
+    return state.order.at(-1) === surfaceId ? { active } : { active, order: [...state.order.filter((id) => id !== surfaceId), surfaceId] };
+  });
 }
 
 /**
@@ -91,14 +109,14 @@ export function focusSurface(surfaceId: string): void {
  * already be open for that id as a view (see `openFileSurface`, which does
  * both). `as` places it; otherwise it floats beside the surfaces already there.
  */
-export function openSurface(documentId: string, kind: SurfaceKind, options: { surfaceId?: string; fileId?: string; title?: string; placement?: Placement; rect?: Rect; reading?: boolean; notice?: Surface['notice'] } = {}): string {
+export function openSurface(documentId: string, kind: SurfaceKind, options: { surfaceId?: string; fileId?: string; workspaceId?: string; title?: string; placement?: Placement; rect?: Rect; reading?: boolean; notice?: Surface['notice'] } = {}): string {
   const surfaceId = options.surfaceId ?? newSurfaceId();
   useSurfaces.setState((state) => {
     const floating = state.surfaces.filter((s) => s.placement === 'floating').length;
     // each new surface a step down and across from the last, wrapping before it leaves the container
     const step = (floating % 8) * 28;
     const rect = fitRect(options.rect ?? { ...DEFAULT_SIZE, x: state.container.width - DEFAULT_SIZE.width - 24 - step, y: 64 + step }, state.container);
-    const surface: Surface = { surfaceId, documentId, kind, placement: options.placement ?? 'floating', rect, fileId: options.fileId ?? '', title: options.title ?? '', back: null, reading: options.reading ?? false, notice: options.notice ?? null };
+    const surface: Surface = { surfaceId, documentId, kind, placement: options.placement ?? 'floating', rect, fileId: options.fileId ?? '', workspaceId: options.workspaceId ?? '', title: options.title ?? '', back: null, reading: options.reading ?? false, notice: options.notice ?? null };
     return { surfaces: [...state.surfaces, surface], order: [...state.order, surfaceId] };
   });
   return surfaceId;
@@ -138,10 +156,25 @@ export function restoreSurface(surfaceId: string): void {
   focusSurface(surfaceId);
 }
 
-/** Close a surface. Its view of the document is closed with it; the file is not touched. */
-export function closeSurface(surfaceId: string): void {
+/**
+ * Close a surface. Its view of the document is closed with it; the file is
+ * not touched. What was typed is saved or kept as a draft by the document
+ * service. When neither could be done the document stays open, the person
+ * is told, and the surface comes back with the text in it, unless the
+ * canvas itself is being left (`leaving`) or was left meanwhile: then the
+ * document waits in the background and is tried again by itself.
+ */
+export function closeSurface(surfaceId: string, how: { leaving?: boolean } = {}): void {
+  const closed = useSurfaces.getState().surfaces.find((s) => s.surfaceId === surfaceId);
+  const visit = canvasVisit();
   useSurfaces.setState((state) => ({ surfaces: state.surfaces.filter((s) => s.surfaceId !== surfaceId), order: state.order.filter((id) => id !== surfaceId) }));
-  void documents.closeView(surfaceId);
+  void documents.closeView(surfaceId).then((result) => {
+    if (!result.held) return;
+    toast('error', fmt(t('surface.notKept'), { name: closed?.title || documents.status(result.documentId)?.name || '' }), 12000);
+    if (how.leaving || canvasVisit() !== visit) return;
+    const placement = !closed || closed.placement === 'minimized' ? 'floating' : closed.placement;
+    void openFileSurface(result.fileId, { placement, ...(closed ? { rect: closed.rect } : {}) }).catch(() => {});
+  }).catch(() => {});
 }
 
 /** The container the surfaces live in changed size: every surface is brought back within it. */
@@ -167,9 +200,16 @@ export const isReadOnly = (name: string): boolean => surfaceKindOf(name) === 'pd
 
 /**
  * Show a file in a surface. One surface per file: a file that already has
- * one gets it brought to the front. Resolves with the surface's id.
+ * one gets it brought to the front. Resolves with the surface's id, or with
+ * null when the canvas it was asked for is no longer the one that is open:
+ * then no surface is made. `visit` is the visit of the canvas the request
+ * belongs to, when it was started before this call (a layout being put
+ * back); otherwise it is the visit that is open now.
  */
-export async function openFileSurface(fileId: string, options: { placement?: Placement; rect?: Rect } = {}): Promise<string> {
+export async function openFileSurface(fileId: string, options: { placement?: Placement; rect?: Rect; visit?: number } = {}): Promise<string | null> {
+  const { visit = canvasVisit(), ...place_ } = options;
+  const left = () => canvasVisit() !== visit;
+  if (left()) return null;
   const existing = useSurfaces.getState().surfaces.find((s) => s.fileId === fileId);
   if (existing) {
     if (existing.placement === 'minimized') restoreSurface(existing.surfaceId); else focusSurface(existing.surfaceId);
@@ -177,23 +217,31 @@ export async function openFileSurface(fileId: string, options: { placement?: Pla
   }
   const surfaceId = newSurfaceId();
   const record = await reconcileFile(fileId);
+  if (left()) return null;
   const name = (record.relativePath ?? '').split('/').pop() || fileId;
   /** The surface, unless someone else opened the same file while this one was getting ready. */
   const place = (documentId: string, more: { reading?: boolean; notice?: Surface['notice'] } = {}): string => {
     const raced = useSurfaces.getState().surfaces.find((s) => s.fileId === fileId);
     if (raced) { void documents.closeView(surfaceId); focusSurface(raced.surfaceId); return raced.surfaceId; }
-    return openSurface(documentId, surfaceKindOf(name), { surfaceId, fileId, title: name, ...options, ...more });
+    const made = openSurface(documentId, surfaceKindOf(name), { surfaceId, fileId, workspaceId: record.workspaceId, title: name, ...place_, ...more });
+    if (place_.placement !== 'minimized') focusSurface(made);
+    return made;
   };
   // a file that is read, not typed into, has a reader and no document
   if (isReadOnly(name)) return place(`reader:${fileId}`, { reading: true });
+  let documentId: string;
   try {
-    return place((await documents.open(fileId, surfaceId)).documentId);
+    documentId = (await documents.open(fileId, surfaceId)).documentId;
   } catch (e) {
+    if (left()) return null;
     // it cannot be typed into here: the surface opens all the same, and says why
     if (e instanceof WorkspaceError && e.code === 'too-large') return place(`notice:${fileId}`, { notice: 'too-large' });
     if (e instanceof WorkspaceError && (e.code === 'not-text' || e.code === 'not-utf8')) return place(`notice:${fileId}`, { notice: 'not-text' });
     throw e;
   }
+  // the canvas was left while the file was being read: the view that was opened for a surface that will not be is closed again
+  if (left()) { void documents.closeView(surfaceId); return null; }
+  return place(documentId);
 }
 
 // ── the layout of a canvas's surfaces ──────────────────────────────────
@@ -216,17 +264,26 @@ export function saveLayout(canvasId: string): void {
   } catch { /* no storage: the layout is not remembered */ }
 }
 
-/** Open again what this canvas had open, where it was. A file that is no longer there is left out. */
+/**
+ * Open again what this canvas had open, where it was. A file that is no
+ * longer there is left out. It belongs to the visit of the canvas it was
+ * started on: if the canvas is left before it is done, it stops, and
+ * nothing more of it is opened.
+ */
 export async function restoreLayout(canvasId: string): Promise<void> {
+  const visit = canvasVisit();
   let saved: SavedSurface[] = [];
   try { saved = JSON.parse(localStorage.getItem(layoutKey(canvasId)) ?? '[]'); } catch { /* nothing to put back */ }
   if (!Array.isArray(saved)) return;
   for (const entry of saved) {
+    if (canvasVisit() !== visit) return;
     if (!entry || typeof entry.fileId !== 'string' || !entry.rect) continue;
     try {
       const record = await reconcileFile(entry.fileId);
+      if (canvasVisit() !== visit) return;
       if (record.status === 'missing' || record.status === 'ambiguous') continue;
-      const surfaceId = await openFileSurface(entry.fileId, { placement: entry.placement, rect: entry.rect });
+      const surfaceId = await openFileSurface(entry.fileId, { placement: entry.placement, rect: entry.rect, visit });
+      if (surfaceId === null) return;
       if (entry.back) change(surfaceId, () => ({ back: entry.back }));
     } catch { /* the file, or its workspace, is not there any more */ }
   }
@@ -234,5 +291,5 @@ export async function restoreLayout(canvasId: string): Promise<void> {
 
 /** Close every surface: the canvas is being left. Their documents are saved or kept as drafts by the document service. */
 export function closeAllSurfaces(): void {
-  for (const s of [...useSurfaces.getState().surfaces]) closeSurface(s.surfaceId);
+  for (const s of [...useSurfaces.getState().surfaces]) closeSurface(s.surfaceId, { leaving: true });
 }

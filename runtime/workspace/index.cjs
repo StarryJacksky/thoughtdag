@@ -562,6 +562,11 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
       return (await operationsOf(await grantOfFile(fileId))).listVersions(fileId);
     },
 
+    /** The text a file held in one of its earlier versions, to look at. Nothing is put back. */
+    async readVersion(fileId, revision) {
+      return (await operationsOf(await grantOfFile(fileId))).readVersion(fileId, revision);
+    },
+
     /** Put an earlier version of a file back, if the file still holds what the caller saw. Resolves with a SaveResult. */
     async restoreVersion(fileId, revision, baseRevision, opId) {
       const grant = await grantOfFile(fileId);

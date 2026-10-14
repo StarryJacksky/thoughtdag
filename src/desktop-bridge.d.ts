@@ -264,6 +264,8 @@ interface DesktopWorkspaceBridge {
   /** what a file held before each save that replaced it, newest first */
   listVersions(fileId: string): Promise<import('./lib/workspace/contracts').FileVersion[]>;
   /** put an earlier version back, if the file still holds `baseRevision` */
+  /** the text of one of a file's earlier versions, to look at; nothing is put back */
+  readVersion(fileId: string, revision: string): Promise<import('./lib/workspace/contracts').TextRevision>;
   restoreVersion(fileId: string, revision: string, baseRevision: string, opId: string): Promise<import('./lib/workspace/contracts').SaveResult>;
   /** a file's content as its source gives it (text, or bytes), with the hash of what was read; a file too large to send is refused unread */
   readSource(fileId: string): Promise<import('./lib/workspace/contracts').SourceRead>;

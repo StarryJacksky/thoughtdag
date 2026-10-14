@@ -1,0 +1,45 @@
+# T10b: tests/unit/document-versions.test.tsx, first run, before the behaviour was written.
+# The comparison and the panel existed only as names that draw nothing, so the failures are about what is
+# (not) on screen: there was no control for a file's earlier versions and no comparison of a conflict's sides.
+# Command: npx vitest run tests/unit/document-versions.test.tsx
+
+     × is listed in the document's surface: one entry for each save that replaced something, newest first 93ms
+     × can be looked at without being put back 8ms
+     × can be put back: the file and the document hold it, and what it replaced is kept as a version in turn 7ms
+     × is not put back over a change another program made since: the file keeps that change, and the person is told 4ms
+     × is not put back while there is unsaved typing: that would be lost 5ms
+     × can be looked at and not put back in a file that cannot be written 7ms
+     × says so when there is none yet 4ms
+     × marks the lines that differ and no others 5ms
+     × shows a line only one side has beside nothing, and keeps the lines after it in step 4ms
+     × is drawn side by side with the differing lines marked 4ms
+     × is offered in the document when its typing is in conflict with the file, and the three ways to settle it stay 5ms
+⎯⎯⎯⎯⎯⎯ Failed Tests 11 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/unit/document-versions.test.tsx > what a file held before each save > is listed in the document's surface: one entry for each save that replaced something, newest first
+TypeError: Cannot read properties of null (reading 'click')
+ FAIL  tests/unit/document-versions.test.tsx > what a file held before each save > can be looked at without being put back
+TypeError: Cannot read properties of null (reading 'click')
+ FAIL  tests/unit/document-versions.test.tsx > what a file held before each save > can be put back: the file and the document hold it, and what it replaced is kept as a version in turn
+TypeError: Cannot read properties of null (reading 'click')
+ FAIL  tests/unit/document-versions.test.tsx > what a file held before each save > is not put back over a change another program made since: the file keeps that change, and the person is told
+TypeError: Cannot read properties of null (reading 'click')
+ FAIL  tests/unit/document-versions.test.tsx > what a file held before each save > is not put back while there is unsaved typing: that would be lost
+TypeError: Cannot read properties of null (reading 'click')
+ FAIL  tests/unit/document-versions.test.tsx > what a file held before each save > can be looked at and not put back in a file that cannot be written
+TypeError: Cannot read properties of null (reading 'click')
+ FAIL  tests/unit/document-versions.test.tsx > what a file held before each save > says so when there is none yet
+TypeError: Cannot read properties of null (reading 'click')
+ FAIL  tests/unit/document-versions.test.tsx > the two sides of a conflict, line by line > marks the lines that differ and no others
+AssertionError: expected [] to deeply equal [ [ 'title', 'title', false ], …(3) ]
+ FAIL  tests/unit/document-versions.test.tsx > the two sides of a conflict, line by line > shows a line only one side has beside nothing, and keeps the lines after it in step
+AssertionError: expected [] to deeply equal [ [ 'a', 'a', false ], …(3) ]
+ FAIL  tests/unit/document-versions.test.tsx > the two sides of a conflict, line by line > is drawn side by side with the differing lines marked
+AssertionError: expected [] to deeply equal [ Array(4) ]
+ FAIL  tests/unit/document-versions.test.tsx > the two sides of a conflict, line by line > is offered in the document when its typing is in conflict with the file, and the three ways to settle it stay
+TypeError: Cannot read properties of null (reading 'click')
+ Test Files  1 failed (1)
+      Tests  11 failed (11)
+
+# The host test for reading a kept version failed the same way before the call existed:
+#   not ok - [T10b] what a file held before a save can be read as text, to look at, without putting it back
+#     error: 'service.readVersion is not a function'

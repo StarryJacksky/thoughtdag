@@ -240,6 +240,11 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
       return entryIdOf(kept.item.relativePath);
     }),
     listVersions: door('listVersions', null, (fileId: string): FileVersion[] => (versions.get(fileId) ?? []).map((content) => ({ fileId, revision: fakeRevision(content), keptAt: '2026-10-05T00:00:00Z', size: content.length }))),
+    readVersion: door('readVersion', null, (fileId: string, revision: string) => {
+      const content = (versions.get(fileId) ?? []).find((c) => fakeRevision(c) === revision);
+      if (content === undefined) throw new Error('not-found: that version is not kept in the recovery area');
+      return { text: content, revision, encoding: 'utf-8', newline: 'lf' as const };
+    }),
     restoreVersion: door('restoreVersion', 3, (fileId: string, revision: string, baseRevision: string, opId: string) => {
       const f = files.get(fileId)!;
       if (fakeRevision(f.content) !== baseRevision) return { status: 'conflict' as const, currentRevision: fakeRevision(f.content) };

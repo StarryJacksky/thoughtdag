@@ -232,6 +232,11 @@ export async function listVersions(fileId: string): Promise<FileVersion[]> {
   return versions.map((version) => checked('FileVersion', version));
 }
 
+/** The text of one of a file's earlier versions, to look at. Nothing is put back. */
+export async function readVersion(fileId: string, revision: ContentHash): Promise<TextRevision> {
+  return checked('TextRevision', await call((b) => b.readVersion(fileId, revision)));
+}
+
 /** Put an earlier version of a file back, if the file still holds `baseRevision`. */
 export async function restoreVersion(fileId: string, revision: ContentHash, baseRevision: ContentHash, opId: string): Promise<SaveResult> {
   return checked('SaveResult', await call((b) => b.restoreVersion(fileId, revision, baseRevision, opId)));

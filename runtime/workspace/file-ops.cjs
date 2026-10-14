@@ -515,6 +515,21 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
     },
 
     /**
+     * The text of an earlier version, to look at. Nothing is put back and
+     * nothing is changed. Resolves like `readText`; a version that is not
+     * kept whole is `not-found`, and one that is not text is refused as a
+     * file of that kind would be.
+     */
+    async readVersion(fileId, revision) {
+      await recordOf(fileId);
+      if (typeof revision !== 'string' || !/^sha256:[0-9a-f]{64}$/.test(revision)) throw new WorkspaceAccessError('invalid-request', 'that is not the revision of a version');
+      const bytes = await readPreviousVersion(grant.rootPath, fileId, revision, io);
+      if (!bytes) throw new WorkspaceAccessError('not-found', 'that version is not kept in the recovery area');
+      if (bytes.length > MAX_EDITABLE_BYTES) throw new WorkspaceAccessError('too-large', 'the version is too large to be read here');
+      return { ...decodeText(bytes), revision };
+    },
+
+    /**
      * Put an earlier version of the file back in place of what it holds
      * now, if it still holds what the caller saw. It is a save like any
      * other: what it replaces is kept as a version in turn.

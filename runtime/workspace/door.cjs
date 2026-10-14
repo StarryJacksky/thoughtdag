@@ -174,6 +174,10 @@ function createWorkspaceDoor({ service, providers, canvasFolder, showInFileManag
       const { scope, provider } = await ofFile(fileId, 'read');
       return extra(provider, 'listVersions')(scope, String(fileId));
     },
+    'workspace:read-version': async (_context, fileId, revision) => {
+      const { scope, provider } = await ofFile(fileId, 'read');
+      return extra(provider, 'readVersion')(scope, String(fileId), String(revision));
+    },
     'workspace:restore-version': async (_context, fileId, revision, baseRevision, opId) => {
       const { scope, provider } = await ofFile(fileId, 'update');
       return extra(provider, 'restoreVersion')(scope, String(fileId), String(revision), String(baseRevision), String(opId));

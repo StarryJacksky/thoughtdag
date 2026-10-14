@@ -114,6 +114,7 @@ test('a local folder answers every call of the door as it did before the door wa
   assert.ok(fs.existsSync(at('outlines-2/a-copy.md')));
   const versions = await ask('list-versions', a.fileId);
   assert.deepEqual(versions.map((v) => v.revision), [sha('FIRST_TEXT_B3\n')]);
+  assert.equal((await ask('read-version', a.fileId, versions[0].revision)).text, 'FIRST_TEXT_B3\n');
   assert.equal((await ask('restore-version', a.fileId, versions[0].revision, sha('SECOND_TEXT_D5\n'), 'op-version')).status, 'saved');
   assert.equal(fs.readFileSync(at('notes/a.md'), 'utf8'), 'FIRST_TEXT_B3\n');
 });

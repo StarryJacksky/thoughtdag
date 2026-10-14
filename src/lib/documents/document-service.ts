@@ -20,7 +20,7 @@
 // The text shown uses plain line feeds; what is written back keeps the
 // file's own line endings (its byte-order mark is the shell's to keep).
 
-import { newOperationId, readText, reconcileFile, saveText, WorkspaceError } from '../workspace/client';
+import { newOperationId, readText, reconcileFile, restoreVersion, saveText, WorkspaceError } from '../workspace/client';
 import type { ContentHash, DocumentEdit, DocumentModel, SaveResult, TextRevision, WorkspaceEvent } from '../workspace/contracts';
 import { workspaceDrafts, type DraftStore } from './draft-store';
 import { applyChanges, changeBetween, History, validChanges, type Change } from './history';
@@ -91,6 +91,14 @@ export interface DocumentService {
   redo(documentId: string, surfaceId: string): boolean;
   /** Write the buffer to the file now. Resolves with what the workspace answered; it does not reject. */
   save(documentId: string): Promise<SaveResult>;
+  /**
+   * Put one of the file's earlier versions back. It replaces the file's
+   * content, so it is done only when nothing is unsaved, and only over the
+   * content the document shows; if the file was changed elsewhere it is a
+   * conflict, nothing is written, and the document takes what the file
+   * holds. Resolves with what the workspace answered; it does not reject.
+   */
+  restoreVersion(documentId: string, revision: ContentHash): Promise<SaveResult>;
   /** Settle a conflict: take the file's content, write mine over it, or put both in the buffer to sort out by hand. */
   resolveConflict(documentId: string, choice: 'mine' | 'theirs' | 'both', labels?: { mine: string; theirs: string }): Promise<void>;
   subscribe(documentId: string, listener: DocumentListener): () => void;
@@ -620,6 +628,22 @@ export function createDocumentService({ drafts = workspaceDrafts, now = () => Da
       return save(doc);
     },
     resolveConflict,
+    async restoreVersion(documentId, revision) {
+      const doc = byId.get(documentId);
+      if (!doc) return { status: 'error', reason: 'that document is not open' };
+      if (doc.model.state === 'readonly') return { status: 'readonly', reason: 'the file cannot be written' };
+      if (dirty(doc) || doc.saving || doc.problem !== null) return { status: 'error', reason: 'there is typing that is not saved yet' };
+      const opId = newOperationId();
+      // the news of this is not news of a change from elsewhere: the document reads the file itself, below
+      doc.sent.add(opId);
+      let result: SaveResult;
+      try { result = await restoreVersion(doc.model.fileId, revision, doc.model.sourceContentHash, opId); } catch (e) {
+        result = { status: 'error', reason: e instanceof WorkspaceError ? e.message : why(e) };
+      }
+      // put back, or found changed by someone else: either way the document shows what the file holds now
+      if (!doc.closed && (result.status === 'saved' || result.status === 'conflict')) await reload(doc);
+      return result;
+    },
     subscribe(documentId, listener) {
       const doc = byId.get(documentId);
       if (!doc) return () => {};

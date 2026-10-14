@@ -209,6 +209,25 @@ test('what a file held before each save can be listed and put back; the content 
   assert.equal(workspace.readOnly, false);
 });
 
+test('[T10b] what a file held before a save can be read as text, to look at, without putting it back', async () => {
+  const { service, open, at } = await withArchive();
+  const a = await open('notes/a.md');
+  const second = await service.saveText(a.record.fileId, a.revision, 'SECOND_TEXT_D5\r\nwith a Windows line\r\n', 'op-1');
+  await service.saveText(a.record.fileId, second.revision, 'THIRD_TEXT_F7\n', 'op-2');
+
+  const first = await service.readVersion(a.record.fileId, sha('FIRST_TEXT_B3\n'));
+  await valid('TextRevision', first);
+  assert.deepEqual(first, { text: 'FIRST_TEXT_B3\n', revision: sha('FIRST_TEXT_B3\n'), encoding: 'utf-8', newline: 'lf' });
+  assert.equal((await service.readVersion(a.record.fileId, second.revision)).newline, 'crlf');
+  // looking at a version changes nothing: the file holds what it held, and the versions are the same
+  assert.equal(fs.readFileSync(at('notes/a.md'), 'utf8'), 'THIRD_TEXT_F7\n');
+  assert.equal((await service.listVersions(a.record.fileId)).length, 2);
+
+  await assert.rejects(service.readVersion(a.record.fileId, sha('NEVER_KEPT\n')), { code: 'not-found' });
+  await assert.rejects(service.readVersion(a.record.fileId, 'latest'), { code: 'invalid-request' });
+  await assert.rejects(service.readVersion('file_nobody_knows', sha('FIRST_TEXT_B3\n')), { code: 'unknown-file' });
+});
+
 test('a folder whose records a newer version wrote is not rearranged: no folder is moved, copied, trashed, and nothing is put back', async () => {
   const { service, start, workspace, open, at, project, notes, archive } = await withArchive();
   const a = await open('notes/a.md');

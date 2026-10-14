@@ -648,6 +648,37 @@ test.describe.serial('documents open beside the canvas, in the desktop shell', (
     await expect.poll(() => textIn(surface('two.tex'))).toMatch(/^content of two\.tex/);
   });
 
+  test('what a file held before each save is listed in its surface, can be looked at, and can be put back', async () => {
+    await bringForward('three.py');
+    const doc = surface('three.py');
+    const saved = () => expect(doc.locator('[data-surface-state]')).toHaveAttribute('data-surface-state', 'clean');
+    await typeIn(doc, 'VERSION_TWO_H2 = 2\n');
+    await saved();
+    await typeIn(doc, 'VERSION_THREE_H3 = 3\n');
+    await saved();
+    expect(fs.readFileSync(path.join(sProject, 'three.py'), 'utf8')).toBe('VERSION_THREE_H3 = 3\n');
+
+    await doc.locator('[data-versions-toggle]').click();
+    const versions = doc.locator('[data-version]');
+    // every save that replaced something left a version: the newest of them is what the last save replaced
+    await expect.poll(() => versions.count()).toBeGreaterThanOrEqual(2);
+    await versions.first().locator('[data-version-preview]').click();
+    await expect(doc.locator('[data-version-text]')).toHaveText('VERSION_TWO_H2 = 2\n');
+    expect(fs.readFileSync(path.join(sProject, 'three.py'), 'utf8'), 'looking changes nothing').toBe('VERSION_THREE_H3 = 3\n');
+
+    const before = await versions.count();
+    await versions.first().locator('[data-version-restore]').click();
+    await expect.poll(() => fs.readFileSync(path.join(sProject, 'three.py'), 'utf8')).toBe('VERSION_TWO_H2 = 2\n');
+    await expect.poll(() => textIn(doc)).toBe('VERSION_TWO_H2 = 2\n');
+    await expect.poll(() => versions.count(), 'what was replaced is kept in turn').toBe(before + 1);
+
+    // (that a version is not put back over another program's change is checked where the order of the two
+    // can be fixed: tests/unit/document-versions.test.tsx. Here the folder is watched, and which of the
+    // change's news and the click comes first is not something a test can decide.)
+    await doc.locator('[data-versions-toggle]').click();
+    await expect(doc.locator('[data-versions]')).toHaveCount(0);
+  });
+
   test('closing a document\'s view deletes nothing', async () => {
     for (const name of ['one.md', 'two.tex', 'three.py']) { await bringForward(name); await surface(name).locator('[data-surface-close]').click(); }
     await expect(sp.locator('[data-surface]')).toHaveCount(0);

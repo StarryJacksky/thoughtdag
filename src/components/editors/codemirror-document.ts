@@ -20,6 +20,7 @@ import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { documents } from '../../lib/documents/document-service';
 import { markdownLivePreview, texMathPreview } from './live-preview';
+import { formulaInput } from './formula-input';
 import { changeBetween, type Change } from '../../lib/documents/history';
 
 /** Marks a transaction that brings the document's state into the editor: it is not typing, and is not sent back. */
@@ -152,6 +153,8 @@ export function bindEditor(parent: HTMLElement, documentId: string, surfaceId: s
         readOnly.of(EditorState.readOnly.of(model.state === 'readonly')),
         language.of(kind === 'markdown' ? markdown({ base: markdownLanguage }) : []),
         preview.of(previewOf(options.preview ?? false)),
+        // formulas typed quickly: commands offered, dollar signs paired, Mod-E and Mod-Shift-E, the formula drawn under it
+        kind === 'markdown' || kind === 'tex' ? formulaInput(kind) : [],
         keymap.of([
           { key: 'Mod-s', preventDefault: true, run: () => { onSave(); return true; } },
           ...(kind !== 'other' ? [{ key: 'Mod-Shift-m', preventDefault: true, run: () => { options.onTogglePreview?.(); return true; } }] : []),

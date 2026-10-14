@@ -131,12 +131,12 @@ class BulletWidget extends WidgetType {
 
 // The markup shows where the cursor is only while the editor is being typed in: a document that is just
 // open, or that the person is reading while working elsewhere, is shown laid out from top to bottom.
-const focusChanged = StateEffect.define<boolean>();
-const focused = StateField.define<boolean>({
+export const focusChanged = StateEffect.define<boolean>();
+export const focused = StateField.define<boolean>({
   create: () => false,
   update: (value, tr) => tr.effects.reduce((v, e) => (e.is(focusChanged) ? e.value : v), value),
 });
-const followFocus = EditorView.focusChangeEffect.of((_state, focusing) => focusChanged.of(focusing));
+export const followFocus = EditorView.focusChangeEffect.of((_state, focusing) => focusChanged.of(focusing));
 
 const hidden = Decoration.replace({});
 const lineClass = (name: string) => Decoration.line({ class: name });

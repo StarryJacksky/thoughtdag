@@ -752,6 +752,10 @@ body.tdag-connecting, body.tdag-connecting * {
 .cm-math { cursor: text; }
 .cm-math-inline { padding: 0 .1em; }
 .cm-math-block { display: block; text-align: center; padding: .4em 0; overflow-x: auto; }
+/* the formula under the cursor, drawn below it while it is typed (formula-input.ts) */
+.cm-tooltip.cm-formula-tooltip { background: var(--color-card, #fff); border: 1px solid var(--color-line, #E8E5E0); border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.08); padding: 6px 10px; max-width: min(640px, 90vw); overflow-x: auto; margin-top: 4px; }
+.cm-formula-preview .katex-display { margin: .2em 0; }
+.cm-formula-preview-error { font-family: var(--font-mono); color: #b45309; }
 .cm-math .katex-error { color: #b45309; }
 /* the reading view of a Markdown file: the same page, rendered */
 .note-page { max-width: 46rem; margin: 0 auto; padding: 1.5rem 1.75rem 4rem; font-size: 15.5px; line-height: 1.8; }

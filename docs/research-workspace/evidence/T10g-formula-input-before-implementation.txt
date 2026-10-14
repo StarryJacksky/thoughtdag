@@ -1,0 +1,191 @@
+# npx vitest run tests/unit/formula-input.test.tsx on the code of a42a5b4, before quick formula input is implemented
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/formula-input.test.tsx (13 tests | 10 failed) 2402ms
+   ❯ the commands of a formula (4)
+     × are offered in a Markdown formula as they are typed, and one taken is filled in with its places to fill 425ms
+     × give Greek letters, operators and structures, each named with what it draws 348ms
+     × are offered anywhere in a LaTeX source, with its own commands as well 354ms
+   ❯ dollar signs and braces (4)
+     × a dollar sign typed comes with the one that closes it, and typing it again steps over that one 113ms
+     × a dollar sign typed over selected words makes them a formula 109ms
+     × a brace typed in a formula comes with its closing one; in the words around it, it does not 118ms
+   ❯ the keys for a formula (3)
+     × Mod-E puts a formula in the line, around what is selected if anything is 56ms
+     × Mod-Shift-E puts a formula on lines of its own: $$ in Markdown, \[ \] in LaTeX 54ms
+   ❯ a formula being typed (2)
+     × is shown drawn under it while the cursor is in it, in Markdown and in LaTeX, and not when it is not 109ms
+     × that does not parse yet is shown as it is, marked, without an error 104ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 10 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/formula-input.test.tsx > the commands of a formula > are offered in a Markdown formula as they are typed, and one taken is filled in with its places to fill
+AssertionError: expected [] to include '\frac'
+ ❯ tests/unit/formula-input.test.tsx:78:35
+     76|     const { editor } = await open('notes/n.md', 'Mean: $$ done\n');
+     77|     await type(editor, '\\fr', 'Mean: $'.length);
+     78|     expect(await offered(editor)).toContain('\\frac');
+       |                                   ^
+     79|     // \frac first: it is what was being typed
+     80|     expect(currentCompletions(editor.state)[0].label).toBe('\\frac');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/10]⎯
+
+ FAIL  tests/unit/formula-input.test.tsx > the commands of a formula > give Greek letters, operators and structures, each named with what it draws
+AssertionError: expected [] to include '\alpha'
+ ❯ tests/unit/formula-input.test.tsx:95:35
+     93|     const { editor } = await open('notes/n.md', '$$\n\n$$\n');
+     94|     await type(editor, '\\al', 3);
+     95|     expect(await offered(editor)).toContain('\\alpha');
+       |                                   ^
+     96|     expect(currentCompletions(editor.state).find((c) => c.label === '\…
+     97|     await during(() => { editor.dispatch({ changes: { from: 3, to: 6, …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/10]⎯
+
+ FAIL  tests/unit/formula-input.test.tsx > the commands of a formula > are offered anywhere in a LaTeX source, with its own commands as well
+AssertionError: expected [] to include '\section{}'
+ ❯ tests/unit/formula-input.test.tsx:115:35
+    113|     const at = '\\documentclass{article}\n\\begin{document}\n'.length;
+    114|     await type(editor, '\\sec', at);
+    115|     expect(await offered(editor)).toContain('\\section{}');
+       |                                   ^
+    116|     await accept(editor);
+    117|     await settle();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/10]⎯
+
+ FAIL  tests/unit/formula-input.test.tsx > dollar signs and braces > a dollar sign typed comes with the one that closes it, and typing it again steps over that one
+AssertionError: expected 'x $\n' to be 'x $$\n' // Object.is equality
+
+- Expected
++ Received
+
+- x $$
++ x $
+
+
+ ❯ tests/unit/formula-input.test.tsx:127:28
+    125|     const { editor } = await open('notes/n.md', 'x \n');
+    126|     await type(editor, '$', 2);
+    127|     expect(textOf(editor)).toBe('x $$\n');
+       |                            ^
+    128|     expect(cursor(editor)).toBe(3);
+    129|     await type(editor, 'a^2$');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/10]⎯
+
+ FAIL  tests/unit/formula-input.test.tsx > dollar signs and braces > a dollar sign typed over selected words makes them a formula
+AssertionError: expected 'area is $ here\n' to be 'area is $pi r^2$ here\n' // Object.is equality
+
+- Expected
++ Received
+
+- area is $pi r^2$ here
++ area is $ here
+
+
+ ❯ tests/unit/formula-input.test.tsx:138:28
+    136|     await during(() => { editor.dispatch({ selection: { anchor: 'area …
+    137|     await type(editor, '$');
+    138|     expect(textOf(editor)).toBe('area is $pi r^2$ here\n');
+       |                            ^
+    139|   });
+    140|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/10]⎯
+
+ FAIL  tests/unit/formula-input.test.tsx > dollar signs and braces > a brace typed in a formula comes with its closing one; in the words around it, it does not
+AssertionError: expected 'see $x^{$ and \n' to be 'see $x^{}$ and \n' // Object.is equality
+
+- Expected
++ Received
+
+- see $x^{}$ and 
++ see $x^{$ and 
+
+
+ ❯ tests/unit/formula-input.test.tsx:152:28
+    150|     const { editor } = await open('notes/n.md', 'see $x^$ and \n');
+    151|     await type(editor, '{', 'see $x^'.length);
+    152|     expect(textOf(editor)).toBe('see $x^{}$ and \n');
+       |                            ^
+    153|     await type(editor, '2}');
+    154|     expect(textOf(editor)).toBe('see $x^{2}$ and \n');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/10]⎯
+
+ FAIL  tests/unit/formula-input.test.tsx > the keys for a formula > Mod-E puts a formula in the line, around what is selected if anything is
+AssertionError: expected 'one two\n' to be 'one $$two\n' // Object.is equality
+
+- Expected
++ Received
+
+- one $$two
++ one two
+
+
+ ❯ tests/unit/formula-input.test.tsx:165:28
+    163|     await during(() => { editor.dispatch({ selection: { anchor: 4 } })…
+    164|     await press(editor, 'e');
+    165|     expect(textOf(editor)).toBe('one $$two\n');
+       |                            ^
+    166|     expect(cursor(editor)).toBe(5);
+    167|     await during(() => { editor.dispatch({ changes: { from: 4, to: 6, …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/10]⎯
+
+ FAIL  tests/unit/formula-input.test.tsx > the keys for a formula > Mod-Shift-E puts a formula on lines of its own: $$ in Markdown, \[ \] in LaTeX
+AssertionError: expected 'Before it\n' to be 'Before it\n$$\n\n$$\n' // Object.is equality
+
+- Expected
++ Received
+
+- Before it
+- $$
+-
+- $$
++ Before it
+
+
+ ❯ tests/unit/formula-input.test.tsx:176:31
+    174|     await during(() => { md.editor.dispatch({ selection: { anchor: 'Be…
+    175|     await press(md.editor, 'e', true);
+    176|     expect(textOf(md.editor)).toBe('Before it\n$$\n\n$$\n');
+       |                               ^
+    177|     expect(cursor(md.editor)).toBe('Before it\n$$\n'.length);
+    178|     await view!.unmount();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/10]⎯
+
+ FAIL  tests/unit/formula-input.test.tsx > a formula being typed > is shown drawn under it while the cursor is in it, in Markdown and in LaTeX, and not when it is not
+AssertionError: expected null not to be null
+ ❯ tests/unit/formula-input.test.tsx:202:23
+    200|     await settle();
+    201|     const tip = () => view!.container.querySelector('.cm-tooltip [data…
+    202|     expect(tip()).not.toBeNull();
+       |                       ^
+    203|     expect(tip()!.querySelector('.katex')).not.toBeNull();
+    204|     await during(() => { md.editor.dispatch({ selection: { anchor: 1 }…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/10]⎯
+
+ FAIL  tests/unit/formula-input.test.tsx > a formula being typed > that does not parse yet is shown as it is, marked, without an error
+AssertionError: expected null not to be null
+ ❯ tests/unit/formula-input.test.tsx:223:85
+    221|     await during(() => { editor.dispatch({ selection: { anchor: 'Then …
+    222|     await settle();
+    223|     expect(view!.container.querySelector('.cm-tooltip [data-formula-pr…
+       |                                                                                     ^
+    224|   });
+    225| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/10]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  10 failed | 3 passed (13)
+   Start at  00:27:02
+   Duration  3.24s (tests 76%, transform 11%, environment 7%, import 6%)
+

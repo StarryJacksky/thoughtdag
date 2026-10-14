@@ -76,6 +76,22 @@ test('a C program is compiled and then run; one that does not compile is not run
   assert.equal(failed.filter((e) => e.type === 'step').length, 1, 'what did not compile is not run');
 });
 
+for (const [language, tool, relativePath, source, steps] of [
+  ['C++', 'c++', 'src/hello.cpp', '#include <iostream>\nint main() { std::cout << "CPP_RAN_" << 6 * 7 << "\\n"; return 0; }\n', 2],
+  ['Rust', 'rustc', 'src/hello.rs', 'fn main() { println!("RUST_RAN_{}", 6 * 7); }\n', 2],
+  ['Go', 'go', 'src/hello.go', 'package main\n\nimport "fmt"\n\nfunc main() { fmt.Printf("GO_RAN_%d\\n", 6*7) }\n', 1],
+]) {
+  test(`a ${language} program is compiled and run with the compiler installed here, and nothing is left beside it`, { skip: !has(tool) && `no ${tool} here` }, async () => {
+    const { file, run, out, end, at } = await withRunner();
+    const id = await file(relativePath, source);
+    const events = await run(id);
+    assert.equal(end(events).status, 'ok', out(events, 'stderr'));
+    assert.equal(out(events, 'stdout'), `${language === 'C++' ? 'CPP' : language.toUpperCase()}_RAN_42\n`);
+    assert.equal(events.filter((e) => e.type === 'step').length, steps);
+    assert.deepEqual(fs.readdirSync(at('src')), [path.basename(relativePath)]);
+  });
+}
+
 test('a run can be stopped: the process and what it started end, and the run says it was stopped', { skip: !has('python3') && 'no python3 here' }, async () => {
   const { file, runner, events, end } = await withRunner();
   const id = await file('slow.py', 'import time, sys\nprint("STARTED", flush=True)\ntime.sleep(60)\nprint("NEVER")\n');

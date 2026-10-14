@@ -99,20 +99,29 @@ test('two tasks on one canvas run on their own models, share a note by an edge e
   await page.getByPlaceholder('What would you like to explore?').fill('X_TASK: write the estimator paragraph.');
   await page.keyboard.press('Enter');
   const x = cardOf(page, 'X_TASK: write the estimator paragraph.');
-  await expect(x.locator('[data-target-chip="bound"] [data-target-label]')).toHaveText('model-one · API');
   await expect.poll(() => asked.length).toBe(1);
   expect(asked[0].model).toBe(MODEL_ONE);
+  // by default no card offers a choice of AI: every task goes to the toolbar's
+  await expect(page.locator('[data-target-chip]')).toHaveCount(0);
   // room on the canvas for what comes next
   for (let i = 0; i < 4; i++) await page.locator('.react-flow__controls-zoomout').click();
 
-  // a second task, for another model, chosen when it is made
-  await page.locator('[data-new-task]').click();
-  await expect(page.locator('[data-new-task-menu] [data-target-heading]')).toHaveText(['Models through an API']);
-  await page.locator(`[data-new-task-menu] [data-target-option="${MODEL_TWO}"]`).click();
-  const y = page.locator('.react-flow__node', { has: page.locator(`[data-target-chip][data-target-model="${MODEL_TWO}"]`) });
+  // a second task, an empty question card dragged from the palette to the right of the first
+  const pane = (await page.locator('.react-flow__pane').boundingBox())!;
+  await page.getByTitle('Ask node: wire material in and ask here; the answer draws only on incoming edges').dragTo(page.locator('.react-flow__pane'), { targetPosition: { x: pane.width - 520, y: 260 } });
+  const y = page.locator('.react-flow__node').filter({ hasNot: page.getByText('X_TASK') }).filter({ has: page.getByPlaceholder('Type a question… whatever flows in along the edges is its context') });
   await expect(y).toHaveCount(1);
-  await expect(y.locator('[data-target-label]')).toHaveText('model-two · API');
-  // changing the toolbar's model later is not this task's business: X stays on the one it was sent with
+
+  // choosing an AI per task is turned on; both still start on the toolbar's, and only Y is given another
+  await page.locator('[data-per-task-ai]').click();
+  await expect(x.locator('[data-target-chip="bound"] [data-target-label]')).toHaveText('model-one · API');
+  await expect(y.locator('[data-target-chip="unbound"] [data-target-label]')).toHaveText('model-one · API');
+  await y.locator('[data-target-chip]').click();
+  await expect(y.locator('[data-target-menu] [data-target-heading]')).toHaveText(['Models through an API']);
+  await y.locator(`[data-target-menu] [data-target-option="${MODEL_TWO}"]`).click();
+  await expect(y.locator('[data-target-chip="bound"] [data-target-label]')).toHaveText('model-two · API');
+  await page.keyboard.press('Escape');
+  // X stays on the one it was sent with
   await expect(x.locator('[data-target-label]')).toHaveText('model-one · API');
 
   // a note, as shared material

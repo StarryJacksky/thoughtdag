@@ -39,7 +39,7 @@ import ResourceNodeView from './components/workspace/ResourceNodeView';
 import WorkspaceLayer from './components/workspace/WorkspaceLayer';
 import SurfaceManager from './components/surfaces/SurfaceManager';
 import TaskBar from './components/agents/TaskBar';
-import { NewTaskButton } from './components/agents/TargetPicker';
+import { PerTaskAiToggle } from './components/agents/TargetPicker';
 import NewFileButton from './components/workspace/NewFileButton';
 import { dropOnCanvas, quoteOnCanvas } from './components/workspace/actions';
 import { workspaceAvailable } from './lib/workspace/client';
@@ -1561,8 +1561,6 @@ function Canvas() {
               <MessageCircleQuestion size={17} strokeWidth={1.75} />
             </button>
           )}
-          {/* a task for a chosen AI: the same question node, bound to that AI from the start */}
-          {!isParadigm && <NewTaskButton flowPosAt={flowPosAt} />}
           <button
             onPointerDown={(e) => paletteDrag(e, (screen) => spawnContentNode('note', flowPosAt(screen)))}
             title={t('palette.noteTitle')}
@@ -1668,6 +1666,8 @@ function Canvas() {
         )}
         {!isParadigm && <AgentCwdChip />}
         {!isParadigm && <ModelPicker />}
+        {/* every task goes to the toolbar's AI; this turns on choosing another for single tasks */}
+        {!isParadigm && hasNodes && <PerTaskAiToggle />}
         {/* Landing convenience only: inside the canvas the picker's own
             empty state (Connect a model) is the door — no twin key icon. */}
         {!hasNodes && (

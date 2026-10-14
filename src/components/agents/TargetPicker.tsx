@@ -1,13 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bot, Check, ChevronDown, PanelRightOpen, Sparkles } from 'lucide-react';
+import { Bot, Check, ChevronDown, Shuffle } from 'lucide-react';
 import { useStore } from '../../store';
 import { useUiStore } from '../../lib/ui-store';
 import { ensureAgentsFresh, useModels, type ModelInfo } from '../../lib/use-models';
 import { isAgentModel, runtimeOf } from '../../lib/agents/agent-runtime';
-import { createTarget, describeTarget, newTask, retarget, templateFor } from '../../lib/agents/targets';
-import { openTaskSurface } from '../../lib/documents/surface-store';
-import { freeSpot } from '../workspace/actions';
-import { useT, fmt } from '../../i18n';
+import { describeTarget, retarget } from '../../lib/agents/targets';
+import { useT } from '../../i18n';
 import { useSendCheck } from './use-send-check';
 
 // Which AI a task runs on, shown on the task and chosen there. The list
@@ -16,9 +14,13 @@ import { useSendCheck } from './use-send-check';
 // family called through its API is listed under the API models, by its own
 // name; it is not that family's agent.
 //
-// Choosing here gives this task a target of its own, made at that moment.
-// The toolbar's model is only what a task with no target yet will be bound
-// to when it is first sent, and the chip says so.
+// Every task goes to the toolbar's AI unless the person chooses another for
+// it, and choosing is something they turn on (the switch beside the
+// toolbar's model): with it off no card offers a choice. With it on, each
+// task still starts on the toolbar's AI and only the ones that are given
+// another change. Choosing gives that task a target of its own, made at
+// that moment; a task nobody chose for follows the toolbar until it is
+// first sent, and the chip says so.
 
 /** How one model of the list reads: the same words a target made from it would carry. */
 const describe = (id: string) => describeTarget({ model: id, effort: null, kind: runtimeOf(id) ? 'agent' : 'provider', runtime: runtimeOf(id) });
@@ -65,12 +67,16 @@ function useDismiss(open: boolean, close: () => void) {
   return ref;
 }
 
-/** The chip on a task: the AI it is bound to, and the way to give it another. */
+/** The chip on a task: the AI it is bound to, and the way to give it another. Shown only while choosing per task is on. */
 export default function TargetPicker({ nodeId }: { nodeId: string }) {
+  const on = useUiStore((s) => s.perTaskAi);
+  return on ? <TargetChip nodeId={nodeId} /> : null;
+}
+
+function TargetChip({ nodeId }: { nodeId: string }) {
   const t = useT();
   const target = useStore((s) => s.nodes.find((n) => n.id === nodeId)?.data.target);
   const pin = useStore((s) => s.nodes.find((n) => n.id === nodeId)?.data.model);
-  const question = useStore((s) => s.nodes.find((n) => n.id === nodeId)?.data.question ?? '');
   const toolbar = useUiStore((s) => s.selectedModel);
   const models = useModels();
   const check = useSendCheck(nodeId);
@@ -94,10 +100,6 @@ export default function TargetPicker({ nodeId }: { nodeId: string }) {
           {!target && pending && <span className="shrink-0 text-ink-faint">{t('target.whenSent')}</span>}
           <ChevronDown size={11} strokeWidth={1.75} className="shrink-0 text-ink-faint" />
         </button>
-        <button onClick={() => openTaskSurface(nodeId, question.trim().slice(0, 48) || fmt(t('target.panelTitle'), { ai: label }))} data-task-open-panel title={t('target.openPanel')}
-          className="w-6 h-6 rounded-full border border-line bg-card text-ink-faint hover:text-accent hover:border-accent flex items-center justify-center shadow-sm transition-colors">
-          <PanelRightOpen size={12} strokeWidth={1.75} />
-        </button>
       </div>
       {open && (
         <div className="absolute left-0 top-full mt-1 z-50 w-72 bg-card border border-line rounded-xl shadow-lg p-1.5" data-target-menu>
@@ -119,27 +121,17 @@ export default function TargetPicker({ nodeId }: { nodeId: string }) {
 }
 
 /**
- * The palette's "new AI task": pick an AI, and an empty task bound to it
- * is put on the canvas. The target is made from the defaults as they are
- * at that moment.
+ * The switch beside the toolbar's model: whether an AI can be chosen for
+ * each task on its card. Off by default; remembered.
  */
-export function NewTaskButton({ flowPosAt }: { flowPosAt: (point: { x: number; y: number } | null) => { x: number; y: number } }) {
+export function PerTaskAiToggle() {
   const t = useT();
-  const [open, setOpen] = useState(false);
-  const menu = useDismiss(open, () => setOpen(false));
+  const on = useUiStore((s) => s.perTaskAi);
   return (
-    <div ref={menu} className="relative">
-      <button onClick={() => setOpen((o) => !o)} title={t('target.newTaskTitle')} data-new-task
-        className="w-9 h-9 rounded-lg flex items-center justify-center text-accent hover:bg-accent/10 transition-colors">
-        <Sparkles size={17} strokeWidth={1.75} />
-      </button>
-      {open && (
-        <div className="absolute left-full top-0 ml-2 z-50 w-72 bg-card border border-line rounded-xl shadow-lg p-1.5" data-new-task-menu>
-          <p className="px-2.5 pt-1 pb-1.5 text-2xs text-ink-muted leading-snug border-b border-line/60 mb-1">{t('target.newTaskHint')}</p>
-          {/* beside what is already there, never on top of it: a card that covers another hides it */}
-          <AiList onPick={(m) => { newTask(createTarget(templateFor(m.id)), freeSpot(flowPosAt(null))); setOpen(false); }} />
-        </div>
-      )}
-    </div>
+    <button onClick={() => useUiStore.getState().setPerTaskAi(!on)} data-per-task-ai={on ? 'on' : 'off'} aria-pressed={on}
+      title={t(on ? 'target.perTaskOnTitle' : 'target.perTaskOffTitle')}
+      className={`backdrop-blur border rounded-lg w-8 h-8 flex items-center justify-center shadow-sm transition-colors ${on ? 'bg-accent/10 border-accent text-accent' : 'bg-card/90 border-line text-ink-faint hover:text-accent hover:bg-wash'}`}>
+      <Shuffle size={15} strokeWidth={1.75} />
+    </button>
   );
 }

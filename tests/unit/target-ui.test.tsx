@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import TargetContextDropzone from '../../src/components/agents/TargetContextDropzone';
-import TargetPicker, { NewTaskButton } from '../../src/components/agents/TargetPicker';
+import TargetPicker, { PerTaskAiToggle } from '../../src/components/agents/TargetPicker';
 import SurfaceManager from '../../src/components/surfaces/SurfaceManager';
 import { connectNode, createTarget, newTask, targetOf, templateFor } from '../../src/lib/agents/targets';
 import { closeSurface, openTaskSurface, useSurfaces } from '../../src/lib/documents/surface-store';
@@ -53,6 +53,8 @@ beforeEach(async () => {
   useUiStore.setState({ toasts: [] });
   useUiStore.getState().setSelectedModel(CODEX);
   useUiStore.getState().setAgentEffort('high');
+  // the chip that chooses an AI for one task is there only when choosing per task is turned on; these tests turn it on
+  useUiStore.getState().setPerTaskAi(true);
   // The first picker to open asks the runtimes for their models, once per launch, and the stand-in shell
   // has none to report. That asking is done here, before the list the tests use is put in place.
   setModelsCache(MODELS());
@@ -71,6 +73,7 @@ afterEach(async () => {
   useProjects.setState({ projects: [], activeId: null, switching: false });
   useUiStore.getState().setSelectedModel(null);
   useUiStore.getState().setAgentEffort('');
+  useUiStore.getState().setPerTaskAi(false);
 });
 
 describe('the chip on a task', () => {
@@ -130,21 +133,60 @@ describe('the chip on a task', () => {
     const chip = view.container.querySelector<HTMLElement>('[data-target-chip]')!;
     expect(chip.dataset.targetChip).toBe('unbound');
     expect(chip.textContent).toContain('Codex · gpt-synthetic');
-    expect(chip.textContent).toContain('when sent');
+    expect(chip.textContent).toContain('toolbar');
   });
 });
 
-describe('the palette\'s new AI task', () => {
-  it('puts an empty task on the canvas bound to the AI that was picked, and sends nothing', async () => {
-    view = await mount(<NewTaskButton flowPosAt={() => ({ x: 40, y: 60 })} />);
-    await during(() => view!.container.querySelector<HTMLElement>('[data-new-task]')!.click());
-    await during(() => view!.container.querySelector<HTMLElement>(`[data-target-option="${CLAUDE_CODE}"]`)!.click());
-    const [made] = useStore.getState().nodes;
-    expect(made.data).toMatchObject({ question: '', response: '', isLoading: false, model: CLAUDE_CODE });
-    expect(made.data.target).toMatchObject({ model: CLAUDE_CODE, kind: 'agent', runtime: 'claude-code', effort: 'high' });
-    expect(made.position).toEqual({ x: 40, y: 60 });
-    expect(desktop.runs).toEqual([]);
-    expect(view.container.querySelector('[data-new-task-menu]'), 'the menu closes').toBeNull();
+describe('choosing an AI for each task', () => {
+  const unbound = (id: string, x = 0) => {
+    useStore.setState((st) => ({ nodes: [...st.nodes, { id, type: 'thought' as const, position: { x, y: 0 }, data: { question: '', response: '', responses: [], responseIndex: -1, isCollapsed: false, isEditing: false, isEditingResponse: false, isLoading: false, tokenCount: 0, highlights: [], highlightMode: 'tag' as const, roleMode: 'inherit' as const, attachments: [], excludedAttachmentIds: [], includedAttachmentIds: [], isRoot: false, isBranch: false } }] }));
+    return id;
+  };
+
+  it('is off unless it is turned on: a task shows no chooser, and is sent to the toolbar\'s AI', async () => {
+    useUiStore.getState().setPerTaskAi(false);
+    const x = unbound('q1');
+    view = await mount(<TargetPicker nodeId={x} />);
+    expect(view.container.querySelector('[data-target-chip]')).toBeNull();
+    await useStore.getState().editQuestion(x, 'Q_TASK: summarize.');
+    expect(desktop.runs[0]).toMatchObject({ runtime: 'codex', model: { provider: 'codex', id: 'gpt-synthetic' } });
+  });
+
+  it('is turned on and off from the toolbar, and remembered', async () => {
+    useUiStore.getState().setPerTaskAi(false);
+    view = await mount(<PerTaskAiToggle />);
+    const toggle = view.container.querySelector<HTMLElement>('[data-per-task-ai]')!;
+    expect(toggle.dataset.perTaskAi).toBe('off');
+    await during(() => toggle.click());
+    expect(useUiStore.getState().perTaskAi).toBe(true);
+    expect(localStorage.getItem('thoughtdag.perTaskAi')).toBe('1');
+    expect(view.container.querySelector<HTMLElement>('[data-per-task-ai]')!.dataset.perTaskAi).toBe('on');
+    await during(() => view!.container.querySelector<HTMLElement>('[data-per-task-ai]')!.click());
+    expect(useUiStore.getState().perTaskAi).toBe(false);
+    expect(localStorage.getItem('thoughtdag.perTaskAi')).toBeNull();
+  });
+
+  it('once on, every task still starts on the toolbar\'s AI; only the one that is given another changes', async () => {
+    const x = unbound('q1');
+    const y = unbound('q2', 600);
+    view = await mount(<div><TargetPicker nodeId={x} /><TargetPicker nodeId={y} /></div>);
+    const chips = () => [...view!.container.querySelectorAll<HTMLElement>('[data-target-chip]')];
+    // nothing to choose for either: both say they go to the toolbar's AI
+    expect(chips().map((chip) => chip.dataset.targetChip)).toEqual(['unbound', 'unbound']);
+    expect(chips().every((chip) => chip.textContent!.includes('Codex · gpt-synthetic'))).toBe(true);
+    // one of them is given another AI
+    await during(() => chips()[1].click());
+    await during(() => view!.container.querySelector<HTMLElement>(`[data-target-option="${CLAUDE_API}"]`)!.click());
+    expect(targetOf(y)).toMatchObject({ model: CLAUDE_API });
+    expect(targetOf(x), 'the other is not touched').toBeUndefined();
+    // the toolbar changes: the task nobody chose for follows it until it is sent; the chosen one keeps its own
+    await during(() => useUiStore.getState().setSelectedModel(CLAUDE_CODE));
+    expect(chips()[0].textContent).toContain('Claude Code · sonnet');
+    expect(chips()[1].textContent).toContain('claude-sonnet · API');
+    // turned off again: the choosers go, the choice stays
+    await during(() => useUiStore.getState().setPerTaskAi(false));
+    expect(chips()).toEqual([]);
+    expect(targetOf(y)).toMatchObject({ model: CLAUDE_API });
   });
 });
 

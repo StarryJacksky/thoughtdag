@@ -157,3 +157,74 @@ LaTeX 源文件仍在 `TexEditor.tsx` 里编辑，多了“编译 PDF”按钮�
 - 真实 Electron：“a text file above the limit is shown read-only, a part at a time, and offers to show the file”。
 
 限制：没有在大文件里搜索，也不能直接跳到文件中间某个位置，只能从头往后读。
+
+## 5. T10g：快捷输入公式（2026-10-15）
+
+用户 2026-10-15 提出：在 Markdown 里打 LaTeX 公式要快一些。选定的内容是：命令补全和片段、`$` 自动配对加快捷键、光标在公式里时浮出预览（`src/components/editors/formula-input.ts`，提交 `d1673ab`）。
+
+**命令补全**：
+
+- 在 Markdown 的公式里输入 `\` 开头的命令时会弹出候选；正文里不弹。LaTeX 文件里任何地方都弹，并且多一组文档命令（`\section{}`、各种环境等）。
+- 候选包括希腊字母、运算符、函数名，每个都标出它画出来是什么样（如 `\alpha` 标 α）。
+- 结构类命令是片段：选中 `\frac` 后得到 `\frac{}{}`，光标停在第一个空，按 Tab 跳到下一个。同类的还有 `\sum_{}^{}`、`\int_{}^{}`、`\sqrt[]{}`、矩阵、cases、aligned 等。
+
+**配对**：
+
+- 输入 `$` 时自动补上配对的 `$`；在公式结尾再输入 `$`，光标跳过那个配对符，不会多出一个。
+- 选中文字后输入 `$`，选中的文字变成公式。
+- 转义的 `\$`、紧跟在单词或数字后面的 `$`（比如 US$），不会配对。
+- 公式里输入 `{` 会配上 `}`；LaTeX 文件里任何地方都这样。
+
+**快捷键**：
+
+- Mod-E 插入行内公式，Mod-Shift-E 插入独占几行的公式（Markdown 用 `$$`，LaTeX 用 `\[ \]`）。有选中文字时，会把选中的内容包进去。
+- 没有用 Mod-M：macOS 上 Cmd+M 被“最小化窗口”占用，按键到不了页面。
+- 原来的 Mod-Shift-M（切换排版和源码）不变。
+
+**浮出预览**：编辑器有焦点、光标停在公式里时，公式下方浮出 KaTeX 画好的结果。KaTeX 以 `trust: false` 调用；还解析不了的公式照原样显示，并加上标记。
+
+**测试**：`tests/unit/formula-input.test.tsx`，13 条。实现之前，10 条失败、3 条对照通过（`evidence/T10g-formula-input-before-implementation.txt`）。测试里的“输入”走的是编辑器自己的输入处理链；按 Shift 时键名用大写，和真实键盘一致。
+
+## 6. T10h：Markdown 导出成 Word，阅读 Word 时显示公式（2026-10-15）
+
+用户选的是“Markdown 写，导出成 Word”，并且读 Word 文档时也要把公式显示出来（提交 `464c73d`）。
+
+**导出**：Markdown 编辑器工具栏上的“Word”按钮。
+
+- 先保存当前输入，保存不成功就不导出。然后在页面里生成 .docx（`src/lib/docx/write.ts`），放在笔记旁边。
+- 生成的 Word 文档：
+  - 标题、加粗、斜体、删除线、行内代码、链接、引用、代码块、表格（首行加粗、对齐方式保留）都用 Word 自己的样式。
+  - 列表用 Word 的编号，有序列表各自从头编号，任务列表用 ☐ 和 ☑。
+  - 正文字体是 Times New Roman，中文用宋体，和应用里一致。
+- **公式是 Word 自己的公式（OMML）**，在 Word 里可以直接编辑。转换路径：KaTeX 先把 LaTeX 转成 MathML，`omml.ts` 再按结构写成 OMML，包括分式、上下标、根号、带上下限的求和与积分、重音、上下划线、极限、括号、矩阵、公式里的文字和直立的函数名。解析不了的公式按原样写成文字。
+- **每次导出都是新文件**：已有同名文件时用下一个空名字（`笔记-2.docx`），不会覆盖你可能已经在 Word 里改过的那份。
+  - 宿主的新建文件现在可以直接接收字节。
+  - 门上新增的入口 `workspace:export-beside` 只接受 .docx、只接受字节、上限 64 MiB，并且只用于本地文件夹。
+- 导出后，Word 文档在右侧打开，笔记停到左侧，两边并排。LaTeX 编译出 PDF 后也改成这样。这是测试时发现的：右侧停靠的结果窗会盖住原文件窗口的工具栏，没法再点导出或编译。
+
+**阅读 Word 文档时的公式**：
+
+- 只有含公式的 Word 文档走新的读取方式（`read.ts`）：逐段读出文字和公式，公式由 `mathml.ts` 用 DOM 一个元素一个元素地建成 MathML，交给浏览器画。文档里的任何内容都不会被当成标记解析进页面。
+- 阅读器可引用的文本，就是屏幕上显示的内容拼起来的，所以跨公式选中引用时，引用到的文字和看到的一致。
+- 不含公式的 Word 文档仍按原来的方式读（mammoth），结果不变。
+
+**验证**：
+
+- `tests/host/export-beside.test.cjs`，4 条（实现前全部失败，见 `evidence/T10h-export-host-before-implementation.txt`）：放在旁边、用原文件名；再导出不覆盖，在 Word 里改过的那份保持原样；同一操作只生成一份；格式、类型、大小、只读文件夹的限制。
+- `tests/unit/word-documents.test.tsx`，11 条：
+  - 各种 LaTeX 结构转成 OMML，以及再读回成 MathML。
+  - 生成的文件能被 mammoth 读出，各部件齐全。
+  - 阅读器显示公式，跨公式引用的文字与显示一致；不含公式的文档照旧显示。
+  - 编辑器按钮：先保存再导出，结果在右侧打开。
+  
+  这些是全新的模块，实现前的失败就是“找不到模块”（`evidence/T10h-word-documents-before-implementation.txt`）。
+- 应用之外的检查：用 Homebrew 装了 pandoc 3.12.1。它把生成文件里的全部公式读回成了正确的 LaTeX（`evidence/T10h-word-export-read-back-by-pandoc.txt`），标题、列表编号、引用、表格也都还原了。macOS 自带的 `textutil` 也能打开这个文件。
+- 真实 Electron：“a Markdown note with formulas is made into a Word document beside it, whose formulas are drawn where it is read”。分式的分子确实画在分母上方；再导出一次得到 `formulas-2.docx`，第一份字节不变。
+
+**如实说明和限制**：
+
+- **没有在 Microsoft Word 里打开验证。** 这台机器装了 Word，但用脚本驱动它会在你的屏幕上开窗口，所以没做。验证靠的是 pandoc、mammoth 和 textutil。建议你自己用 Word 打开一份导出的文件看看。
+- 求和、积分把同一行里后面的全部内容当作作用对象。Word 里看起来一样，只是语义上的分组比手写的宽。
+- 图片不写进 Word 文档，原位置写成 `[说明文字]`；脚注只保留标记。
+- **画布上作为材料的 Word 文档，交给模型的文字仍然不含公式。** 那条路径还在用 mammoth 取文字，把 OMML 转成 LaTeX 交给模型没有做。
+- 含公式的 Word 文档，阅读器的文本换成了新的读法。在这之前从这类文档里取的引用，位置偏移可能对不上，引用里存的原文还在。

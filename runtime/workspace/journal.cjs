@@ -7,7 +7,9 @@
 // on. A line that does not parse (the tail a crash left half-written) is
 // skipped: it never hides the lines before it, and it is closed off with a
 // line break before anything is appended, so it never swallows the line
-// after it either.
+// after it either. A write that fails may have left half a line too, with
+// the app still running: the next line written starts on a line of its own
+// just the same.
 //
 // An operation can be tried more than once under one id: it fails, and is
 // asked again. Each `intent` starts a new attempt, and the state of the
@@ -82,6 +84,10 @@ function createJournal({ rootPath, readOnly = false, now = () => new Date().toIS
           await handle.writeFile((tornTail ? '\n' : '') + JSON.stringify(full) + '\n');
           await handle.sync();
           tornTail = false;
+        } catch (e) {
+          // how much of the line reached the disk is not known: whatever is written next must not be joined to it
+          tornTail = true;
+          throw e;
         } finally {
           await handle.close();
         }

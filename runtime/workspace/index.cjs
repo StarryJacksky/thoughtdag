@@ -19,9 +19,8 @@ const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const { assertAllowedPath, WorkspaceAccessError, METADATA_DIR } = require('./path-policy.cjs');
 const { createRegistry, writeFileAtomic, REGISTRY_FILE } = require('./registry.cjs');
-const { mediaTypeOf } = require('./media-types.cjs');
 const { createJournal, JOURNAL_FILE } = require('./journal.cjs');
-const { recoveryRoot } = require('./recovery.cjs');
+const { recoveryRoot, renameInRecoveryNotes } = require('./recovery.cjs');
 const drafts = require('./drafts.cjs');
 const { createFileOps } = require('./file-ops.cjs');
 const { createReconciler } = require('./reconcile.cjs');
@@ -31,6 +30,8 @@ const { loadContracts } = require('../../shared/schemas/host.cjs');
 const fsp = fs.promises;
 const GRANTS_FILE = 'workspace-grants.json';
 const IDENTITY_FILE = 'workspace.json';
+/** What a copy of a workspace is being renamed to, kept while that is under way (see ownIdentityFor). */
+const COPY_PLAN_FILE = 'identity-of-copy.json';
 
 // An entry id is the entry's relative path in a form the renderer has no
 // reason to read. It is not a secret and nothing relies on it being one:
@@ -184,8 +185,12 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
     for (const listener of listeners.get(workspaceId) ?? []) { try { listener(event); } catch { /* the listener's own problem */ } }
   }
 
+  // Catching up with the disk changes the workspace's records, so it takes
+  // its turn with the operations that do: a folder that is being moved is
+  // waited for, and what a crash left is settled first.
   async function rescan(grant) {
-    const changes = await (await reconcilerOf(grant)).rescan();
+    const reconciler = await reconcilerOf(grant);
+    const changes = await (await operationsOf(grant)).asChange(() => reconciler.rescan());
     for (const { record, change } of changes) emit(grant.workspaceId, record, change);
     return changes.map(({ record }) => record);
   }
@@ -244,21 +249,38 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
     const { versionAccess, SCHEMA_VERSION } = await loadContracts();
     const meta = path.join(rootPath, METADATA_DIR);
     const cannot = () => new WorkspaceAccessError('duplicate-workspace', 'this folder is a copy of a workspace that is already open, and its records cannot be rewritten to give it an identity of its own');
-    const workspaceId = `ws_${newId()}`;
 
     const registryFile = path.join(meta, REGISTRY_FILE);
     const text = await fsp.readFile(registryFile, 'utf8').catch((e) => { if (e.code === 'ENOENT') return null; throw cannot(); });
-    const renamed = new Map(); // the original's file id → this folder's
+    let doc = null;
     if (text !== null) {
-      let doc;
       try { doc = JSON.parse(text); } catch { throw cannot(); }
       if (versionAccess(doc?.schemaVersion, SCHEMA_VERSION) !== 'read-write') throw cannot();
-      for (const entry of Array.isArray(doc.resources) ? doc.resources : []) {
-        if (!entry?.record || typeof entry.record.fileId !== 'string') continue;
-        const fileId = `file_${newId()}`;
-        renamed.set(entry.record.fileId, fileId);
-        entry.record = { ...entry.record, fileId, workspaceId };
-      }
+    }
+    const entries = Array.isArray(doc?.resources) ? doc.resources.filter((entry) => entry?.record && typeof entry.record.fileId === 'string') : [];
+
+    // Which new id every file gets is decided once and written down before
+    // anything is changed. The records that speak of a file are in several
+    // places (the registry, its earlier versions, its draft, the notes of
+    // the recovery area): a try that is cut short between two of them is
+    // taken up again with the same ids, and ends with all of them agreeing.
+    const planFile = path.join(meta, COPY_PLAN_FILE);
+    let plan = null;
+    try {
+      const kept = JSON.parse(await fsp.readFile(planFile, 'utf8'));
+      if (typeof kept?.workspaceId === 'string' && kept.renamed && typeof kept.renamed === 'object') plan = kept;
+    } catch { /* no try was cut short */ }
+    if (!plan) {
+      plan = { workspaceId: `ws_${newId()}`, renamed: {} };
+      for (const entry of entries) plan.renamed[entry.record.fileId] = `file_${newId()}`;
+      try { await writeFileAtomic(planFile, JSON.stringify(plan, null, 2) + '\n'); } catch { throw cannot(); }
+    }
+    const { workspaceId } = plan;
+    const renamed = new Map(Object.entries(plan.renamed)); // the original's file id → this folder's
+
+    if (doc) {
+      // a record the cut-short try already renamed carries its new id, which is nobody's old one
+      for (const entry of entries) entry.record = { ...entry.record, fileId: renamed.get(entry.record.fileId) ?? entry.record.fileId, workspaceId };
       doc.workspaceId = workspaceId;
       await writeFileAtomic(registryFile, JSON.stringify(doc, null, 2) + '\n');
     }
@@ -272,8 +294,11 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
       await drafts.putDraft(rootPath, { ...draft, fileId: to }).catch(() => {});
       await drafts.clearDraft(rootPath, from).catch(() => {});
     }
+    // and what is in the recovery area: put back in this folder, it is this folder's file that comes back
+    await renameInRecoveryNotes(rootPath, renamed);
     await fsp.rename(path.join(meta, JOURNAL_FILE), path.join(meta, `journal.copied-${Date.now()}.jsonl`)).catch(() => {});
     await writeFileAtomic(path.join(meta, IDENTITY_FILE), JSON.stringify({ schemaVersion: SCHEMA_VERSION, workspaceId, createdAt: now() }, null, 2) + '\n');
+    await fsp.rm(planFile, { force: true }).catch(() => {});
     return workspaceId;
   }
 
@@ -388,15 +413,9 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
       const g = (await loadGrants()).get(rootGrantId);
       if (!g) throw new WorkspaceAccessError('no-grant', 'that workspace is not open');
       const grant = { rootGrantId, ...g };
-      const target = await assertAllowedPath(grant, 'read', relativePath);
-      const stat = await fsp.stat(target.absolute);
-      const registry = await registryOf(grant);
-      return registry.register({
-        relativePath: target.relativePath,
-        mediaType: mediaTypeOf(target.relativePath),
-        origin,
-        observed: { dev: stat.dev, ino: stat.ino, size: stat.size, mtimeMs: stat.mtimeMs },
-      });
+      // through the workspace's operations, like every change to its records: what a crash left is settled
+      // first, and a folder that is being moved is waited for
+      return (await operationsOf(grant)).registerExisting(relativePath, origin);
     },
 
     /** registerResource for the renderer: by workspace and entry id. */
@@ -557,13 +576,14 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
     /**
      * Keep text that was typed into a file and not yet written to it. One
      * draft per file; a new one replaces the old. `baseRevision` is the
-     * content it was typed over. A folder this version may not write to
-     * keeps no drafts.
+     * content it was typed over. `byHand` marks text the person is sorting
+     * out themselves, which is never written to the file without their
+     * say. A folder this version may not write to keeps no drafts.
      */
-    async putDraft(fileId, { text, baseRevision }) {
+    async putDraft(fileId, { text, baseRevision, byHand }) {
       const grant = await grantOfFile(fileId);
       if (grant.readOnly || (await (await registryOf(grant)).access()) !== 'read-write') throw new WorkspaceAccessError('read-only', 'this workspace is read-only');
-      const draft = await checkedRequest('DocumentDraft', { fileId, text, baseRevision, savedAt: now() });
+      const draft = await checkedRequest('DocumentDraft', { fileId, text, baseRevision, savedAt: now(), ...(byHand === undefined || byHand === false ? {} : { byHand }) });
       await drafts.putDraft(grant.rootPath, draft, io);
       return draft;
     },
@@ -606,7 +626,8 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
     /** Bring one file's record in line with the disk. Resolves with the record. */
     async reconcile(fileId) {
       const grant = await grantOfFile(fileId);
-      const { record, change } = await (await reconcilerOf(grant)).reconcile(fileId);
+      const reconciler = await reconcilerOf(grant);
+      const { record, change } = await (await operationsOf(grant)).asChange(() => reconciler.reconcile(fileId));
       if (change) emit(grant.workspaceId, record, change);
       return record;
     },
@@ -621,7 +642,8 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
     /** The person says a lost file is the entry they picked. */
     async relink(fileId, candidateEntryId) {
       const grant = await grantOfFile(fileId);
-      const { record, change } = await (await reconcilerOf(grant)).relink(fileId, relativePathOf(candidateEntryId));
+      const reconciler = await reconcilerOf(grant);
+      const { record, change } = await (await operationsOf(grant)).asChange(() => reconciler.relink(fileId, relativePathOf(candidateEntryId)));
       emit(grant.workspaceId, record, change);
       return record;
     },

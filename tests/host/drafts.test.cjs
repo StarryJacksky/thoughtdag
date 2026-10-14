@@ -86,3 +86,80 @@ test('a folder that is read-only keeps no drafts', { skip: process.platform === 
   await assert.rejects(readOnly.putDraft(a.record.fileId, { text: 'x', baseRevision: a.revision }), { code: 'read-only' });
   fs.chmodSync(project, 0o755);
 });
+
+// ── found by review (R2-04, R2-11) ─────────────────────────────────────
+
+/** File-system calls whose first rename of a draft waits until it is let through. */
+function firstDraftRenameHeld() {
+  let letThrough = null;
+  let arrived = () => {};
+  const reached = new Promise((resolve) => { arrived = resolve; });
+  let first = true;
+  const io = {
+    ...fs.promises,
+    rename: async (from, to) => {
+      if (first && String(from).includes('.tdag-draft-')) {
+        first = false;
+        await new Promise((resolve) => { letThrough = resolve; arrived(); });
+      }
+      return fs.promises.rename(from, to);
+    },
+  };
+  return { io, reached, release: () => letThrough() };
+}
+const soon = (ms = 60) => new Promise((resolve) => setTimeout(resolve, ms));
+
+test('[R2-04] a draft whose write takes long does not replace the one asked for after it', async () => {
+  const held = firstDraftRenameHeld();
+  const { service, start, open } = await setup({ io: held.io });
+  const a = await open('notes/a.md');
+  const old = service.putDraft(a.record.fileId, { text: 'OLD_TEXT_H1\n', baseRevision: a.revision });
+  await held.reached;
+  const latest = service.putDraft(a.record.fileId, { text: 'LATEST_TEXT_H2\n', baseRevision: a.revision });
+  await Promise.race([latest, soon()]);
+  held.release();
+  await Promise.all([old, latest]);
+  assert.equal((await service.getDraft(a.record.fileId)).text, 'LATEST_TEXT_H2\n');
+  assert.equal((await start().getDraft(a.record.fileId)).text, 'LATEST_TEXT_H2\n', 'and that is what a restart finds');
+});
+
+test('[R2-04] a draft whose write takes long is gone when it was cleared after it was asked for', async () => {
+  const held = firstDraftRenameHeld();
+  const { service, start, open, project } = await setup({ io: held.io });
+  const a = await open('notes/a.md');
+  const old = service.putDraft(a.record.fileId, { text: 'OLD_TEXT_H1\n', baseRevision: a.revision });
+  await held.reached;
+  const cleared = service.clearDraft(a.record.fileId);
+  await Promise.race([cleared, soon()]);
+  held.release();
+  await Promise.all([old, cleared]);
+  assert.equal(await start().getDraft(a.record.fileId), null);
+  assert.deepEqual(fs.readdirSync(draftsDir(project)), []);
+});
+
+test('[R2-04] drafts of different files do not wait for each other', async () => {
+  const held = firstDraftRenameHeld();
+  const { service, open } = await setup({ io: held.io });
+  const a = await open('notes/a.md');
+  const keep = await open('papers/keep.md');
+  const slow = service.putDraft(a.record.fileId, { text: 'SLOW_H3\n', baseRevision: a.revision });
+  await held.reached;
+  await service.putDraft(keep.record.fileId, { text: 'OTHER_FILE_H4\n', baseRevision: keep.revision });
+  assert.equal((await service.getDraft(keep.record.fileId)).text, 'OTHER_FILE_H4\n');
+  held.release();
+  await slow;
+});
+
+test('[R2-11] a draft remembers that it is for the person to sort out and save, across a restart', async () => {
+  const { service, start, open } = await setup();
+  const a = await open('notes/a.md');
+  const kept = await service.putDraft(a.record.fileId, { text: '<<<<<<< mine\nA\n=======\nB\n>>>>>>> on disk\n', baseRevision: a.revision, byHand: true });
+  assert.equal(kept.byHand, true);
+  assert.ok((await loadContracts()).validateDTO('DocumentDraft', kept).ok);
+  assert.equal((await start().getDraft(a.record.fileId)).byHand, true);
+  // an ordinary draft says nothing of the kind
+  const plain = await service.putDraft(a.record.fileId, { text: 'plain\n', baseRevision: a.revision });
+  assert.equal('byHand' in plain, false);
+  assert.equal('byHand' in (await start().getDraft(a.record.fileId)), false);
+  await assert.rejects(service.putDraft(a.record.fileId, { text: 'x', baseRevision: a.revision, byHand: 'yes' }), { code: 'invalid-request' });
+});

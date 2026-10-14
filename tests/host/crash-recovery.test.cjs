@@ -67,12 +67,14 @@ test('part of an old version left in the recovery area by an earlier crash is no
 
 test('a crash after the new file was written and before that was noted: the retry returns that file and makes no second one', async () => {
   const { start, request, at, project, notes } = await setup();
-  // what is on disk at that point: the intent, the name about to be tried, and the file itself
+  // what is on disk at that point: the intent, the name about to be tried with the identity of the file
+  // the creation wrote, and that file under its name
   fs.mkdirSync(path.dirname(journalOf(project)), { recursive: true });
+  fs.writeFileSync(at('notes/Untitled-001.md'), '');
+  const wrote = fs.statSync(at('notes/Untitled-001.md'));
   fs.appendFileSync(journalOf(project),
     journalLine({ opId: 'op-1', kind: 'create', phase: 'intent', parent: 'notes', extension: 'md', origin: 'workspace', recordOrigin: 'workspace', revision: sha('') })
-    + journalLine({ opId: 'op-1', kind: 'create', phase: 'attempt', relativePath: 'notes/Untitled-001.md' }));
-  fs.writeFileSync(at('notes/Untitled-001.md'), '');
+    + journalLine({ opId: 'op-1', kind: 'create', phase: 'attempt', relativePath: 'notes/Untitled-001.md', temp: '.new.tdag-create-00000000', dev: wrote.dev, ino: wrote.ino }));
   const restarted = start();
   const record = await restarted.createFile(request('op-1', { parentId: notes }));
   assert.equal(record.relativePath, 'notes/Untitled-001.md');

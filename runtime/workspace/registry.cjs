@@ -114,14 +114,35 @@ function createRegistry({ rootPath, workspaceId, rootGrantId, readOnly = false, 
   const liveAt = (relativePath) => [...state.resources.values()].find((e) => e.record.relativePath === relativePath && !isLost(e.record)) ?? null;
   const liveStatus = () => (state.access === 'read-write' ? 'ready' : 'readonly');
 
+  /**
+   * A path holds one live file. A record that an operation has just put at
+   * a path (it moved the file there, or found it there again) is the one
+   * that holds it; any other live record of that path is of a file that is
+   * not there any more, and is marked missing. Returns what was changed, so
+   * that it can be put back if storing fails.
+   */
+  function displaceOthersAt(relativePath, fileId) {
+    const displaced = [];
+    for (const [otherId, other] of state.resources) {
+      if (otherId === fileId || other.record.relativePath !== relativePath || isLost(other.record)) continue;
+      displaced.push([otherId, other]);
+      state.resources.set(otherId, { record: { ...other.record, status: 'missing' }, observed: other.observed });
+    }
+    return displaced;
+  }
+  /** Whether a change puts a record at a path as a live file: it moved there, or it is found again. */
+  const placed = (before, after) => !isLost(after) && (isLost(before) || before.relativePath !== after.relativePath);
+
   /** Put a new record in, or change one, and store the registry; on failure memory is put back as it was. */
   async function commit(fileId, entry) {
     const previous = state.resources.get(fileId);
+    const displaced = !previous || placed(previous.record, entry.record) ? displaceOthersAt(entry.record.relativePath, fileId) : [];
     state.resources.set(fileId, entry);
     // a read-only workspace still gets identities for this session; they are not stored
     if (state.access !== 'read-write') return;
     try { await save(); } catch (e) {
       if (previous) state.resources.set(fileId, previous); else state.resources.delete(fileId);
+      for (const [otherId, other] of displaced) state.resources.set(otherId, other);
       throw e;
     }
   }
@@ -222,6 +243,11 @@ function createRegistry({ rootPath, workspaceId, rootGrantId, readOnly = false, 
           before.set(fileId, entry);
           state.resources.set(fileId, { record, observed: answer.patch && answer.observed !== undefined ? answer.observed : entry.observed });
           changed.push(record);
+        }
+        // one live record per path: what was just placed somewhere holds that place
+        for (const record of changed) {
+          if (!placed(before.get(record.fileId).record, record)) continue;
+          for (const [otherId, other] of displaceOthersAt(record.relativePath, record.fileId)) if (!before.has(otherId)) before.set(otherId, other);
         }
         if (changed.length > 0 && state.access === 'read-write') await save();
       } catch (e) {

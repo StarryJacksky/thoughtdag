@@ -20,6 +20,14 @@
 // and then taken with a rename, inside a lock that keeps this application's
 // own moves to that name apart; another program taking the name in that
 // instant is the one case left.
+//
+// What a creation promises: the file appears under its name whole, and
+// never in place of another. It is written under a name of the operation's
+// own first and given its name with the same hard link. The file-system
+// identity of what was written is noted before any name is tried, so that
+// after a crash a file found at that name is taken for this operation's
+// only when it is the very file the operation wrote. A name and equal
+// content prove nothing: another creation may have made just such a file.
 'use strict';
 
 const fs = require('node:fs');
@@ -27,7 +35,7 @@ const path = require('node:path');
 const { createHash, randomUUID } = require('node:crypto');
 const { assertAllowedPath, assertPortableName, WorkspaceAccessError } = require('./path-policy.cjs');
 const { mediaTypeOf } = require('./media-types.cjs');
-const { keepPreviousVersion, readPreviousVersion, listPreviousVersions, moveToRecoveryTrash, listRecoveryTrash, clearRecoveryReceipt } = require('./recovery.cjs');
+const { keepPreviousVersion, readPreviousVersion, listPreviousVersions, moveToRecoveryTrash, listRecoveryTrash, readRecoveryNote, clearRecoveryReceipt } = require('./recovery.cjs');
 
 /** Text above this size is not opened for editing. */
 const MAX_EDITABLE_BYTES = 8 * 1024 * 1024;
@@ -176,33 +184,57 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
     return done;
   }
 
+  const CREATE_TEMP = /^\.new\.tdag-create-[0-9a-f-]{1,36}$/;
+
   /**
    * The first free `<stem>.<ext>`, `<stem>-2.<ext>`, … or numbered
-   * `Untitled-001.<ext>`, created exclusively. `aboutToTry(relativePath)`
-   * is called, and awaited, before anything is written under a name.
+   * `Untitled-001.<ext>`, taken exclusively. The content is written whole
+   * under a name of this operation's own, beside where the file will be,
+   * and that file is then given the name with a hard link: the step that
+   * fails when the name is taken, by whoever and whenever.
+   * `aboutToTry(relativePath, mine)` is called, and awaited, before a name
+   * is tried; `mine` is `{ temp, dev, ino }`: the operation's own file and
+   * its file-system identity, which is what proves later whose file is at
+   * that name.
    */
   async function createExclusive(parent, candidates, bytes, mode, aboutToTry = async () => {}) {
-    for (const name of candidates) {
-      const target = await assertAllowedPath(grant, 'create', join(parent, name));
-      if (target.exists) continue;
-      await aboutToTry(target.relativePath);
-      let handle;
-      try { handle = await io.open(target.absolute, 'wx', mode); } catch (e) {
-        if (e.code === 'EEXIST') continue; // another creator took the name first
-        throw e;
-      }
+    let own = null; // { file, stat }: the content, written and flushed, not yet under its name
+    const writeOwn = async (dir) => {
+      const file = path.join(dir, `.new.tdag-create-${newId().slice(0, 8)}`);
+      const handle = await io.open(file, 'wx', mode);
       try {
         await handle.writeFile(bytes);
         await handle.sync();
-        return { target, stat: await handle.stat() };
+        return { file, stat: await handle.stat() };
       } catch (e) {
-        await handle.close().catch(() => {});
-        handle = null;
-        await io.rm(target.absolute, { force: true }).catch(() => {});
+        await io.rm(file, { force: true }).catch(() => {});
         throw e;
       } finally {
-        if (handle) await handle.close();
+        await handle.close().catch(() => {});
       }
+    };
+    try {
+      for (const name of candidates) {
+        const target = await assertAllowedPath(grant, 'create', join(parent, name));
+        if (target.exists) continue;
+        own ??= await writeOwn(path.dirname(target.absolute));
+        await aboutToTry(target.relativePath, { temp: path.basename(own.file), dev: own.stat.dev, ino: own.stat.ino });
+        try { await io.link(own.file, target.absolute); } catch (e) {
+          if (e.code === 'EEXIST') continue; // another creator took the name first
+          if (!NO_HARD_LINKS.has(e.code)) throw e;
+          // no hard links on this volume: the name was free a moment ago, and it is taken with a rename
+          if (await io.stat(target.absolute).then(() => true, () => false)) continue;
+          await io.rename(own.file, target.absolute);
+          own = null;
+          return { target, stat: await io.stat(target.absolute) };
+        }
+        // the file has its name; the operation's own name for it goes
+        await io.unlink(own.file).catch(() => {});
+        own = null;
+        return { target, stat: await io.stat(target.absolute) };
+      }
+    } finally {
+      if (own) await io.rm(own.file, { force: true }).catch(() => {});
     }
     throw new WorkspaceAccessError('no-free-name', 'no free name was found for the new file');
   }
@@ -356,7 +388,32 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
       }
   }));
 
+  /** The note of something in the recovery area: its own, or what the journal said when it was trashed before notes were kept. */
+  async function recoveryNoteOf(receiptId, name) {
+    const note = await readRecoveryNote(grant.rootPath, receiptId, io);
+    if (note && typeof note.relativePath === 'string') return note;
+    const intent = (await journal.all()).flatMap((op) => op.entries).find((e) => e.phase === 'intent' && e.receiptId === receiptId && (e.kind === 'trash' || e.kind === 'trash-folder'));
+    if (!intent || typeof intent.relativePath !== 'string') return null;
+    return { receiptId, kind: intent.kind === 'trash-folder' ? 'folder' : 'file', name: name ?? nameOf(intent.relativePath), relativePath: intent.relativePath, trashedAt: intent.at, ...(intent.fileId ? { fileId: intent.fileId } : {}) };
+  }
+
   const api = {
+    /**
+     * Give the file that is at `relativePath` its identity, or return the
+     * one it has. Reads the file's metadata, not its content. It is a
+     * change to the workspace's records like any other: it waits for a
+     * folder that is being moved, so that a file is never given a second
+     * identity at the place its own record is about to follow it to.
+     */
+    registerExisting: (relativePath, origin = 'workspace') => changing(async () => {
+      const target = await assertAllowedPath(grant, 'read', relativePath);
+      const stat = await io.stat(target.absolute);
+      return registry.register({ relativePath: target.relativePath, mediaType: mediaTypeOf(target.relativePath), origin, observed: observedOf(stat) });
+    }),
+
+    /** Run something that changes the workspace's records from outside this module (catching up with the disk, a file found again by hand) in step with everything here that does. */
+    asChange: (fn) => changing(fn),
+
     /**
      * Create a file. `request` is a CreateFileRequest with `parentId` already
      * resolved to `parentRelativePath`. A graph-origin file goes to the
@@ -383,14 +440,14 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
         const bytes = Buffer.from(text, 'utf8');
         const revision = hashOf(bytes);
         const recordOrigin = importedFrom ? 'import' : origin;
-        // the intent says what the file will hold, and each name is noted before it is tried:
-        // a crash at any point leaves enough to tell whether a file at that name is this one
+        // the intent says what the file will hold, and each name is noted before it is tried, with the identity
+        // of the file this operation wrote: a crash at any point leaves enough to tell whether a file at that name is this one
         await journal.append({ opId: idempotencyKey, kind: 'create', phase: 'intent', parent, extension, origin, recordOrigin, revision, ...(importedFrom ? { importedFrom } : {}) });
 
         const candidates = name !== null ? named(name, extension) : numbered(extension.toLowerCase() === 'tdmap' ? 'Mindmap' : 'Untitled', extension);
         let created;
         try {
-          created = await createExclusive(parent, candidates, bytes, 0o644, (relativePath) => journal.append({ opId: idempotencyKey, kind: 'create', phase: 'attempt', relativePath }));
+          created = await createExclusive(parent, candidates, bytes, 0o644, (relativePath, mine) => journal.append({ opId: idempotencyKey, kind: 'create', phase: 'attempt', relativePath, ...mine }));
         } catch (e) {
           await journal.append({ opId: idempotencyKey, kind: 'create', phase: 'failed' });
           throw e;
@@ -663,16 +720,10 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
     async listRecovery() {
       const found = await listRecoveryTrash(grant.rootPath, io);
       const items = [];
-      let fromJournal = null;
       for (const entry of found) {
-        let note = entry.note;
-        if (!note) {
-          // trashed before the recovery area kept its own notes: the journal still says what it was
-          fromJournal ??= await journal.all();
-          const intent = fromJournal.flatMap((op) => op.entries).find((e) => e.phase === 'intent' && e.receiptId === entry.receiptId);
-          if (!intent || typeof intent.relativePath !== 'string') continue;
-          note = { receiptId: entry.receiptId, kind: intent.kind === 'trash-folder' ? 'folder' : 'file', name: entry.name, relativePath: intent.relativePath, trashedAt: intent.at, ...(intent.fileId ? { fileId: intent.fileId } : {}) };
-        }
+        // trashed before the recovery area kept its own notes: the journal still says what it was
+        const note = entry.note && typeof entry.note.relativePath === 'string' ? entry.note : await recoveryNoteOf(entry.receiptId, entry.name);
+        if (!note) continue;
         items.push({ receiptId: entry.receiptId, kind: note.kind === 'folder' ? 'folder' : 'file', name: String(note.name ?? entry.name), relativePath: String(note.relativePath), trashedAt: String(note.trashedAt), ...(typeof note.fileId === 'string' ? { fileId: note.fileId } : {}) });
       }
       return items.sort((a, b) => (a.trashedAt < b.trashedAt ? 1 : a.trashedAt > b.trashedAt ? -1 : 0));
@@ -741,11 +792,19 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
               const there = await assertAllowedPath(grant, 'stat', created.relativePath).then((t) => t.kind === 'file', () => false);
               if (there) made = { relativePath: created.relativePath, origin: created.origin, revision: created.revision, importedFrom: created.importedFrom };
             } else if (attempt && intent?.revision) {
-              // cut short between writing the file and noting it: the file at the name that was being
-              // tried is this operation's only if it holds exactly what the operation was writing
+              // cut short between giving the file its name and noting that. The file at the name that was being
+              // tried is this operation's only if it is the very file the operation wrote (the same file-system
+              // object) and still holds what was written. A name and equal content are not proof: another
+              // creation may have made just such a file there.
               const target = await assertAllowedPath(grant, 'stat', attempt.relativePath).catch(() => null);
               const there = target?.kind === 'file' ? await readChecked(target.absolute).catch(() => null) : null;
-              if (there && hashOf(there.bytes) === intent.revision) made = { relativePath: target.relativePath, origin: intent.recordOrigin ?? intent.origin, revision: intent.revision, importedFrom: intent.importedFrom };
+              if (there && sameFile(there.stat, attempt) && hashOf(there.bytes) === intent.revision) made = { relativePath: target.relativePath, origin: intent.recordOrigin ?? intent.origin, revision: intent.revision, importedFrom: intent.importedFrom };
+            }
+            // the operation's own name for what it wrote, if the crash left it: the file has its real name by now, or is not wanted
+            for (const tried of op.entries) {
+              if (tried.phase === 'attempt' && typeof tried.temp === 'string' && CREATE_TEMP.test(tried.temp) && typeof tried.relativePath === 'string') {
+                await io.rm(path.join(grant.rootPath, ...parentOf(tried.relativePath).split('/').filter(Boolean), tried.temp), { force: true }).catch(() => {});
+              }
             }
             if (made) {
               const stat = await io.stat(path.join(grant.rootPath, made.relativePath));
@@ -810,10 +869,20 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
               outcome = 'completed';
             }
           } else if (op.kind === 'restore' && intent) {
-            const back = await io.stat(path.join(grant.rootPath, ...intent.to.split('/'))).then(() => true, () => false);
+            const back = await io.stat(path.join(grant.rootPath, ...intent.to.split('/'))).catch(() => null);
+            const kept = (await listRecoveryTrash(grant.rootPath, io)).find((e) => e.receiptId === intent.receiptId);
+            // a file is put back by giving it its old name and then taking away the one it had in the recovery
+            // area: cut short between the two it is under both names, and taking that one away is all that is left
+            if (back && kept && intent.itemKind === 'file') {
+              const still = await io.stat(kept.content).catch(() => null);
+              if (still && sameFile(back, still)) await io.unlink(kept.content);
+            }
             const stillKept = (await listRecoveryTrash(grant.rootPath, io)).some((e) => e.receiptId === intent.receiptId);
             if (back && !stillKept) {
-              // it is back in its place and no longer in the recovery area: its files are found by looking (see reconcile.cjs)
+              // it is back in its place and no longer in the recovery area: the files that came back are the
+              // files they were, which the note (kept until the receipt is cleared) names
+              const note = await recoveryNoteOf(intent.receiptId);
+              if (note) await backFromRecovery(note, note);
               await clearRecoveryReceipt(grant.rootPath, intent.receiptId, io);
               await journal.append({ opId: op.opId, kind: 'restore', phase: 'done', to: intent.to, itemKind: intent.itemKind });
               outcome = 'completed';

@@ -1,0 +1,91 @@
+# Round 2 review: the host regression tests, run on the reviewed commit 434f405 before any fix.
+# Command: node --test tests/host/review-round2.test.cjs tests/host/drafts.test.cjs
+# Each [R2-..] line that is 'not ok' is the defect showing; the 'ok' ones are guards that already held.
+
+## tests/host/review-round2.test.cjs
+not ok 1 - [R2-01] a trashed file does not come back as the file that was imported under its name and says the same
+  error: |-
+  code: 'ERR_ASSERTION'
+  expected: 'missing'
+  actual: 'ready'
+not ok 2 - [R2-01] a trashed file does not come back as the file that was copied under its name and says the same
+  error: |-
+  code: 'ERR_ASSERTION'
+  expected: 'missing'
+  actual: 'ready'
+not ok 3 - [R2-02] a file asked for at its folder's new place while the folder is still being moved is the file it was
+  error: |-
+  code: 'ERR_ASSERTION'
+  expected: 'file_31317d9b-33cd-40cb-86c3-5caee53670f5'
+  actual: 'file_2391338b-19ee-427c-a739-2ffaf8396172'
+not ok 4 - [R2-02] after a crash in the middle of a folder move, the first thing asked being a file at the new place still gives the file it was
+  error: |-
+  code: 'ERR_ASSERTION'
+  expected: 'file_8293cfb0-205d-44c5-a004-1370570910ca'
+  actual: 'file_831482cd-7430-4cc5-a5ee-a472ed7b9bd3'
+not ok 5 - [R2-02] a record that was given a second identity at a folder's new place loses it to the file that moved there
+  error: |-
+  code: 'ERR_ASSERTION'
+  expected: 'file_3757d53e-65a7-4d13-9bd4-b15e5ed37b20'
+  actual: 'file_second_identity'
+not ok 6 - [R2-07] a creation cut short before it had the name does not take the file another creation made there for its own
+  error: 'two requests, two files'
+  code: 'ERR_ASSERTION'
+  expected: 'file_3fd1abc9-2045-465b-bb07-87612d5a69dc'
+  actual: 'file_3fd1abc9-2045-465b-bb07-87612d5a69dc'
+not ok 7 - [R2-07] a creation that found its first name taken and was cut short before the next takes neither file for its own
+  error: |-
+  code: 'ERR_ASSERTION'
+  expected: 'notes/Untitled-003.md'
+  actual: 'notes/Untitled-002.md'
+not ok 8 - [R2-08] what is noted after a note that failed part-way, by the same running app, is still there when the journal is read again
+  error: |-
+  code: 'ERR_ASSERTION'
+  expected:
+  actual:
+not ok 9 - [R2-09] a put-back cut short after the file was back and before its record was is finished on the next start
+  error: |-
+  code: 'ERR_ASSERTION'
+  expected: 'ready'
+  actual: 'missing'
+not ok 10 - [R2-09] a put-back cut short while the file was under both names is finished on the next start
+  error: 'something has taken its place; it stays in the recovery area'
+  code: 'exists'
+ok 11 - [R2-09] a put-back cut short after its record was updated and before its receipt was cleared is finished on the next start
+not ok 12 - [R2-09] a folder's put-back cut short after the folder was back gives every file in it its identity again
+  error: |-
+  code: 'ERR_ASSERTION'
+  expected: 'ready'
+  actual: 'missing'
+not ok 13 - [R2-10] a copy of a workspace with a trashed file puts that file back as the copy's own
+  error: |-
+  code: 'ERR_ASSERTION'
+  expected: 'file_965e3f95-c2ae-4082-9b7f-e3ff5d09dfbf'
+  actual: 'file_3684ed56-6c53-4e52-8cbd-7935ca820710'
+not ok 14 - [R2-10] a copy of a workspace with a trashed folder puts the folder back with the copy's own files in it
+  error: |-
+  code: 'ERR_ASSERTION'
+  expected: 'ready'
+  actual: 'missing'
+not ok 15 - [R2-10] giving a copy its own identity, cut short part-way, is finished with the same new identities the next time it is opened
+  error: |-
+  code: 'ERR_ASSERTION'
+  expected: 'file_17508d30-1bb9-41ec-88ee-386723665340'
+  actual: 'file_e7009908-4309-4037-910d-6df2ea488f6f'
+# pass 1
+# fail 14
+
+## tests/host/drafts.test.cjs
+ok 1 - a draft is kept whole, comes back after a restart, and leaves the file as it is
+ok 2 - a file has one draft: a new one replaces the old, and clearing it leaves none
+ok 3 - a draft follows its file through a move and a rename of its folder, because it is kept by the file's identity
+ok 4 - drafts are not files of the workspace: no listing shows them and nothing reads them as one
+ok 5 - a draft that is not text, is too large, names no base or an unknown file is refused, and nothing is kept
+ok 6 - a draft cut short while it was being written does not replace the one that was there
+ok 7 - a folder that is read-only keeps no drafts
+not ok 8 - [R2-04] a draft whose write takes long does not replace the one asked for after it
+not ok 9 - [R2-04] a draft whose write takes long is gone when it was cleared after it was asked for
+ok 10 - [R2-04] drafts of different files do not wait for each other
+not ok 11 - [R2-11] a draft remembers that it is for the person to sort out and save, across a restart
+# pass 8
+# fail 3

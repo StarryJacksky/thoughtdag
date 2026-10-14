@@ -22,21 +22,36 @@ const draftFile = (rootPath, fileId) => {
   return path.join(draftsRoot(rootPath), `${fileId}.json`);
 };
 
-/** Keep `draft` ({ fileId, text, baseRevision, savedAt }) as the one draft of its file. Resolves when it is on disk whole. */
+// Writes and removals of one file's draft happen one after the other, in the
+// order they were asked for. Each write is whole by itself (a rename), but
+// two of them under way together could land in either order: the older text
+// would then be what a restart finds. Different files do not wait for each
+// other.
+const turns = new Map();
+function inTurn(file, run) {
+  const next = (turns.get(file) ?? Promise.resolve()).then(run, run);
+  const settled = next.catch(() => {}).finally(() => { if (turns.get(file) === settled) turns.delete(file); });
+  turns.set(file, settled);
+  return next;
+}
+
+/** Keep `draft` ({ fileId, text, baseRevision, savedAt, byHand? }) as the one draft of its file. Resolves when it is on disk whole. */
 async function putDraft(rootPath, draft, io = fs.promises) {
   if (typeof draft?.text !== 'string') throw new WorkspaceAccessError('invalid-request', 'a draft is text');
   if (Buffer.byteLength(draft.text, 'utf8') > MAX_DRAFT_BYTES) throw new WorkspaceAccessError('too-large', 'the draft is too large to keep');
   const file = draftFile(rootPath, draft.fileId);
-  await io.mkdir(path.dirname(file), { recursive: true });
-  const temp = `${file}.tdag-draft-${randomUUID().slice(0, 8)}`;
-  try {
-    const handle = await io.open(temp, 'wx');
-    try { await handle.writeFile(JSON.stringify(draft)); await handle.sync(); } finally { await handle.close(); }
-    await io.rename(temp, file);
-  } catch (e) {
-    await io.rm(temp, { force: true }).catch(() => {});
-    throw e;
-  }
+  return inTurn(file, async () => {
+    await io.mkdir(path.dirname(file), { recursive: true });
+    const temp = `${file}.tdag-draft-${randomUUID().slice(0, 8)}`;
+    try {
+      const handle = await io.open(temp, 'wx');
+      try { await handle.writeFile(JSON.stringify(draft)); await handle.sync(); } finally { await handle.close(); }
+      await io.rename(temp, file);
+    } catch (e) {
+      await io.rm(temp, { force: true }).catch(() => {});
+      throw e;
+    }
+  });
 }
 
 /** The draft kept for a file, or null. A draft that cannot be read as one is treated as none: it is left where it is. */
@@ -49,14 +64,16 @@ async function getDraft(rootPath, fileId, io = fs.promises) {
   try {
     const draft = JSON.parse(text);
     return draft && draft.fileId === fileId && typeof draft.text === 'string' && typeof draft.baseRevision === 'string' && typeof draft.savedAt === 'string'
-      ? { fileId, text: draft.text, baseRevision: draft.baseRevision, savedAt: draft.savedAt }
+      ? { fileId, text: draft.text, baseRevision: draft.baseRevision, savedAt: draft.savedAt, ...(draft.byHand === true ? { byHand: true } : {}) }
       : null;
   } catch { return null; }
 }
 
 /** Forget a file's draft: its text is in the file now, or the person let it go. */
 async function clearDraft(rootPath, fileId, io = fs.promises) {
-  await io.rm(draftFile(rootPath, fileId), { force: true });
+  const file = draftFile(rootPath, fileId);
+  // after any write of it that is still under way: one that was asked for earlier must not land after this
+  return inTurn(file, () => io.rm(file, { force: true }));
 }
 
 module.exports = { putDraft, getDraft, clearDraft, draftsRoot, DRAFTS_DIR, MAX_DRAFT_BYTES };

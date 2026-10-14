@@ -182,7 +182,7 @@ function createWorkspaceDoor({ service, providers, canvasFolder, showInFileManag
     /** Text typed into a file and not yet written to it: kept, read back, and let go. */
     'workspace:put-draft': async (_context, fileId, draft) => {
       const { scope, provider } = await ofFile(fileId, 'update');
-      return extra(provider, 'putDraft')(scope, String(fileId), { text: draft?.text, baseRevision: draft?.baseRevision });
+      return extra(provider, 'putDraft')(scope, String(fileId), { text: draft?.text, baseRevision: draft?.baseRevision, ...(draft?.byHand === undefined ? {} : { byHand: draft.byHand }) });
     },
     'workspace:get-draft': async (_context, fileId) => {
       const { scope, provider } = await ofFile(fileId, 'read');

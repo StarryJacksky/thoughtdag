@@ -10,6 +10,9 @@
 //   - A path once seen empty is not trusted again by name. What appears
 //     there later is that document only if it is provably the same file
 //     (same file-system identity) or holds the same content.
+//   - A path that another registered file holds is that file's. A lost
+//     document is never found again there, whatever the content says: a new
+//     file under the old name that happens to say the same is a new file.
 //   - A file that is gone is followed by file-system identity first, then by
 //     content. A name alone is never evidence.
 //   - Two candidates that fit equally well are an ambiguity, not a guess.
@@ -102,6 +105,9 @@ function createReconciler({ grant, registry, io = fs.promises }) {
     }
 
     if (here && lost) {
+      // the file that is there now may be another registered file, made or put there since: then it is not this one
+      const holder = await registry.findByPath(here.relativePath);
+      if (holder && holder.fileId !== fileId) return { record, change: null };
       // the path was seen empty: what is there now must prove it is the same file
       const revision = await contentOf(here.absolute);
       const proven = sameIdentity(here.stat, observed) || (here.stat.size > 0 && !!record.revision && revision === record.revision);

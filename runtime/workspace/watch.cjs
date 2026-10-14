@@ -14,7 +14,8 @@ function isOwnNoise(filename) {
   if (typeof filename !== 'string') return false; // an unnamed event may be about anything
   const steps = filename.split(/[\\/]/);
   if (steps[0].toLowerCase() === METADATA_DIR) return true;
-  return steps[steps.length - 1].includes('.tdag-save-');
+  // the files this application writes beside a file while it saves or creates it
+  return steps[steps.length - 1].includes('.tdag-save-') || steps[steps.length - 1].includes('.tdag-create-');
 }
 
 /**

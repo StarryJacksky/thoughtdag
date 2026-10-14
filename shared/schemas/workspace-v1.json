@@ -358,7 +358,7 @@
     },
 
     "DocumentDraft": {
-      "description": "Text a person typed into a file that has not been written to the file: kept so that it survives a crash, a closed view or a refused save. `baseRevision` is the content the text was typed over. A draft is never model input by default.",
+      "description": "Text a person typed into a file that has not been written to the file: kept so that it survives a crash, a closed view or a refused save. `baseRevision` is the content the text was typed over; while a conflict with a later change is not settled it stays the content before that change. `byHand` marks text the person is sorting out themselves: it is never written to the file without their say. A draft is never model input by default.",
       "type": "object",
       "required": ["fileId", "text", "baseRevision", "savedAt"],
       "additionalProperties": false,
@@ -366,7 +366,8 @@
         "fileId": { "$ref": "#/$defs/OpaqueId" },
         "text": { "type": "string" },
         "baseRevision": { "$ref": "#/$defs/ContentHash" },
-        "savedAt": { "type": "string", "minLength": 1 }
+        "savedAt": { "type": "string", "minLength": 1 },
+        "byHand": { "type": "boolean" }
       }
     },
 

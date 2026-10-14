@@ -111,6 +111,37 @@ async function listRecoveryTrash(rootPath, io = fs.promises) {
   return found;
 }
 
+/** The note kept for a receipt (what it is, where it was, whose files it holds), or null. It is there from before the move into the recovery area until the receipt is cleared. */
+async function readRecoveryNote(rootPath, receiptId, io = fs.promises) {
+  try { return JSON.parse(await io.readFile(noteOf(rootPath, receiptId), 'utf8')); } catch { return null; }
+}
+
+/**
+ * Give the files named in the recovery area's notes other identities:
+ * `renamed` maps the id a note holds to the id it should hold. What a copy
+ * of a workspace needs, whose notes were copied naming the original's
+ * files. A note that names none of them is left as it is.
+ */
+async function renameInRecoveryNotes(rootPath, renamed, io = fs.promises) {
+  let names;
+  try { names = await io.readdir(trashRoot(rootPath)); } catch (e) {
+    if (e.code === 'ENOENT') return;
+    throw e;
+  }
+  for (const name of names) {
+    if (!name.endsWith('.json')) continue;
+    const file = path.join(trashRoot(rootPath), name);
+    let note;
+    try { note = JSON.parse(await io.readFile(file, 'utf8')); } catch { continue; }
+    let changed = false;
+    if (typeof note?.fileId === 'string' && renamed.has(note.fileId)) { note.fileId = renamed.get(note.fileId); changed = true; }
+    for (const f of Array.isArray(note?.files) ? note.files : []) {
+      if (typeof f?.fileId === 'string' && renamed.has(f.fileId)) { f.fileId = renamed.get(f.fileId); changed = true; }
+    }
+    if (changed) await writeNote(file, note, io);
+  }
+}
+
 /** Forget a receipt whose content was put back: its note and its now empty folder. */
 async function clearRecoveryReceipt(rootPath, receiptId, io = fs.promises) {
   await io.rm(noteOf(rootPath, receiptId), { force: true }).catch(() => {});
@@ -134,4 +165,4 @@ async function listPreviousVersions(rootPath, fileId, io = fs.promises) {
   return versions.sort((a, b) => b.at - a.at).map(({ at: _at, ...version }) => version);
 }
 
-module.exports = { keepPreviousVersion, readPreviousVersion, listPreviousVersions, moveToRecoveryTrash, listRecoveryTrash, clearRecoveryReceipt, recoveryRoot, RECOVERY_DIR };
+module.exports = { keepPreviousVersion, readPreviousVersion, listPreviousVersions, moveToRecoveryTrash, listRecoveryTrash, readRecoveryNote, renameInRecoveryNotes, clearRecoveryReceipt, recoveryRoot, RECOVERY_DIR };

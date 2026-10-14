@@ -165,7 +165,8 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
           now,
           notify: (record, change) => emit(grant.workspaceId, record, change),
         });
-        await ops.reconcile();
+        // what a crash left is settled first; files a put-back brought back are announced, to whoever listens already
+        for (const { opId, restored } of await ops.reconcile()) for (const record of restored ?? []) emit(grant.workspaceId, record, 'restored', opId);
         return ops;
       })();
       operations.set(grant.rootGrantId, ready);

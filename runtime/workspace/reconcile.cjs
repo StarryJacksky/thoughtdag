@@ -87,6 +87,15 @@ function createReconciler({ grant, registry, io = fs.promises }) {
   }
 
   const settle = async (fileId, patch, observed, change) => ({ record: await registry.update(fileId, patch, observed), change });
+  /**
+   * A lost file found at a path: it takes that path only if nobody has it
+   * by the time the record is changed. The look at the disk came first, and
+   * a file created there since (with the same words, even) is that file.
+   */
+  const settleUnlessHeld = async (fileId, patch, observed, change) => {
+    const record = await registry.update(fileId, patch, observed, { unlessHeld: true });
+    return record ? { record, change } : { record: await registry.get(fileId), change: null };
+  };
 
   async function reconcile(fileId) {
     const entry = await registry.entry(fileId);
@@ -112,7 +121,7 @@ function createReconciler({ grant, registry, io = fs.promises }) {
       const revision = await contentOf(here.absolute);
       const proven = sameIdentity(here.stat, observed) || (here.stat.size > 0 && !!record.revision && revision === record.revision);
       if (!proven) return { record, change: null };
-      return settle(fileId, { relativePath: here.relativePath, revision, status: live }, observedOf(here.stat), 'restored');
+      return settleUnlessHeld(fileId, { relativePath: here.relativePath, revision, status: live }, observedOf(here.stat), 'restored');
     }
 
     // nothing at the path: look for where the file went
@@ -127,7 +136,7 @@ function createReconciler({ grant, registry, io = fs.promises }) {
     if (candidates.length === 1 && complete) {
       const [moved] = candidates;
       const revision = await contentOf(absoluteOf(moved.relativePath));
-      return settle(fileId, { relativePath: moved.relativePath, mediaType: mediaTypeOf(moved.relativePath), revision, status: live }, observedOf(moved.stat), 'moved');
+      return settleUnlessHeld(fileId, { relativePath: moved.relativePath, mediaType: mediaTypeOf(moved.relativePath), revision, status: live }, observedOf(moved.stat), 'moved');
     }
     const status = candidates.length > 1 ? 'ambiguous' : 'missing';
     if (record.status === status) return { record, change: null };
@@ -161,7 +170,9 @@ function createReconciler({ grant, registry, io = fs.promises }) {
       if (other && other.fileId !== fileId && other.status !== 'missing' && other.status !== 'ambiguous') throw new WorkspaceAccessError('claimed', 'that file is already another registered file');
       const revision = await contentOf(here.absolute);
       const change = entry.record.status === 'missing' || entry.record.status === 'ambiguous' ? 'restored' : 'moved';
-      return settle(fileId, { relativePath: here.relativePath, mediaType: mediaTypeOf(here.relativePath), revision, status: grant.readOnly ? 'readonly' : 'ready' }, observedOf(here.stat), change);
+      const record = await registry.update(fileId, { relativePath: here.relativePath, mediaType: mediaTypeOf(here.relativePath), revision, status: grant.readOnly ? 'readonly' : 'ready' }, observedOf(here.stat), { unlessHeld: true });
+      if (!record) throw new WorkspaceAccessError('claimed', 'that file is already another registered file');
+      return { record, change };
     },
   };
 }

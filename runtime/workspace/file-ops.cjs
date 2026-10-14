@@ -35,7 +35,10 @@ const path = require('node:path');
 const { createHash, randomUUID } = require('node:crypto');
 const { assertAllowedPath, assertPortableName, WorkspaceAccessError } = require('./path-policy.cjs');
 const { mediaTypeOf } = require('./media-types.cjs');
-const { keepPreviousVersion, readPreviousVersion, listPreviousVersions, moveToRecoveryTrash, listRecoveryTrash, readRecoveryNote, clearRecoveryReceipt } = require('./recovery.cjs');
+const { readBounded, keepPreviousVersion, readPreviousVersion, listPreviousVersions, moveToRecoveryTrash, listRecoveryTrash, readRecoveryNote, clearRecoveryReceipt } = require('./recovery.cjs');
+
+/** What the disk says when it fails for a moment: an operation that meets one is tried again later, not given up. */
+const TRY_AGAIN = new Set(['EIO', 'EAGAIN', 'EBUSY', 'EINTR', 'EMFILE', 'ENFILE', 'ETIMEDOUT']);
 
 /** Text above this size is not opened for editing. */
 const MAX_EDITABLE_BYTES = 8 * 1024 * 1024;
@@ -166,7 +169,8 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
       const stat = await handle.stat();
       if (!stat.isFile()) throw new WorkspaceAccessError('not-a-file', 'only a regular file can be read');
       if (stat.size > limit) throw new WorkspaceAccessError('too-large', 'the file is too large to be read here');
-      return { bytes: await handle.readFile(), stat };
+      // the size is not trusted to hold while reading: the read stops at the limit
+      return { bytes: await readBounded(handle, limit), stat };
     } finally {
       await handle.close();
     }
@@ -224,9 +228,15 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
         try { await io.link(own.file, target.absolute); } catch (e) {
           if (e.code === 'EEXIST') continue; // another creator took the name first
           if (!NO_HARD_LINKS.has(e.code)) throw e;
-          // no hard links on this volume: the name was free a moment ago, and it is taken with a rename
-          if (await io.stat(target.absolute).then(() => true, () => false)) continue;
-          await io.rename(own.file, target.absolute);
+          // no hard links on this volume: the name is taken with a rename, which would replace whatever is
+          // there. Looking and renaming happen under the name's lock, which every creation, move and put-back
+          // of this application to that name takes: none of them can come between the two.
+          const took = await atPath(target.relativePath, async () => {
+            if (await io.stat(target.absolute).then(() => true, () => false)) return false;
+            await io.rename(own.file, target.absolute);
+            return true;
+          });
+          if (!took) continue;
           own = null;
           return { target, stat: await io.stat(target.absolute) };
         }
@@ -389,6 +399,33 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
         return { status: 'error', reason: 'the save did not complete' };
       }
   }));
+
+  /**
+   * Finish a put-back that was cut short, if the disk shows how far it got:
+   * the item is back in its place and no longer in the recovery area. The
+   * files that came back are the files they were, which its note (kept
+   * until the receipt is cleared) names. Resolves with their records, or
+   * null when it did not get that far. A note that cannot be read now is
+   * thrown, not taken for no note: the put-back stays unfinished, its note
+   * and receipt with it, and is finished by the next try.
+   */
+  async function finishRestore(opId, intent) {
+    const back = await io.stat(path.join(grant.rootPath, ...intent.to.split('/'))).catch(() => null);
+    const kept = (await listRecoveryTrash(grant.rootPath, io)).find((e) => e.receiptId === intent.receiptId);
+    // a file is put back by giving it its old name and then taking away the one it had in the recovery
+    // area: cut short between the two it is under both names, and taking that one away is all that is left
+    if (back && kept && intent.itemKind === 'file') {
+      const still = await io.stat(kept.content).catch(() => null);
+      if (still && sameFile(back, still)) await io.unlink(kept.content);
+    }
+    const stillKept = (await listRecoveryTrash(grant.rootPath, io)).some((e) => e.receiptId === intent.receiptId);
+    if (!back || stillKept) return null;
+    const note = await recoveryNoteOf(intent.receiptId);
+    const restored = note ? await backFromRecovery(note, note) : [];
+    await clearRecoveryReceipt(grant.rootPath, intent.receiptId, io);
+    await journal.append({ opId, kind: 'restore', phase: 'done', to: intent.to, itemKind: intent.itemKind });
+    return restored;
+  }
 
   /** The note of something in the recovery area: its own, or what the journal said when it was trashed before notes were kept. */
   async function recoveryNoteOf(receiptId, name) {
@@ -600,9 +637,9 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
     async readVersion(fileId, revision) {
       await recordOf(fileId);
       if (typeof revision !== 'string' || !/^sha256:[0-9a-f]{64}$/.test(revision)) throw new WorkspaceAccessError('invalid-request', 'that is not the revision of a version');
-      const bytes = await readPreviousVersion(grant.rootPath, fileId, revision, io);
+      // one too large to read is refused from its size, before any of it is read
+      const bytes = await readPreviousVersion(grant.rootPath, fileId, revision, io, MAX_EDITABLE_BYTES);
       if (!bytes) throw new WorkspaceAccessError('not-found', 'that version is not kept in the recovery area');
-      if (bytes.length > MAX_EDITABLE_BYTES) throw new WorkspaceAccessError('too-large', 'the version is too large to be read here');
       return { ...decodeText(bytes), revision };
     },
 
@@ -832,6 +869,12 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
       await refuseReadOnly();
       const done = await finished(opId, 'restore');
       if (done) return { relativePath: done.to, kind: done.itemKind, restored: [] };
+      // this very put-back was cut short, or could not be finished at start: it is finished now, as it was begun
+      const begun = (await journal.attempt(opId))?.find((e) => e.phase === 'intent' && e.receiptId === receiptId && typeof e.to === 'string');
+      if (begun) {
+        const restored = await finishRestore(opId, begun);
+        if (restored) return { relativePath: begun.to, kind: begun.itemKind, restored };
+      }
       const entry = (await listRecoveryTrash(grant.rootPath, io)).find((e) => e.receiptId === receiptId);
       const item = entry && (await api.listRecovery()).find((i) => i.receiptId === receiptId);
       if (!entry || !item) throw new WorkspaceAccessError('not-found', 'that is not in the recovery area');
@@ -875,6 +918,7 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
         const last = (phase) => [...op.entries].reverse().find((e) => e.phase === phase);
         const intent = last('intent');
         let outcome = 'failed';
+        let restored = null;
         try {
           if (op.kind === 'create') {
             const created = last('created');
@@ -961,29 +1005,16 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
               outcome = 'completed';
             }
           } else if (op.kind === 'restore' && intent) {
-            const back = await io.stat(path.join(grant.rootPath, ...intent.to.split('/'))).catch(() => null);
-            const kept = (await listRecoveryTrash(grant.rootPath, io)).find((e) => e.receiptId === intent.receiptId);
-            // a file is put back by giving it its old name and then taking away the one it had in the recovery
-            // area: cut short between the two it is under both names, and taking that one away is all that is left
-            if (back && kept && intent.itemKind === 'file') {
-              const still = await io.stat(kept.content).catch(() => null);
-              if (still && sameFile(back, still)) await io.unlink(kept.content);
-            }
-            const stillKept = (await listRecoveryTrash(grant.rootPath, io)).some((e) => e.receiptId === intent.receiptId);
-            if (back && !stillKept) {
-              // it is back in its place and no longer in the recovery area: the files that came back are the
-              // files they were, which the note (kept until the receipt is cleared) names
-              const note = await recoveryNoteOf(intent.receiptId);
-              if (note) await backFromRecovery(note, note);
-              await clearRecoveryReceipt(grant.rootPath, intent.receiptId, io);
-              await journal.append({ opId: op.opId, kind: 'restore', phase: 'done', to: intent.to, itemKind: intent.itemKind });
-              outcome = 'completed';
-            }
+            restored = await finishRestore(op.opId, intent);
+            if (restored) outcome = 'completed';
           }
           // a copy that did not finish is left as it is: a partial file is not registered, and not deleted
-        } catch { outcome = 'failed'; }
+        } catch (e) {
+          // the disk failing for a moment is not the operation failing: it stays as it is, to be settled by the next try
+          outcome = TRY_AGAIN.has(e?.code) ? 'deferred' : 'failed';
+        }
         if (outcome === 'failed') await journal.append({ opId: op.opId, kind: op.kind, phase: 'failed' }).catch(() => {});
-        settled.push({ opId: op.opId, kind: op.kind, outcome });
+        settled.push({ opId: op.opId, kind: op.kind, outcome, ...(restored?.length ? { restored } : {}) });
       }
       return settled;
     },

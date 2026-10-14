@@ -1,0 +1,274 @@
+# node --test tests/host/review-round3.test.cjs on the code of 5d89408 (no fix applied; the reviewed code of these modules is unchanged since cc4761f)
+TAP version 13
+# Subtest: [R3-01] on a volume without hard links, two imports under one name at once each get a file of their own
+not ok 1 - [R3-01] on a volume without hard links, two imports under one name at once each get a file of their own
+  ---
+  duration_ms: 77.453458
+  type: 'test'
+  location: '<repo>/tests/host/review-round3.test.cjs:63:3'
+  failureType: 'testCodeFailure'
+  error: 'two files, at two names'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'notes/same.md'
+  actual: 'notes/same.md'
+  operator: 'notStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round3.test.cjs:73:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: [R3-01] on a volume without hard links, two empty creations under one name at once each get a file of their own
+not ok 2 - [R3-01] on a volume without hard links, two empty creations under one name at once each get a file of their own
+  ---
+  duration_ms: 58.159042
+  type: 'test'
+  location: '<repo>/tests/host/review-round3.test.cjs:63:3'
+  failureType: 'testCodeFailure'
+  error: 'two files, at two names'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'notes/Untitled-001.md'
+  actual: 'notes/Untitled-001.md'
+  operator: 'notStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round3.test.cjs:73:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R3-01] on a volume without hard links, a file moved to the name a creation is taking does not take it, and is not overwritten
+not ok 3 - [R3-01] on a volume without hard links, a file moved to the name a creation is taking does not take it, and is not overwritten
+  ---
+  duration_ms: 66.542167
+  type: 'test'
+  location: '<repo>/tests/host/review-round3.test.cjs:87:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    the move is refused: the name was taken
+    + actual - expected
+    
+    + undefined
+    - 'exists'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'exists'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round3.test.cjs:100:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R3-02] a lost file is not found again in a new file that took its name while it was being looked for
+not ok 4 - [R3-02] a lost file is not found again in a new file that took its name while it was being looked for
+  ---
+  duration_ms: 64.680083
+  type: 'test'
+  location: '<repo>/tests/host/review-round3.test.cjs:107:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    the new file keeps its identity
+    
+    'missing' !== 'ready'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'ready'
+  actual: 'missing'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round3.test.cjs:126:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R3-04] a copy whose note of a trashed file cannot be read for a moment is not given its own identity half way
+not ok 5 - [R3-04] a copy whose note of a trashed file cannot be read for a moment is not given its own identity half way
+  ---
+  duration_ms: 69.569459
+  type: 'test'
+  location: '<repo>/tests/host/review-round3.test.cjs:146:3'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection: the copy is not opened as if its recovery area were done'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (<repo>/tests/host/review-round3.test.cjs:159:7)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R3-04] a copy whose note of a trashed folder cannot be read for a moment is not given its own identity half way
+not ok 6 - [R3-04] a copy whose note of a trashed folder cannot be read for a moment is not given its own identity half way
+  ---
+  duration_ms: 54.0165
+  type: 'test'
+  location: '<repo>/tests/host/review-round3.test.cjs:146:3'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection: the copy is not opened as if its recovery area were done'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (<repo>/tests/host/review-round3.test.cjs:159:7)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R3-05] a file's put-back whose note cannot be read for a moment at start is not taken as done, and is finished the next time
+not ok 7 - [R3-05] a file's put-back whose note cannot be read for a moment at start is not taken as done, and is finished the next time
+  ---
+  duration_ms: 48.275833
+  type: 'test'
+  location: '<repo>/tests/host/review-round3.test.cjs:203:3'
+  failureType: 'testCodeFailure'
+  error: 'the note that names the files is kept'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round3.test.cjs:213:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R3-05] a file's put-back whose note could not be read at start is finished by the next start
+ok 8 - [R3-05] a file's put-back whose note could not be read at start is finished by the next start
+  ---
+  duration_ms: 49.434625
+  type: 'test'
+  ...
+# Subtest: [R3-06] a file's put-back finished at start is heard of by whoever was listening, once
+not ok 9 - [R3-06] a file's put-back finished at start is heard of by whoever was listening, once
+  ---
+  duration_ms: 47.147875
+  type: 'test'
+  location: '<repo>/tests/host/review-round3.test.cjs:237:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   [
+    -     'restored',
+    -     'file_28adf8a2-b6cb-48a5-a02e-0a5cc04ef052',
+    -     'op-restore'
+    -   ]
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0:
+      0: 'restored'
+      1: 'file_28adf8a2-b6cb-48a5-a02e-0a5cc04ef052'
+      2: 'op-restore'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round3.test.cjs:245:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R3-05] a folder's put-back whose note cannot be read for a moment at start is not taken as done, and is finished the next time
+not ok 10 - [R3-05] a folder's put-back whose note cannot be read for a moment at start is not taken as done, and is finished the next time
+  ---
+  duration_ms: 39.734083
+  type: 'test'
+  location: '<repo>/tests/host/review-round3.test.cjs:203:3'
+  failureType: 'testCodeFailure'
+  error: 'the note that names the files is kept'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round3.test.cjs:213:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R3-05] a folder's put-back whose note could not be read at start is finished by the next start
+not ok 11 - [R3-05] a folder's put-back whose note could not be read at start is finished by the next start
+  ---
+  duration_ms: 44.050459
+  type: 'test'
+  location: '<repo>/tests/host/review-round3.test.cjs:225:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    'missing' !== 'ready'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'ready'
+  actual: 'missing'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round3.test.cjs:232:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R3-06] a folder's put-back finished at start is heard of by whoever was listening, once
+not ok 12 - [R3-06] a folder's put-back finished at start is heard of by whoever was listening, once
+  ---
+  duration_ms: 50.853792
+  type: 'test'
+  location: '<repo>/tests/host/review-round3.test.cjs:237:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   [
+    -     'restored',
+    -     'file_05228beb-95ea-4526-9245-9353bf5b3fec',
+    -     'op-restore'
+    -   ]
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0:
+      0: 'restored'
+      1: 'file_05228beb-95ea-4526-9245-9353bf5b3fec'
+      2: 'op-restore'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round3.test.cjs:245:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R3-15] an earlier version above the limit is refused from its size, without its content being read
+not ok 13 - [R3-15] an earlier version above the limit is refused from its size, without its content being read
+  ---
+  duration_ms: 142.250167
+  type: 'test'
+  location: '<repo>/tests/host/review-round3.test.cjs:254:1'
+  failureType: 'testCodeFailure'
+  error: "the version's content is not read (read 9437184 bytes)"
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round3.test.cjs:284:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 1
+# fail 12
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 923.99175

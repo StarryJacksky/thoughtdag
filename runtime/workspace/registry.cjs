@@ -261,8 +261,15 @@ function createRegistry({ rootPath, workspaceId, rootGrantId, readOnly = false, 
      * Change a registered file's record: where it is, what its content
      * hashes to, whether it is still there. The fileId never changes. A new
      * `relativePath` moves the locator with it. Resolves with the new record.
+     *
+     * With `{ unlessHeld: true }` a change that puts the record at a path
+     * (it is found there, or found again) is made only if no other live
+     * record holds that path at this moment, and resolves with null if one
+     * does. What looked at the disk earlier and decided the file is there
+     * may have been overtaken: a file created there since has its own
+     * identity, and an observation that came late does not take it away.
      */
-    update: (fileId, patch, observed) => serial(async () => {
+    update: (fileId, patch, observed, { unlessHeld = false } = {}) => serial(async () => {
       await load();
       const entry = state.resources.get(fileId);
       if (!entry) throw new RegistryError('unknown-file', 'that file is not registered');
@@ -270,6 +277,10 @@ function createRegistry({ rootPath, workspaceId, rootGrantId, readOnly = false, 
       if (typeof patch.relativePath === 'string') record.locator = { ...entry.record.locator, relativePath: patch.relativePath };
       const checked = contracts.validateDTO('ResourceRecord', record);
       if (!checked.ok) throw new RegistryError('invalid-record', 'the changed record does not fit the contract: ' + checked.errors.map((e) => `${e.path} ${e.message}`).join('; '));
+      if (unlessHeld && placed(entry.record, record)) {
+        const holder = liveAt(record.relativePath);
+        if (holder && holder.record.fileId !== fileId) return null;
+      }
       await commit(fileId, { record, observed: observed === undefined ? entry.observed : observed });
       return record;
     }),

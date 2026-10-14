@@ -493,7 +493,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
         // title — the reader's entry point — so there question leads and
         // the takeaway is the subtitle.
         <div
-          className="drag-handle cursor-grab active:cursor-grabbing px-6 py-5 relative flex flex-col overflow-hidden"
+          className="drag-handle cursor-grab active:cursor-grabbing px-6 py-5 relative flex flex-col overflow-hidden prose-text"
           style={{ maxHeight: plaqueCap }}
           onDoubleClick={(e) => {
             e.stopPropagation();

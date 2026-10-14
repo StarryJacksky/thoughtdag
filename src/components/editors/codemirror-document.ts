@@ -22,6 +22,12 @@ import { changeBetween, type Change } from '../../lib/documents/history';
 /** Marks a transaction that brings the document's state into the editor: it is not typing, and is not sent back. */
 const fromDocument = Annotation.define<boolean>();
 
+/** Files whose text is prose (it is read as writing, not as code): they are set in the text face, the rest in the mono face. */
+export const isProse = (name: string): boolean => {
+  const extension = name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toLowerCase() : '';
+  return ['md', 'markdown', 'txt', 'text', 'tex', 'ltx', ''].includes(extension);
+};
+
 /** The language of a file by its name; plain text for the ones not known here. */
 async function languageOf(name: string): Promise<Extension> {
   const extension = name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toLowerCase() : '';
@@ -141,7 +147,7 @@ export function bindEditor(parent: HTMLElement, documentId: string, surfaceId: s
         }),
         EditorView.theme({
           '&': { height: '100%', fontSize: '13px', backgroundColor: 'transparent' },
-          '.cm-scroller': { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', lineHeight: '1.6' },
+          '.cm-scroller': { fontFamily: 'var(--font-mono)', lineHeight: '1.6' },
           '.cm-gutters': { backgroundColor: 'transparent', border: 'none', color: 'var(--color-ink-faint)' },
           '&.cm-focused': { outline: 'none' },
         }),
@@ -171,6 +177,8 @@ export function bindEditor(parent: HTMLElement, documentId: string, surfaceId: s
     seen = now.bufferRevision;
   });
 
+  // prose is set in the text face, code in the mono face (index.css reads this)
+  parent.dataset.editorFace = isProse(documents.status(documentId)?.name ?? '') ? 'text' : 'code';
   void languageOf(documents.status(documentId)?.name ?? '').then((extension) => view.dispatch({ effects: language.reconfigure(extension) })).catch(() => {});
 
   return { view, destroy() { stop(); view.destroy(); } };

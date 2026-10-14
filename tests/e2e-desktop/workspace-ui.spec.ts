@@ -752,6 +752,12 @@ test.describe.serial('editors and readers, in the desktop shell', () => {
     await typeIn(surface('paper.tex'), '\\section{Results}\n');
     await expect(surface('paper.tex').locator('[data-surface-state]')).toHaveAttribute('data-surface-state', 'clean');
     expect(fs.readFileSync(disk('paper.tex'), 'utf8')).toBe('\\section{Results}\n');
+    // prose is set in Times New Roman and Song, code in the mono face, the interface in its sans face
+    const faceOf = (target: Locator) => target.evaluate((el) => (globalThis as unknown as { getComputedStyle(e: unknown): { fontFamily: string } }).getComputedStyle(el).fontFamily);
+    expect(await faceOf(surface('paper.tex').locator('.cm-scroller'))).toMatch(/^"?Times New Roman"?, Times, "?Songti SC/);
+    expect(await faceOf(surface('notes.md').locator('.cm-scroller'))).toMatch(/^"?Times New Roman/);
+    expect(await faceOf(surface('analysis.py').locator('.cm-scroller'))).toMatch(/JetBrains Mono/);
+    expect(await faceOf(surface('analysis.py').locator('[data-surface-save]'))).toMatch(/^"?Inter/);
     await surface('paper.tex').locator('[data-surface-close]').click();
     await surface('analysis.py').locator('[data-surface-close]').click();
   });

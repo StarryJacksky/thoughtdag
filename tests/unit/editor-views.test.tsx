@@ -130,6 +130,19 @@ describe('an editor is a view of the shared document', () => {
   });
 });
 
+describe('the face a document is set in', () => {
+  it('is the text face for prose (Markdown, LaTeX, plain text) and the mono face for code', async () => {
+    for (const [name, face] of [['notes/prose.md', 'text'], ['notes/paper.tex', 'text'], ['notes/plain.txt', 'text'], ['notes/analysis.py', 'code'], ['notes/data.json', 'code']] as const) {
+      shell.seed(name, 'x\n');
+      const doc = await documents.open(fileIdOf(name), `view-${name}`);
+      const shown = await mount(<div style={{ height: 200 }}><TextEditor documentId={doc.documentId} surfaceId={`view-${name}`} onSave={() => {}} /></div>);
+      expect(shown.container.querySelector<HTMLElement>('[data-editor-face]')!.dataset.editorFace, name).toBe(face);
+      await shown.unmount();
+      await documents.closeView(`view-${name}`);
+    }
+  });
+});
+
 describe('a word being composed by an input method', () => {
   const compose = async (editor: EditorView, steps: string[]) => {
     editor.contentDOM.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));

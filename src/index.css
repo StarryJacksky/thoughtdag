@@ -10,6 +10,10 @@
      loaded via @fontsource in main.tsx; CJK falls back to PingFang. */
   --font-sans: 'Inter Variable', -apple-system, 'PingFang SC', 'Hiragino Sans GB', 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono Variable', 'SF Mono', 'PingFang SC', monospace;
+  /* The text people read and write (questions, answers, notes, documents):
+     Times New Roman for Latin, Song for Chinese. The interface's own labels
+     and controls keep the sans face above; code keeps the mono face. */
+  --font-text: 'Times New Roman', Times, 'Songti SC', 'STSong', 'SimSun', 'Noto Serif CJK SC', serif;
 
   /* Type scale — bumped one notch from Tailwind defaults for research-
      grade readability (xs 12→13px, sm 14→15px); 2xs is the old xs. */
@@ -177,6 +181,20 @@ html, body, #root {
 
 code, pre {
   font-family: var(--font-mono);
+}
+
+/* Prose in the text face: rendered Markdown (answers, notes, previews), the
+   boxes questions and notes are typed into, the map's labels, documents
+   that are prose, and text taken out of a document. Code inside any of it
+   stays mono (the rule above), and formulas keep their own fonts. */
+.markdown-body,
+.prose-text,
+[data-plaque-line],
+.react-flow__node textarea,
+[data-focus-panel] textarea,
+[data-reader-text],
+[data-editor-face='text'] .cm-editor .cm-scroller {
+  font-family: var(--font-text);
 }
 
 /* ReactFlow overrides */

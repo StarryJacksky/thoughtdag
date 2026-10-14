@@ -63,3 +63,7 @@ desktop/why.mjs
 # Playwright output
 test-results/
 playwright-report/
+
+# The LaTeX engine the desktop app ships, fetched at build time (desktop/scripts/fetch-tectonic.mjs)
+desktop/vendor/
+desktop/.cache/

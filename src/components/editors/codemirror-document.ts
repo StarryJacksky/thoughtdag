@@ -14,7 +14,9 @@
 import { Annotation, ChangeSet, Compartment, EditorState, type Extension } from '@codemirror/state';
 import { EditorView, keymap, lineNumbers, drawSelection, highlightActiveLine } from '@codemirror/view';
 import { defaultKeymap, indentWithTab } from '@codemirror/commands';
-import { bracketMatching, defaultHighlightStyle, indentOnInput, indentUnit, StreamLanguage, syntaxHighlighting } from '@codemirror/language';
+import { bracketMatching, defaultHighlightStyle, foldGutter, foldKeymap, indentOnInput, indentUnit, StreamLanguage, syntaxHighlighting } from '@codemirror/language';
+import { highlightSelectionMatches, search, searchKeymap } from '@codemirror/search';
+import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { documents } from '../../lib/documents/document-service';
 import { markdownLivePreview, texMathPreview } from './live-preview';
@@ -65,6 +67,8 @@ export interface EditorOptions {
   preview?: boolean;
   /** the key that turns that on and off (Mod-Shift-M) was pressed */
   onTogglePreview?: () => void;
+  /** where the cursor is, as line and column counted from 1: told whenever it moves */
+  onCursor?: (line: number, column: number) => void;
 }
 
 /** How a file is shown, by its name: Markdown as notes, LaTeX as a source with its formulas drawn, the rest as text or code. */
@@ -137,6 +141,9 @@ export function bindEditor(parent: HTMLElement, documentId: string, surfaceId: s
       extensions: [
         // Markdown is a page of notes: no line numbers, no band on the current line
         kind === 'markdown' ? [] : [lineNumbers(), highlightActiveLine()],
+        // code is folded by its blocks, its brackets close themselves, and what is selected is found elsewhere too
+        isProse(name) ? [] : [foldGutter(), closeBrackets(), highlightSelectionMatches()],
+        search({ top: true }),
         drawSelection(),
         indentOnInput(),
         bracketMatching(),
@@ -153,9 +160,16 @@ export function bindEditor(parent: HTMLElement, documentId: string, surfaceId: s
           { key: 'Mod-Shift-z', preventDefault: true, run: undo('redo') },
           { key: 'Mod-y', preventDefault: true, run: undo('redo') },
           indentWithTab,
+          ...searchKeymap,
+          ...(isProse(name) ? [] : [...foldKeymap, ...closeBracketsKeymap]),
           ...defaultKeymap,
         ]),
         EditorView.updateListener.of((update) => {
+          if (options.onCursor && (update.selectionSet || update.docChanged)) {
+            const head = update.state.selection.main.head;
+            const line = update.state.doc.lineAt(head);
+            options.onCursor(line.number, head - line.from + 1);
+          }
           if (!update.docChanged) return;
           if (update.transactions.every((tr) => tr.annotation(fromDocument))) return;
           // a word still being put together is not an edit yet

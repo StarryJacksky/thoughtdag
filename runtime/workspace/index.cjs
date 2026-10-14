@@ -562,6 +562,11 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
       return (await operationsOf(await grantOfFile(fileId))).listVersions(fileId);
     },
 
+    /** Put a file a tool made from `fileId` (a LaTeX source's PDF) beside it, under `name`. Resolves with its record. */
+    async putBeside(fileId, name, bytes) {
+      return (await operationsOf(await grantOfFile(fileId))).putBeside(fileId, name, bytes);
+    },
+
     /** One part of a text file too large to open for typing, to look at (see file-ops). */
     async readTextRange(fileId, range) {
       return (await operationsOf(await grantOfFile(fileId))).readTextRange(fileId, range ?? {});

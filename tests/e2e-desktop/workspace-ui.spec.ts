@@ -709,6 +709,8 @@ test.describe.serial('editors and readers, in the desktop shell', () => {
     fs.writeFileSync(disk('pixel.png'), onePixelPng());
     fs.writeFileSync(disk('page.html'), '<html><body><h1>HTML_SHOWN_TEXT</h1><script>top.__ranFromHtml = true; window.__ranFromHtml = true</script><p onclick="top.__ranFromHtml = true">text</p></body></html>');
     fs.writeFileSync(disk('huge.csv'), Buffer.alloc(8 * 1024 * 1024 + 1, 'a'));
+    fs.writeFileSync(disk('hello.py'), 'import sys\nprint("RUN_FROM_DESKTOP_R1")\nprint("WARN_TO_STDERR_R2", file=sys.stderr)\n');
+    fs.writeFileSync(disk('report.tex'), '\\documentclass{ctexart}\n\\begin{document}\n中文报告，公式 $a^2+b^2=c^2$。\n\\end{document}\n');
     eApp = await electron.launch({
       executablePath: electronBinary,
       args: [path.join(REPO, 'desktop'), `--user-data-dir=${path.join(eBase, 'profile')}`],
@@ -908,6 +910,35 @@ test.describe.serial('editors and readers, in the desktop shell', () => {
     await ep.waitForTimeout(300);
     expect(await ranInPage()).toBe(0);
     await html.locator('[data-surface-close]').click();
+  });
+
+  test('a script is run from its editor with the interpreter installed here, and its output shows under the code', async () => {
+    await openFromTree('hello.py');
+    const py = surface('hello.py');
+    await expect(py.locator('[data-code-language]')).toHaveText('Python');
+    await expect(py.locator('.cm-foldGutter')).toHaveCount(1);
+    await py.locator('[data-code-run]').click();
+    await expect(py.locator('[data-run-status]')).toHaveAttribute('data-run-status', 'ok', { timeout: 20_000 });
+    await expect(py.locator('[data-run-stream="stdout"]')).toContainText('RUN_FROM_DESKTOP_R1');
+    await expect(py.locator('[data-run-stream="stderr"]')).toContainText('WARN_TO_STDERR_R2');
+    if (process.env.TDAG_SHOT_DIR) await ep.screenshot({ path: path.join(process.env.TDAG_SHOT_DIR, 'code-run.png') });
+    await py.locator('[data-surface-close]').click();
+  });
+
+  test('a LaTeX source with Chinese is compiled to a PDF beside it, which opens to read', async () => {
+    await openFromTree('report.tex');
+    const tex = surface('report.tex');
+    await tex.locator('[data-code-run]').click();
+    await expect(tex.locator('[data-run-status]')).toHaveAttribute('data-run-status', 'ok', { timeout: 120_000 });
+    expect(fs.readFileSync(disk('report.pdf')).subarray(0, 5).toString()).toBe('%PDF-');
+    const pdf = surface('report.pdf');
+    await expect(pdf.locator('[data-reader="pdf"]')).toBeVisible({ timeout: 20_000 });
+    await expect(pdf).toHaveAttribute('data-surface-placement', 'right');
+    if (process.env.TDAG_SHOT_DIR) { await ep.waitForTimeout(800); await ep.screenshot({ path: path.join(process.env.TDAG_SHOT_DIR, 'latex-compiled.png') }); }
+    // nothing the compiler leaves behind is left beside the source
+    expect(fs.readdirSync(eProject).filter((n) => n.startsWith('report.')).sort()).toEqual(['report.pdf', 'report.tex']);
+    await pdf.locator('[data-surface-close]').click();
+    await tex.locator('[data-surface-close]').click();
   });
 
   test('a text file above the limit is shown read-only, a part at a time, and offers to show the file', async () => {

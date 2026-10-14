@@ -279,6 +279,12 @@ interface DesktopWorkspaceBridge {
   openDefault(canvasId: string): Promise<import('./lib/workspace/contracts').WorkspaceRecord>;
   /** show the file in the system file manager; it is never opened or run */
   reveal(fileId: string): Promise<boolean>;
+  /** what would run a file and which of those tools this machine lacks; runs nothing */
+  runTools(fileId: string): Promise<import('./lib/workspace/run').RunTools>;
+  /** run a file with the tools installed here; resolves with the run's id, its events come through onRunEvent */
+  runFile(fileId: string): Promise<string>;
+  stopRun(runId: string): Promise<boolean>;
+  onRunEvent(cb: (event: import('./lib/workspace/run').RunEvent) => void): void;
   subscribe(workspaceId: string): Promise<boolean>;
   /** whether a subscribed workspace's changes are noticed on their own; false means only an explicit rescan finds them */
   watching(workspaceId: string): Promise<boolean>;

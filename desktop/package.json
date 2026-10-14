@@ -7,9 +7,10 @@
   "scripts": {
     "start": "electron .",
     "payload": "node scripts/prepare-payload.mjs",
-    "dist:mac": "npm run payload && electron-builder --mac dmg zip --arm64 --x64 --publish never",
-    "dist:win": "npm run payload && electron-builder --win nsis --x64 --publish never",
-    "dist:linux": "npm run payload && electron-builder --linux AppImage --x64 --publish never"
+    "tectonic": "node scripts/fetch-tectonic.mjs",
+    "dist:mac": "npm run payload && node scripts/fetch-tectonic.mjs mac-arm64 mac-x64 && electron-builder --mac dmg zip --arm64 --x64 --publish never",
+    "dist:win": "npm run payload && node scripts/fetch-tectonic.mjs win-x64 && electron-builder --win nsis --x64 --publish never",
+    "dist:linux": "npm run payload && node scripts/fetch-tectonic.mjs linux-x64 && electron-builder --linux AppImage --x64 --publish never"
   },
   "devDependencies": {
     "electron": "^43.3.0",
@@ -41,6 +42,10 @@
       {
         "from": "payload",
         "to": "payload"
+      },
+      {
+        "from": "vendor/tectonic/${os}-${arch}",
+        "to": "tectonic"
       }
     ],
     "afterPack": "scripts/after-pack.cjs",
@@ -61,6 +66,9 @@
         }
       ],
       "hardenedRuntime": true,
+      "binaries": [
+        "Contents/Resources/tectonic/tectonic"
+      ],
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",

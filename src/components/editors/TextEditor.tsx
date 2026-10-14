@@ -13,19 +13,22 @@ interface Props {
   preview?: boolean;
   /** the editor's own key for turning the preview on and off was pressed */
   onTogglePreview?: () => void;
+  /** where the cursor is, as line and column counted from 1 */
+  onCursor?: (line: number, column: number) => void;
 }
 
-export default function TextEditor({ documentId, surfaceId, onSave, preview = false, onTogglePreview }: Props) {
+export default function TextEditor({ documentId, surfaceId, onSave, preview = false, onTogglePreview, onCursor }: Props) {
   const holder = useRef<HTMLDivElement>(null);
   const bound = useRef<BoundEditor | null>(null);
   const save = useRef(onSave);
   const toggle = useRef(onTogglePreview);
+  const cursor = useRef(onCursor);
   const shown = useRef(preview);
-  useEffect(() => { save.current = onSave; toggle.current = onTogglePreview; }, [onSave, onTogglePreview]);
+  useEffect(() => { save.current = onSave; toggle.current = onTogglePreview; cursor.current = onCursor; }, [onSave, onTogglePreview, onCursor]);
 
   useEffect(() => {
     if (!holder.current) return;
-    bound.current = bindEditor(holder.current, documentId, surfaceId, () => save.current(), { preview: shown.current, onTogglePreview: () => toggle.current?.() });
+    bound.current = bindEditor(holder.current, documentId, surfaceId, () => save.current(), { preview: shown.current, onTogglePreview: () => toggle.current?.(), onCursor: (line, column) => cursor.current?.(line, column) });
     return () => { bound.current?.destroy(); bound.current = null; };
   }, [documentId, surfaceId]);
 

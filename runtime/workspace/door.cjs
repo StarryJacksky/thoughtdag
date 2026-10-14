@@ -38,7 +38,7 @@ const newlineOf = (text) => {
  * Returns `{ [channel]: async (context, ...args) }`; `context.senderId` is
  * the id of the page that asked.
  */
-function createWorkspaceDoor({ service, providers, canvasFolder, showInFileManager, hub }) {
+function createWorkspaceDoor({ service, providers, canvasFolder, showInFileManager, hub, runner = null }) {
   const optional = (id) => (id == null ? undefined : String(id));
 
   /** The source behind a workspace or a file, checked for the operation that is about to be asked of it. */
@@ -50,6 +50,13 @@ function createWorkspaceDoor({ service, providers, canvasFolder, showInFileManag
   }
   const ofWorkspace = async (workspaceId, operation) => allowed(await providers.providerFor(String(workspaceId)), operation);
   const ofFile = async (fileId, operation) => allowed(await providers.providerForFile(String(fileId)), operation, String(fileId));
+  /** The runner, for a file of a folder on this machine: a file of any other source is not run here. */
+  const localRunner = async (fileId) => {
+    if (!runner) throw new WorkspaceAccessError('unsupported', 'nothing here runs files');
+    const { scope } = await ofFile(fileId, 'read');
+    if (scope?.kind !== 'local') throw new WorkspaceAccessError('unsupported', 'only a file in a folder on this machine is run here');
+    return runner;
+  };
   /** One of the things a source may be able to do beyond the calls every source answers. */
   const extra = (provider, name) => {
     if (typeof provider[name] !== 'function') throw new WorkspaceAccessError('unsupported', 'this source does not support that');
@@ -216,6 +223,15 @@ function createWorkspaceDoor({ service, providers, canvasFolder, showInFileManag
     },
 
     // shown in the system file manager, never opened: a file here may be a script
+    /** What would run a file (a script, a program, a LaTeX source) and which of those tools this machine lacks. Runs nothing. */
+    'workspace:run-tools': async (_context, fileId) => (await localRunner(fileId)).tools(String(fileId)),
+    /** Run a file with the tools installed here, for the page that asks; its events go to that page only (see runner.cjs). */
+    'workspace:run-file': async (context, fileId) => (await localRunner(fileId)).start(context?.senderId ?? null, String(fileId)),
+    'workspace:stop-run': async (context, runId) => {
+      if (!runner) throw new WorkspaceAccessError('unsupported', 'nothing here runs files');
+      return runner.stop(context?.senderId ?? null, String(runId));
+    },
+
     'workspace:reveal': async (_context, fileId) => {
       const { scope, provider } = await providers.providerForFile(String(fileId));
       showInFileManager(await extra(provider, 'locate')(scope, String(fileId)));

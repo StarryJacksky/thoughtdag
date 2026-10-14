@@ -4,6 +4,7 @@
 // door be tested without a disk or a shell. It checks nothing about paths:
 // the real policy is tested where it lives (tests/host).
 
+import type { RunEvent } from '../../src/lib/workspace/run';
 import type { CreateFileRequest, DocumentDraft, FileEntry, FileVersion, RecoveryItem, ResourceRecord, SourceCapabilities, WorkspaceEvent, WorkspaceRecord } from '../../src/lib/workspace/contracts';
 
 interface FakeFile { fileId: string; workspaceId: string; relativePath: string; content: string; status: ResourceRecord['status']; origin: ResourceRecord['origin']; importedFrom?: ResourceRecord['importedFrom']; /** set for a file that is not text: what a read gives instead of `content` */ bytes?: Uint8Array }
@@ -43,12 +44,18 @@ export interface FakeWorkspace {
   holdNext(method: string): { release(): void };
   /** like holdNext, but the answer is worked out when the call arrives and only handed over on `release()`: an answer that is old by the time it lands */
   delayNext(method: string): { release(): void };
+  /** what a run of a file sends, by the file's id: by default a script that prints one line to each stream and ends well */
+  runAnswer: (fileId: string, runId: string) => RunEvent[];
+  /** the runs started, oldest first; and the ones stopped */
+  runs: { runId: string; fileId: string }[];
+  stopped: string[];
   uninstall(): void;
 }
 
 // The page listens to the door once for its whole life (src/lib/workspace/events.ts),
 // so the listener outlives any one install, as it does with the real shell.
 let listener: ((event: WorkspaceEvent) => void) | null = null;
+let runListener: ((event: RunEvent) => void) | null = null;
 
 export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
   const workspace: WorkspaceRecord = { workspaceId, displayName: 'research-project', readOnly: false, kind: 'local', rootGrantId: 'grant_1' };
@@ -70,6 +77,8 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
   const recovery = new Map<string, { item: RecoveryItem; fileIds: string[] }>();
   const versions = new Map<string, string[]>();
   const drafts = new Map<string, DocumentDraft>();
+  const runs: { runId: string; fileId: string }[] = [];
+  const stopped: string[] = [];
   const under = (relativePath: string, folder: string) => relativePath.startsWith(folder + '/');
   let serial = 0;
 
@@ -286,6 +295,24 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
       return record(fileId);
     }),
     reveal: door('reveal', null, () => true),
+    runTools: door('runTools', null, (fileId: string) => {
+      const name = files.get(fileId)?.relativePath ?? '';
+      const extension = name.slice(name.lastIndexOf('.') + 1);
+      if (extension === 'tex') return { kind: 'latex' as const, label: 'LaTeX', needs: [], missing: [] };
+      if (['py', 'js', 'ts', 'sh'].includes(extension)) return { kind: 'script' as const, label: extension === 'py' ? 'Python' : extension.toUpperCase(), needs: ['python3'], missing: [] };
+      if (['c', 'cpp', 'rs'].includes(extension)) return { kind: 'compiled' as const, label: extension === 'c' ? 'C' : extension, needs: ['cc'], missing: [] };
+      return { kind: null, label: null, needs: [], missing: [] };
+    }),
+    runFile: door('runFile', null, (fileId: string) => {
+      const runId = `run_${++serial}`;
+      runs.push({ runId, fileId });
+      const events = fake.runAnswer(fileId, runId);
+      // the shell answers with the id first; the events follow
+      setTimeout(() => { for (const event of events) runListener?.(event); }, 0);
+      return runId;
+    }),
+    stopRun: door('stopRun', null, (runId: string) => { stopped.push(runId); runListener?.({ runId, type: 'end', status: 'stopped', code: null, ms: 1 }); return true; }),
+    onRunEvent: (cb) => { runListener = cb; },
     subscribe: door('subscribe', null, () => true),
     watching: door('watching', null, () => true),
     unsubscribe: door('unsubscribe', null, () => true),
@@ -295,7 +322,18 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
   const previous = window.desktopWorkspace;
   window.desktopWorkspace = bridge;
 
+  const fake = {
+    runAnswer: (fileId: string, runId: string): RunEvent[] => [
+      { runId, type: 'start', fileId, command: 'python3 -u script.py' },
+      { runId, type: 'output', stream: 'stdout', text: 'FAKE_STDOUT_LINE\n' },
+      { runId, type: 'output', stream: 'stderr', text: 'FAKE_STDERR_LINE\n' },
+      { runId, type: 'end', status: 'ok', code: 0, ms: 12 },
+    ],
+  };
   return {
+    get runAnswer() { return fake.runAnswer; },
+    set runAnswer(answer) { fake.runAnswer = answer; },
+    runs, stopped,
     workspace, capabilities, drafts, calls, files,
     seed: (relativePath, content, workspace_ = workspaceId) => { add(workspace_, relativePath, content, 'workspace'); return entryIdOf(relativePath); },
     entryId: entryIdOf,

@@ -2,7 +2,7 @@
 // the bundled server.mjs runs as a child, serves the built dist on a
 // local port, and this window points at it. No second stack: everything
 // the web app is, the desktop app is.
-const { app, BrowserWindow, shell, utilityProcess, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, shell, utilityProcess, ipcMain, dialog, webContents } = require('electron');
 const path = require('path');
 const net = require('net');
 const os = require('os');
@@ -852,6 +852,7 @@ const { createProviderRegistry } = require(path.join(RUNTIME_DIR, 'workspace', '
 const { createWorkspaceDoor, watchingThrough } = require(path.join(RUNTIME_DIR, 'workspace', 'door.cjs'));
 const { checkSender, senderOf } = require(path.join(RUNTIME_DIR, 'workspace', 'ipc-guard.cjs'));
 const { createSubscriptionHub, releaseWithPage } = require(path.join(RUNTIME_DIR, 'workspace', 'subscriptions.cjs'));
+const { createRunner } = require(path.join(RUNTIME_DIR, 'workspace', 'runner.cjs'));
 let appOrigin = null; // set by boot() once the bundled server has its port
 function setupWorkspace() {
   const service = createWorkspaceService({
@@ -878,6 +879,20 @@ function setupWorkspace() {
   // and the folders stop being watched. They stay granted.
   const hub = createSubscriptionHub({ service: watchingThrough(providers), send: push });
   app.on('web-contents-created', (_event, contents) => releaseWithPage(hub, contents));
+  // Files run with the tools installed here, when the editor's run button asks. A run's
+  // output goes to the page that started it, and the runs of a page end with the page.
+  const runner = createRunner({
+    service,
+    // the LaTeX engine the app brings, for a machine with no TeX: shipped in the app's resources, or fetched beside the shell in development
+    tectonic: (() => {
+      const binary = process.platform === 'win32' ? 'tectonic.exe' : 'tectonic';
+      if (app.isPackaged) return path.join(process.resourcesPath, 'tectonic', binary);
+      const os = { darwin: 'mac', win32: 'win', linux: 'linux' }[process.platform];
+      return path.join(__dirname, 'vendor', 'tectonic', `${os}-${process.arch}`, binary);
+    })(),
+    send: (owner, event) => { const page = owner == null ? null : webContents.fromId(owner); if (page && !page.isDestroyed()) page.send('workspace:run-event', event); },
+  });
+  app.on('web-contents-created', (_event, contents) => releaseWithPage(runner, contents));
 
   // What the page may ask is one table (runtime/workspace/door.cjs). In front
   // of every entry: the call must come from the app's own top frame.
@@ -888,6 +903,7 @@ function setupWorkspace() {
     canvasFolder: (canvasId) => workspaceFor(canvasId),
     showInFileManager: (absolute) => shell.showItemInFolder(absolute),
     hub,
+    runner,
   });
   for (const [channel, answer] of Object.entries(door)) {
     ipcMain.handle(channel, async (event, ...args) => {

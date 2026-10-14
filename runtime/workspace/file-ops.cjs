@@ -413,6 +413,41 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
       return registry.register({ relativePath: target.relativePath, mediaType: mediaTypeOf(target.relativePath), origin, observed: observedOf(stat) });
     }),
 
+    /**
+     * Put a file a tool made from another one (a LaTeX source's PDF) beside
+     * that one, under `name`. Whatever is there under that name is replaced
+     * whole, as the tool itself would replace it, and keeps its identity
+     * across replacements; whoever shows it hears that it changed.
+     */
+    putBeside: (fileId, name, bytes) => changing(async () => {
+      await refuseReadOnly();
+      assertPortableName(name);
+      const source = await liveRecordOf(fileId);
+      const relativePath = join(parentOf(source.relativePath), name);
+      return atPath(relativePath, async () => {
+        const target = await assertAllowedPath(grant, 'create', relativePath);
+        if (target.exists && target.kind !== 'file') throw new WorkspaceAccessError('exists', 'something that is not a file is already at that name');
+        const temp = path.join(path.dirname(target.absolute), `.${name}.tdag-save-${newId().slice(0, 8)}`);
+        try {
+          const handle = await io.open(temp, 'wx', 0o644);
+          try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); }
+          await io.rename(temp, target.absolute);
+        } catch (e) {
+          await io.rm(temp, { force: true }).catch(() => {});
+          throw e;
+        }
+        const stat = await io.stat(target.absolute);
+        const revision = hashOf(bytes);
+        const known = await registry.findByPath(target.relativePath);
+        if (known) {
+          const updated = await registry.update(known.fileId, { revision }, observedOf(stat));
+          if (known.revision !== revision) { try { notify(updated, 'content'); } catch { /* the listener's own problem */ } }
+          return updated;
+        }
+        return registry.register({ relativePath: target.relativePath, mediaType: mediaTypeOf(target.relativePath), origin: 'workspace', observed: observedOf(stat), revision });
+      });
+    }),
+
     /** Run something that changes the workspace's records from outside this module (catching up with the disk, a file found again by hand) in step with everything here that does. */
     asChange: (fn) => changing(fn),
 

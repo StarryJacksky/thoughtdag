@@ -749,9 +749,15 @@ test.describe.serial('editors and readers, in the desktop shell', () => {
 
     await surface('paper.tex').locator('[data-surface-minimize]').click();
     await ep.locator('[data-surface-tray] [data-surface-chip]').click();
-    await typeIn(surface('paper.tex'), '\\section{Results}\n');
+    await typeIn(surface('paper.tex'), '\\section{Results}\nWe find $\\alpha^2$ here.\n');
     await expect(surface('paper.tex').locator('[data-surface-state]')).toHaveAttribute('data-surface-state', 'clean');
-    expect(fs.readFileSync(disk('paper.tex'), 'utf8')).toBe('\\section{Results}\n');
+    expect(fs.readFileSync(disk('paper.tex'), 'utf8')).toBe('\\section{Results}\nWe find $\\alpha^2$ here.\n');
+    // the formula is drawn while the cursor is elsewhere, and the source is the file
+    await expect(surface('paper.tex').locator('.cm-math-inline .katex')).toHaveCount(1);
+    if (process.env.TDAG_SHOT_DIR) await ep.screenshot({ path: path.join(process.env.TDAG_SHOT_DIR, 'latex-formulas.png') });
+    await surface('paper.tex').locator('[data-math-toggle]').click();
+    await expect(surface('paper.tex').locator('.cm-math-inline')).toHaveCount(0);
+    await surface('paper.tex').locator('[data-math-toggle]').click();
     // prose is set in Times New Roman and Song, code in the mono face, the interface in its sans face
     const faceOf = (target: Locator) => target.evaluate((el) => (globalThis as unknown as { getComputedStyle(e: unknown): { fontFamily: string } }).getComputedStyle(el).fontFamily);
     expect(await faceOf(surface('paper.tex').locator('.cm-scroller'))).toMatch(/^"?Times New Roman"?, Times, "?Songti SC/);
@@ -762,20 +768,33 @@ test.describe.serial('editors and readers, in the desktop shell', () => {
     await surface('analysis.py').locator('[data-surface-close]').click();
   });
 
-  test('a Markdown file reads as it is typed, and markup in it is shown and never run', async () => {
+  test('a Markdown file is written as it reads, formulas drawn, and markup in it is shown and never run', async () => {
     const md = surface('notes.md');
     await md.locator('[data-surface-maximize]').click();
-    await md.locator('[data-markdown-mode="split"]').click();
-    const preview = md.locator('[data-markdown-preview]');
-    await expect(preview.locator('h1')).toHaveText('Notes');
-    await expect(preview.locator('strong')).toHaveText('bold');
-    await expect(preview.locator('script')).toHaveCount(0);
+    // written in place, laid out: the heading is a heading and its # shows only where the cursor is
+    await expect(md.locator('.cm-md-h1')).toHaveText('Notes');
+    await expect(md.locator('.cm-md-strong')).toHaveText('bold');
+    await expect(md.locator('.cm-lineNumbers')).toHaveCount(0);
     await md.locator('.cm-content').click();
     await ep.keyboard.press('ControlOrMeta+End');
     await ep.keyboard.insertText('## TYPED_HEADING_Q6');
-    await expect(preview.locator('h2')).toHaveText('TYPED_HEADING_Q6');
+    await ep.keyboard.press('Enter');
+    await ep.keyboard.press('Enter');
+    await ep.keyboard.insertText('Energy $E=mc^2$ here.');
+    await ep.keyboard.press('Enter');
+    await expect(md.locator('.cm-md-h2')).toHaveText('TYPED_HEADING_Q6');
+    await expect(md.locator('.cm-math-inline .katex')).toHaveCount(1);
     await expect(md.locator('[data-surface-state]')).toHaveAttribute('data-surface-state', 'clean');
-    expect(fs.readFileSync(disk('notes.md'), 'utf8')).toContain('## TYPED_HEADING_Q6');
+    // the file is what was typed, markup and all
+    expect(fs.readFileSync(disk('notes.md'), 'utf8')).toContain('## TYPED_HEADING_Q6\n\nEnergy $E=mc^2$ here.\n');
+    if (process.env.TDAG_SHOT_DIR) await ep.screenshot({ path: path.join(process.env.TDAG_SHOT_DIR, 'markdown-notes.png') });
+    // and read as a page, with nothing in it run
+    await md.locator('[data-markdown-mode="reading"]').click();
+    const preview = md.locator('[data-markdown-preview]');
+    await expect(preview.locator('h1')).toHaveText('Notes');
+    await expect(preview.locator('h2')).toHaveText('TYPED_HEADING_Q6');
+    await expect(preview.locator('.katex')).toHaveCount(1);
+    await expect(preview.locator('script')).toHaveCount(0);
     expect(await ranInPage()).toBe(0);
     await md.locator('[data-surface-close]').click();
   });

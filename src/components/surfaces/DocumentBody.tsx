@@ -3,6 +3,7 @@ import { GitCompareArrows, History } from 'lucide-react';
 import { documents } from '../../lib/documents/document-service';
 import { useDocument } from './use-document';
 import MarkdownEditor from '../editors/MarkdownEditor';
+import TexEditor from '../editors/TexEditor';
 import TextEditor from '../editors/TextEditor';
 import { toast } from '../../lib/ui-store';
 import { useT, fmt } from '../../i18n';
@@ -40,7 +41,9 @@ export default function DocumentBody({ documentId, surfaceId, kind }: Props) {
     <div className="flex flex-col flex-1 min-h-0">
       {kind === 'markdown'
         ? <MarkdownEditor documentId={documentId} surfaceId={surfaceId} onSave={() => void save()} />
-        : <TextEditor documentId={documentId} surfaceId={surfaceId} onSave={() => void save()} />}
+        : /\.(tex|ltx)$/i.test(status?.name ?? '')
+          ? <TexEditor documentId={documentId} surfaceId={surfaceId} onSave={() => void save()} />
+          : <TextEditor documentId={documentId} surfaceId={surfaceId} onSave={() => void save()} />}
       {problem?.kind === 'conflict' && (
         <div className="shrink-0 border-t border-amber-200 bg-amber-50 px-3 py-2 text-2xs text-amber-800 leading-snug" data-surface-conflict>
           <p>{t(problem.theirsRevision ? 'resource.conflict' : 'resource.conflictGone')}</p>

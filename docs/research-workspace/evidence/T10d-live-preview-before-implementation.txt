@@ -1,0 +1,29 @@
+# T10d: tests/unit/live-preview.test.tsx, first run, before the behaviour was written.
+# findMath and the TeX editor existed only as names (no formulas found, no toolbar), and the Markdown editor
+# still had its text / split / preview modes, so every failure is about what is (not) found or drawn.
+# Command: npx vitest run tests/unit/live-preview.test.tsx
+
+     × in Markdown: $…$ and \(…\) inline, $$…$$ and \[…\] on their own; a dollar that is escaped or is money is not one 4ms
+     × in Markdown: nothing inside code is a formula 1ms
+     × in LaTeX: math modes and the display environments, not what is commented out 1ms
+     × opens laid out as it reads: headings, bold, slanted, code, a quote, a list, a link, and formulas drawn as formulas 162ms
+     × shows the markup of what the cursor is in, and only that 85ms
+     × is typed into as text: what is typed is the document, and the file is what was typed, markup and all 78ms
+     × looks like a page of notes, not like code: no line numbers, the text face 41ms
+     × can show the source as it is, and the page as it reads 80ms
+     × draws no formula that could do anything: a link in a formula goes nowhere 73ms
+     × shows its formulas drawn while it is typed, and leaves the rest as source 73ms
+     × turns the drawing off and on, with its button and with Mod-Shift-M 75ms
+⎯⎯⎯⎯⎯⎯ Failed Tests 11 ⎯⎯⎯⎯⎯⎯⎯
+AssertionError: expected [] to deeply equal [ [ 'x^2', false ], [ 'y', false ] ]
+AssertionError: expected [] to deeply equal [ [ 'yes', false ] ]
+AssertionError: expected [] to deeply equal [ false, false, true, true, false ]
+TypeError: Cannot read properties of null (reading 'getAttribute')
+AssertionError: the other is still drawn: expected null not to be null
+AssertionError: expected '' to be 'Next' // Object.is equality
+AssertionError: expected <div …(1)>…(15)</div> to be null
+TypeError: Cannot read properties of null (reading 'click')
+AssertionError: expected null not to be null
+AssertionError: expected null not to be null
+TypeError: Cannot read properties of null (reading 'getAttribute')
+      Tests  11 failed (11)

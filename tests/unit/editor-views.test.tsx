@@ -200,12 +200,12 @@ describe('a word being composed by an input method', () => {
 });
 
 describe('a Markdown document', () => {
-  it('reads as it is typed: the preview is the buffer, rendered', async () => {
+  it('reads as it is typed: the reading view is the buffer, rendered', async () => {
     const doc = await documents.open(fileIdOf('notes/a.md'), 'view-1');
     view = await mount(<div><MarkdownEditor documentId={doc.documentId} surfaceId="view-1" onSave={() => {}} /></div>);
-    await during(() => view!.container.querySelector<HTMLElement>('[data-markdown-mode="split"]')!.click());
     const editor = editorIn(view.container);
     await during(() => type(editor, 0, '# A heading\n\nSome **bold** words.\n\n'));
+    await during(() => view!.container.querySelector<HTMLElement>('[data-markdown-mode="reading"]')!.click());
     const preview = view.container.querySelector<HTMLElement>('[data-markdown-preview]')!;
     expect(preview.querySelector('h1')?.textContent).toBe('A heading');
     expect(preview.querySelector('strong')?.textContent).toBe('bold');
@@ -216,7 +216,7 @@ describe('a Markdown document', () => {
     shell.files.get(fileIdOf('notes/a.md'))!.content = hostile;
     const doc = await documents.open(fileIdOf('notes/a.md'), 'view-1');
     view = await mount(<div><MarkdownEditor documentId={doc.documentId} surfaceId="view-1" onSave={() => {}} /></div>);
-    await during(() => view!.container.querySelector<HTMLElement>('[data-markdown-mode="preview"]')!.click());
+    await during(() => view!.container.querySelector<HTMLElement>('[data-markdown-mode="reading"]')!.click());
     const preview = view.container.querySelector<HTMLElement>('[data-markdown-preview]')!;
     expect(preview.textContent).toContain('Before.');
     expect(preview.querySelector('script')).toBeNull();

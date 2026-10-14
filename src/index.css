@@ -727,3 +727,34 @@ body.tdag-connecting, body.tdag-connecting * {
 @media (prefers-reduced-motion: reduce) {
   .tdag-flow-ov { animation: none; display: none; }
 }
+
+/* ── Markdown as notes (live-preview.ts) ──────────────────────────────
+   A page, not a code view: the text face a little larger, a measure a
+   reader's eye can follow, the layout of what it says drawn on the text. */
+[data-editor-look='notes'] .cm-editor .cm-scroller { font-size: 15.5px; line-height: 1.8; }
+[data-editor-look='notes'] .cm-content { max-width: 46rem; margin: 0 auto; padding: 1.5rem 1.75rem 4rem; }
+[data-editor-look='notes'] .cm-line { padding: 0; }
+.cm-md-h1 { font-size: 1.7em; font-weight: 700; line-height: 1.35; padding-top: .4em !important; }
+.cm-md-h2 { font-size: 1.4em; font-weight: 700; line-height: 1.4; padding-top: .35em !important; }
+.cm-md-h3 { font-size: 1.2em; font-weight: 650; padding-top: .25em !important; }
+.cm-md-h4, .cm-md-h5, .cm-md-h6 { font-size: 1.05em; font-weight: 650; }
+.cm-md-strong { font-weight: 700; }
+.cm-md-em { font-style: italic; }
+.cm-md-strike { text-decoration: line-through; color: var(--color-ink-muted); }
+.cm-md-code { font-family: var(--font-mono); font-size: .88em; background: var(--color-wash); border-radius: 4px; padding: 0 .25em; }
+.cm-md-link { color: var(--color-accent); text-decoration: underline; text-underline-offset: 2px; }
+.cm-md-quote { border-left: 3px solid var(--color-line-strong); padding-left: .9em !important; color: var(--color-ink-muted); }
+.cm-md-bullet { display: inline-block; width: 1.1em; color: var(--color-ink-muted); }
+.cm-md-codeblock { font-family: var(--font-mono); font-size: .88em; background: var(--color-wash); padding-left: .8em !important; }
+.cm-md-hr { color: var(--color-ink-faint); }
+.cm-md-hr-text { color: transparent; border-bottom: 1px solid var(--color-line-strong); }
+/* formulas drawn in place of their source */
+.cm-math { cursor: text; }
+.cm-math-inline { padding: 0 .1em; }
+.cm-math-block { display: block; text-align: center; padding: .4em 0; overflow-x: auto; }
+.cm-math .katex-error { color: #b45309; }
+/* the reading view of a Markdown file: the same page, rendered */
+.note-page { max-width: 46rem; margin: 0 auto; padding: 1.5rem 1.75rem 4rem; font-size: 15.5px; line-height: 1.8; }
+/* a heading in notes is set large, not underlined as the code highlighter would have it */
+[data-editor-look='notes'] .cm-md-h1 span, [data-editor-look='notes'] .cm-md-h2 span, [data-editor-look='notes'] .cm-md-h3 span,
+[data-editor-look='notes'] .cm-md-h4 span, [data-editor-look='notes'] .cm-md-h5 span, [data-editor-look='notes'] .cm-md-h6 span { text-decoration: none; }

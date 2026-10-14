@@ -15,8 +15,9 @@ import { Annotation, ChangeSet, Compartment, EditorState, type Extension } from 
 import { EditorView, keymap, lineNumbers, drawSelection, highlightActiveLine } from '@codemirror/view';
 import { defaultKeymap, indentWithTab } from '@codemirror/commands';
 import { bracketMatching, defaultHighlightStyle, indentOnInput, indentUnit, StreamLanguage, syntaxHighlighting } from '@codemirror/language';
-import { markdown } from '@codemirror/lang-markdown';
+import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { documents } from '../../lib/documents/document-service';
+import { markdownLivePreview, texMathPreview } from './live-preview';
 import { changeBetween, type Change } from '../../lib/documents/history';
 
 /** Marks a transaction that brings the document's state into the editor: it is not typing, and is not sent back. */
@@ -32,7 +33,7 @@ export const isProse = (name: string): boolean => {
 async function languageOf(name: string): Promise<Extension> {
   const extension = name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toLowerCase() : '';
   switch (extension) {
-    case 'md': case 'markdown': return markdown();
+    case 'md': case 'markdown': return markdown({ base: markdownLanguage });
     case 'tex': case 'bib': case 'sty': case 'cls': return StreamLanguage.define((await import('@codemirror/legacy-modes/mode/stex')).stex);
     // Python is indented by four spaces: the step a new block is given
     case 'py': return [StreamLanguage.define((await import('@codemirror/legacy-modes/mode/python')).python), indentUnit.of('    ')];
@@ -49,6 +50,8 @@ async function languageOf(name: string): Promise<Extension> {
 
 export interface BoundEditor {
   view: EditorView;
+  /** Show a Markdown source laid out as it reads, or a LaTeX source's formulas drawn; or show the source as it is. */
+  setPreview(on: boolean): void;
   /** Let go: the editor is destroyed. The document is not touched; closing its view is the surface's to do. */
   destroy(): void;
 }
@@ -57,9 +60,25 @@ export interface BoundEditor {
  * Put an editor for a document into `parent`. `onSave` is called for the
  * save key. Returns null when the document is not open.
  */
-export function bindEditor(parent: HTMLElement, documentId: string, surfaceId: string, onSave: () => void): BoundEditor | null {
+export interface EditorOptions {
+  /** whether a Markdown or LaTeX source is shown laid out (see live-preview.ts) */
+  preview?: boolean;
+  /** the key that turns that on and off (Mod-Shift-M) was pressed */
+  onTogglePreview?: () => void;
+}
+
+/** How a file is shown, by its name: Markdown as notes, LaTeX as a source with its formulas drawn, the rest as text or code. */
+const kindOf = (name: string): 'markdown' | 'tex' | 'other' => {
+  const extension = name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toLowerCase() : '';
+  return extension === 'md' || extension === 'markdown' ? 'markdown' : extension === 'tex' || extension === 'ltx' ? 'tex' : 'other';
+};
+
+export function bindEditor(parent: HTMLElement, documentId: string, surfaceId: string, onSave: () => void, options: EditorOptions = {}): BoundEditor | null {
   const model = documents.get(documentId);
   if (!model) return null;
+  const name = documents.status(documentId)?.name ?? '';
+  const kind = kindOf(name);
+  const previewOf = (on: boolean): Extension => (!on ? [] : kind === 'markdown' ? markdownLivePreview() : kind === 'tex' ? texMathPreview() : []);
   // the buffer revision the editor's content corresponds to
   let seen = model.bufferRevision;
   // set while this editor's own typing is being handed to the document: the document's news of it is not applied again
@@ -71,6 +90,7 @@ export function bindEditor(parent: HTMLElement, documentId: string, surfaceId: s
   let isReadOnly = model.state === 'readonly';
   const readOnly = new Compartment();
   const language = new Compartment();
+  const preview = new Compartment();
 
   /** Make the editor show what the document holds, by the one change that differs. */
   const catchUp = () => {
@@ -115,17 +135,19 @@ export function bindEditor(parent: HTMLElement, documentId: string, surfaceId: s
     state: EditorState.create({
       doc: model.text,
       extensions: [
-        lineNumbers(),
+        // Markdown is a page of notes: no line numbers, no band on the current line
+        kind === 'markdown' ? [] : [lineNumbers(), highlightActiveLine()],
         drawSelection(),
-        highlightActiveLine(),
         indentOnInput(),
         bracketMatching(),
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
         EditorView.lineWrapping,
         readOnly.of(EditorState.readOnly.of(model.state === 'readonly')),
-        language.of([]),
+        language.of(kind === 'markdown' ? markdown({ base: markdownLanguage }) : []),
+        preview.of(previewOf(options.preview ?? false)),
         keymap.of([
           { key: 'Mod-s', preventDefault: true, run: () => { onSave(); return true; } },
+          ...(kind !== 'other' ? [{ key: 'Mod-Shift-m', preventDefault: true, run: () => { options.onTogglePreview?.(); return true; } }] : []),
           // undo and redo are the document's, shared by every view of the file
           { key: 'Mod-z', preventDefault: true, run: undo('undo') },
           { key: 'Mod-Shift-z', preventDefault: true, run: undo('redo') },
@@ -177,9 +199,14 @@ export function bindEditor(parent: HTMLElement, documentId: string, surfaceId: s
     seen = now.bufferRevision;
   });
 
-  // prose is set in the text face, code in the mono face (index.css reads this)
-  parent.dataset.editorFace = isProse(documents.status(documentId)?.name ?? '') ? 'text' : 'code';
-  void languageOf(documents.status(documentId)?.name ?? '').then((extension) => view.dispatch({ effects: language.reconfigure(extension) })).catch(() => {});
+  // prose is set in the text face, code in the mono face; Markdown looks like notes (index.css reads these)
+  parent.dataset.editorFace = isProse(name) ? 'text' : 'code';
+  parent.dataset.editorLook = kind === 'markdown' ? 'notes' : 'source';
+  if (kind !== 'markdown') void languageOf(name).then((extension) => view.dispatch({ effects: language.reconfigure(extension) })).catch(() => {});
 
-  return { view, destroy() { stop(); view.destroy(); } };
+  return {
+    view,
+    setPreview(on) { view.dispatch({ effects: preview.reconfigure(previewOf(on)) }); },
+    destroy() { stop(); view.destroy(); },
+  };
 }

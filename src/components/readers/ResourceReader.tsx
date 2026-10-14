@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { Loader2, Quote } from 'lucide-react';
 import type { Attachment } from '../../types';
@@ -10,6 +10,8 @@ import { loadPdfjs, type Pdfjs } from '../../lib/pdfjs';
 import { HtmlMaterialView } from '../HtmlMaterialView';
 import { useT, fmt } from '../../i18n';
 import PdfPage from './PdfPage';
+import { docxHasMath, readDocx } from '../../lib/docx/read';
+import { ommlToMathml } from '../../lib/docx/mathml';
 
 // A file that is read, not typed into: a PDF, an image, an HTML page, a
 // Word document. It shows the file as its source gives it and lets a part
@@ -39,7 +41,21 @@ type Loaded =
   | { kind: 'image'; url: string; revision: ContentHash }
   | { kind: 'html'; attachment: Attachment; revision: ContentHash }
   | { kind: 'pdf'; pdfjs: Pdfjs; doc: PDFDocumentProxy; revision: ContentHash }
-  | { kind: 'derived-text'; text: string; revision: ContentHash };
+  // `segments`: the text with its formulas drawn (a Word document that has formulas); `text` is then exactly what they show
+  | { kind: 'derived-text'; text: string; revision: ContentHash; segments?: Segment[] };
+
+/** A piece of the text a reader shows: words, or a formula drawn (MathML made by mathml.ts). */
+type Segment = { text: string } | { math: Element };
+
+/** A formula drawn where it stands: the element is put into the page as it was made, never as markup. */
+function Attached({ node }: { node: Element }) {
+  const host = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    host.current?.appendChild(node);
+    return () => { node.remove(); };
+  }, [node]);
+  return <span ref={host} data-reader-math />;
+}
 
 const extensionOf = (name: string) => (name.includes('.') ? name.slice(name.lastIndexOf('.') + 1).toLowerCase() : '');
 const why = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -104,6 +120,17 @@ export default function ResourceReader({ resourceRef, name, onQuote }: Props) {
         return { kind: 'pdf', pdfjs, doc, revision: read.contentHash } satisfies Loaded;
       }
       if (extension === 'docx') {
+        // with formulas, it is read here and its formulas drawn; the text is what is shown, so a quote is counted on it
+        if (await docxHasMath(bytes.slice())) {
+          const { blocks } = await readDocx(bytes.slice());
+          const segments: Segment[] = [];
+          blocks.forEach((block, i) => {
+            if (i > 0) segments.push({ text: '\n\n' });
+            for (const part of block.parts) segments.push(part.kind === 'text' ? { text: part.text } : { math: ommlToMathml(part.omml, part.display, document) });
+          });
+          const text = segments.map((s) => ('text' in s ? s.text : s.math.textContent ?? '')).join('');
+          return { kind: 'derived-text', text, segments, revision: read.contentHash } satisfies Loaded;
+        }
         const mammoth = await import('mammoth');
         const text = (await mammoth.extractRawText({ arrayBuffer: bytes.slice().buffer as ArrayBuffer })).value;
         return { kind: 'derived-text', text, revision: read.contentHash } satisfies Loaded;
@@ -204,7 +231,11 @@ export default function ResourceReader({ resourceRef, name, onQuote }: Props) {
       <div ref={scroller} onScroll={loaded.kind === 'pdf' ? onScroll : undefined} className="flex-1 min-h-0 overflow-auto bg-wash/40">
         {loaded.kind === 'image' && <img src={loaded.url} alt={name} className="max-w-full mx-auto my-4 rounded shadow-sm" draggable={false} data-reader-image />}
         {loaded.kind === 'html' && <HtmlMaterialView att={loaded.attachment} onSelect={() => {}} />}
-        {loaded.kind === 'derived-text' && <pre className="px-5 py-4 text-sm text-ink leading-relaxed whitespace-pre-wrap break-words font-sans" data-reader-text>{loaded.text}</pre>}
+        {loaded.kind === 'derived-text' && (
+          <pre className="px-5 py-4 text-sm text-ink leading-relaxed whitespace-pre-wrap break-words font-sans" data-reader-text>
+            {loaded.segments ? loaded.segments.map((s, i) => ('text' in s ? <Fragment key={i}>{s.text}</Fragment> : <Attached key={i} node={s.math} />)) : loaded.text}
+          </pre>
+        )}
         {loaded.kind === 'pdf' && (
           <div className="flex flex-col items-center gap-4 py-4 pl-10 pr-4">
             {Array.from({ length: pages }, (_, i) => <PdfPage key={i + 1} doc={loaded.doc} pdfjs={loaded.pdfjs} pageNo={i + 1} width={width} />)}

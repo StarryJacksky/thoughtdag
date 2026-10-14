@@ -1,0 +1,42 @@
+# pandoc 3.12.1 -f docx -t latex, on a Word document made by markdownToDocx from a synthetic note (src/lib/docx/write.ts at the commit that adds it): the formulas come back as LaTeX, so they are Word formulas (OMML) that another reader understands
+\section{结果 Results}\label{ux7ed3ux679c-results}
+
+均值 \(\overline{x} = \frac{1}{n}\sum_{i = 1}^{n}x_{i}\)
+是\textbf{稳健的}，见 \href{https://example.org}{来源}。
+
+\[\int_{0}^{1}{f(t)\text{ }dt = \sqrt{2} + \begin{pmatrix}
+a & b \\
+c & d
+\end{pmatrix}}\]
+
+\begin{itemize}
+\item
+  第一点 \(\hat{\theta}\)
+\item
+  second \(\lim_{x \rightarrow 0}\frac{\sin x}{x} = 1\)
+\end{itemize}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\item
+  step one
+\item
+  step two
+\end{enumerate}
+
+\begin{quote}
+quoted
+\end{quote}
+
+code line
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}ll@{}}
+\toprule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\textbf{a} & \textbf{b} \\
+1 & \(x^{2}\) \\
+\end{longtable}
+}

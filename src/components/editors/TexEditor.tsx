@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { FileOutput, Sigma, Square } from 'lucide-react';
 import { useT, fmt } from '../../i18n';
-import { openFileSurface } from '../../lib/documents/surface-store';
+import { openBeside } from '../../lib/documents/surface-store';
 import TextEditor from './TextEditor';
 import RunPanel from './RunPanel';
 import { useRun } from './use-run';
@@ -24,7 +24,7 @@ export default function TexEditor({ documentId, surfaceId, onSave }: Props) {
   const [drawn, setDrawn] = useState(true);
   const [panel, setPanel] = useState(false);
   // the PDF a compile made opens beside the source; a reader already showing it is brought forward and follows the file
-  const { state, run, halt, clear, runnable } = useRun(documentId, (pdf) => { void openFileSurface(pdf, { placement: 'right' }).catch(() => {}); });
+  const { state, run, halt, clear, runnable } = useRun(documentId, (pdf) => { void openBeside(surfaceId, pdf).catch(() => {}); });
   const missing = state.tools?.missing ?? [];
   return (
     <div className="flex flex-col flex-1 min-h-0">

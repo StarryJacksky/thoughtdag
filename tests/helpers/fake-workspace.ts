@@ -168,6 +168,17 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
       return record(add(request.workspaceId, relativePath, options.text, 'import', { source: options.provenance.source, importedAt: '2026-10-04T00:00:00Z', ...(options.provenance.note ? { note: options.provenance.note } : {}) }));
     }),
     createFolder: door('createFolder', null, (_workspace: string, parentId: string | undefined, name: string) => entryIdOf(pathOf(parentId) ? `${pathOf(parentId)}/${name}` : name)),
+    exportBeside: door('exportBeside', 3, (fileId: string, extension: 'docx', bytes: Uint8Array) => {
+      // as the shell does it: beside the file, under its name, the next free one if that is taken; never over anything
+      const source = files.get(fileId)!;
+      const parent = source.relativePath.includes('/') ? source.relativePath.slice(0, source.relativePath.lastIndexOf('/')) : '';
+      const name = source.relativePath.slice(source.relativePath.lastIndexOf('/') + 1);
+      const stem = name.includes('.') ? name.slice(0, name.lastIndexOf('.')) : name;
+      const relativePath = freeName(source.workspaceId, parent, function* names() { yield `${stem}.${extension}`; for (let n = 2; n < 100; n++) yield `${stem}-${n}.${extension}`; });
+      const made = add(source.workspaceId, relativePath, '', 'workspace');
+      files.get(made)!.bytes = bytes;
+      return record(made);
+    }),
     readText: door('readText', null, (fileId: string) => {
       const f = files.get(fileId)!;
       const crlf = (f.content.match(/\r\n/g) ?? []).length;

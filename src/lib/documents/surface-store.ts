@@ -137,6 +137,18 @@ export function updateRect(surfaceId: string, rect: Rect): void {
  * place it leaves is remembered once, from the last time it was floating or
  * docked, so that restoring a maximized or minimized surface returns it there.
  */
+/**
+ * Open what was made from a source (its PDF, its Word document) to read on
+ * the right, and put the source on the left beside it: the one does not
+ * cover the other, and the source can be made from again at once.
+ */
+export async function openBeside(sourceSurfaceId: string, fileId: string): Promise<string | null> {
+  const made = await openFileSurface(fileId, { placement: 'right' });
+  const source = useSurfaces.getState().surfaces.find((s) => s.surfaceId === sourceSurfaceId);
+  if (made && source && source.placement !== 'minimized' && source.placement !== 'left') setPlacement(sourceSurfaceId, 'left');
+  return made;
+}
+
 export function setPlacement(surfaceId: string, placement: Placement): void {
   change(surfaceId, (s) => {
     if (s.placement === placement) return {};

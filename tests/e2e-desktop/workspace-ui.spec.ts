@@ -711,6 +711,7 @@ test.describe.serial('editors and readers, in the desktop shell', () => {
     fs.writeFileSync(disk('huge.csv'), Buffer.alloc(8 * 1024 * 1024 + 1, 'a'));
     fs.writeFileSync(disk('hello.py'), 'import sys\nprint("RUN_FROM_DESKTOP_R1")\nprint("WARN_TO_STDERR_R2", file=sys.stderr)\n');
     fs.writeFileSync(disk('report.tex'), '\\documentclass{ctexart}\n\\begin{document}\n中文报告，公式 $a^2+b^2=c^2$。\n\\end{document}\n');
+    fs.writeFileSync(disk('formulas.md'), '# 公式笔记\n\n均值 $\\bar x = \\frac{1}{n}\\sum_{i=1}^{n} x_i$ 用于估计。\n\n$$\n\\int_0^1 f(t)\\,dt\n$$\n');
     eApp = await electron.launch({
       executablePath: electronBinary,
       args: [path.join(REPO, 'desktop'), `--user-data-dir=${path.join(eBase, 'profile')}`],
@@ -939,6 +940,29 @@ test.describe.serial('editors and readers, in the desktop shell', () => {
     expect(fs.readdirSync(eProject).filter((n) => n.startsWith('report.')).sort()).toEqual(['report.pdf', 'report.tex']);
     await pdf.locator('[data-surface-close]').click();
     await tex.locator('[data-surface-close]').click();
+  });
+
+  test('a Markdown note with formulas is made into a Word document beside it, whose formulas are drawn where it is read', async () => {
+    await openFromTree('formulas.md');
+    const md = surface('formulas.md');
+    await md.locator('[data-markdown-export="docx"]').click();
+    const word = surface('formulas.docx');
+    await expect(word.locator('[data-reader-text] math')).toHaveCount(2, { timeout: 20_000 });
+    await expect(word).toHaveAttribute('data-surface-placement', 'right');
+    await expect(word.locator('[data-reader-text]')).toContainText('用于估计');
+    // drawn by the browser as formulas: a fraction has its numerator above its denominator
+    const fraction = word.locator('[data-reader-text] math mfrac').first();
+    const numerator = (await fraction.locator(':scope > *').first().boundingBox())!;
+    const denominator = (await fraction.locator(':scope > *').last().boundingBox())!;
+    expect(numerator.y + numerator.height).toBeLessThanOrEqual(denominator.y + 1);
+    const bytes = fs.readFileSync(disk('formulas.docx'));
+    expect(bytes.subarray(0, 2).toString()).toBe('PK');
+    if (process.env.TDAG_SHOT_DIR) { await ep.waitForTimeout(800); await ep.screenshot({ path: path.join(process.env.TDAG_SHOT_DIR, 'word-export.png') }); }
+    // made again, it is a new document: the first is not replaced
+    await md.locator('[data-markdown-export="docx"]').click();
+    await expect.poll(() => fs.existsSync(disk('formulas-2.docx')), { timeout: 20_000 }).toBe(true);
+    expect(fs.readFileSync(disk('formulas.docx')).equals(bytes)).toBe(true);
+    for (const name of ['formulas-2.docx', 'formulas.docx', 'formulas.md']) { const s = surface(name); if (await s.count()) await s.locator('[data-surface-close]').click(); }
   });
 
   test('a text file above the limit is shown read-only, a part at a time, and offers to show the file', async () => {

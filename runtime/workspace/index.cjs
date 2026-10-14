@@ -449,6 +449,26 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
       );
     },
 
+    /**
+     * Put a document made from a file (a Word document written from a
+     * Markdown note) beside it, as a new file under the file's own name with
+     * `extension`: the next free name if that one is taken. Nothing that is
+     * there is ever replaced. Resolves with its record.
+     */
+    async exportBeside(fileId, extension, bytes, opId) {
+      const grant = await grantOfFile(fileId);
+      const source = await (await registryOf(grant)).get(fileId);
+      if (!source || source.status === 'missing' || source.status === 'ambiguous') throw new WorkspaceAccessError('lost', 'the file is lost; it has to be found again first');
+      const relativePath = source.relativePath;
+      const parent = relativePath.includes('/') ? relativePath.slice(0, relativePath.lastIndexOf('/')) : '';
+      const fileName = relativePath.slice(relativePath.lastIndexOf('/') + 1);
+      const stem = fileName.includes('.') ? fileName.slice(0, fileName.lastIndexOf('.')) : fileName;
+      return (await operationsOf(grant)).createFile(
+        { extension, origin: 'workspace', idempotencyKey: opId, parentRelativePath: parent },
+        { bytes, name: stem || 'export' },
+      );
+    },
+
     async createFolder(workspaceId, parentId, name) {
       const grant = await grantOf(workspaceId);
       return entryIdOf(await (await operationsOf(grant)).createFolder(parentPathOf(parentId), name));

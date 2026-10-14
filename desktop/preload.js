@@ -67,6 +67,7 @@ contextBridge.exposeInMainWorld('desktopWorkspace', {
   registerEntry: (workspaceId, entryId) => ipcRenderer.invoke('workspace:register-entry', workspaceId, entryId),
   createFile: (request) => ipcRenderer.invoke('workspace:create-file', request),
   importText: (request, options) => ipcRenderer.invoke('workspace:import-text', request, options),
+  exportBeside: (fileId, extension, bytes, opId) => ipcRenderer.invoke('workspace:export-beside', fileId, extension, bytes, opId),
   createFolder: (workspaceId, parentId, name) => ipcRenderer.invoke('workspace:create-folder', workspaceId, parentId, name),
   readText: (fileId) => ipcRenderer.invoke('workspace:read-text', fileId),
   saveText: (fileId, baseRevision, text, opId) => ipcRenderer.invoke('workspace:save-text', fileId, baseRevision, text, opId),

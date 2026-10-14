@@ -1,0 +1,75 @@
+# node --test tests/host/export-beside.test.cjs at d1673ab, before the export is implemented
+TAP version 13
+# Subtest: a Word document made from a note is put beside it under the note's name, as a new file of the workspace
+not ok 1 - a Word document made from a note is put beside it under the note's name, as a new file of the workspace
+  ---
+  duration_ms: 24.535
+  type: 'test'
+  location: '<repo>/tests/host/export-beside.test.cjs:28:1'
+  failureType: 'testCodeFailure'
+  error: 'door[channel] is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    ask (<repo>/tests/host/export-beside.test.cjs:23:65)
+    TestContext.<anonymous> (<repo>/tests/host/export-beside.test.cjs:30:24)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: making it again never replaces what is there: the next free name is taken, and a document of the same name made elsewhere is left alone
+not ok 2 - making it again never replaces what is there: the next free name is taken, and a document of the same name made elsewhere is left alone
+  ---
+  duration_ms: 17.501584
+  type: 'test'
+  location: '<repo>/tests/host/export-beside.test.cjs:39:1'
+  failureType: 'testCodeFailure'
+  error: 'door[channel] is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    ask (<repo>/tests/host/export-beside.test.cjs:23:65)
+    TestContext.<anonymous> (<repo>/tests/host/export-beside.test.cjs:41:23)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: the same request asked twice makes one document
+not ok 3 - the same request asked twice makes one document
+  ---
+  duration_ms: 17.853958
+  type: 'test'
+  location: '<repo>/tests/host/export-beside.test.cjs:51:1'
+  failureType: 'testCodeFailure'
+  error: 'door[channel] is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    ask (<repo>/tests/host/export-beside.test.cjs:23:65)
+    TestContext.<anonymous> (<repo>/tests/host/export-beside.test.cjs:53:21)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: only what this app writes can be made, from bytes, within a size; a read-only folder gets nothing
+not ok 4 - only what this app writes can be made, from bytes, within a size; a read-only folder gets nothing
+  ---
+  duration_ms: 17.002084
+  type: 'test'
+  location: '<repo>/tests/host/export-beside.test.cjs:59:1'
+  failureType: 'testCodeFailure'
+  error: 'door[channel] is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    ask (<repo>/tests/host/export-beside.test.cjs:23:65)
+    TestContext.<anonymous> (<repo>/tests/host/export-beside.test.cjs:62:26)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 0
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 142.370833

@@ -101,6 +101,11 @@ export async function importText(req: CreateFileRequest, options: { text: string
   return checked('ResourceRecord', await call((b) => b.importText(checkedRequest, options)));
 }
 
+/** Put a document made from a file (a Word document from a Markdown note) beside it, as a new file: never over anything that is there. */
+export async function exportBeside(fileId: string, extension: 'docx', bytes: Uint8Array, opId: string = newOperationId()): Promise<ResourceRecord> {
+  return checked('ResourceRecord', await call((b) => b.exportBeside(fileId, extension, bytes, opId)));
+}
+
 /** Create a folder; resolves with its entry id. */
 export function createFolder(workspaceId: string, parentId: string | undefined, name: string): Promise<string> {
   return call((b) => b.createFolder(workspaceId, parentId, name));

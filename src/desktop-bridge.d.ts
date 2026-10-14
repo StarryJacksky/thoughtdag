@@ -232,6 +232,8 @@ interface DesktopWorkspaceBridge {
   /** the shell picks the name; the same idempotency key returns the same file */
   createFile(request: import('./lib/workspace/contracts').CreateFileRequest): Promise<import('./lib/workspace/contracts').ResourceRecord>;
   /** text brought in as a new local file marked as a copy; the shell sets the time */
+  /** A document made from a file (a Word document from a Markdown note), put beside it as a new file: never over anything. */
+  exportBeside(fileId: string, extension: 'docx', bytes: Uint8Array, opId: string): Promise<import('./lib/workspace/contracts').ResourceRecord>;
   importText(request: import('./lib/workspace/contracts').CreateFileRequest, options: { text: string; name?: string | null; provenance: { source: import('./lib/workspace/contracts').ImportProvenance['source']; note?: string } }): Promise<import('./lib/workspace/contracts').ResourceRecord>;
   /** resolves with the new folder's entry id */
   createFolder(workspaceId: string, parentId: string | undefined, name: string): Promise<string>;

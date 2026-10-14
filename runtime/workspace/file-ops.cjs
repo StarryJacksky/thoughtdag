@@ -495,7 +495,7 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
      * `content` the file starts with it (an import); with `name` it is
      * called that, and numbered only if the name is taken.
      */
-    async createFile({ extension, origin, idempotencyKey, parentRelativePath = '' }, { content = null, name = null, importedFrom = null } = {}) {
+    async createFile({ extension, origin, idempotencyKey, parentRelativePath = '' }, { content = null, bytes: given = null, name = null, importedFrom = null } = {}) {
       await refuseReadOnly();
       if (await finished(idempotencyKey, 'create')) return recordOf((await journal.completed(idempotencyKey)).fileId);
       return once(`create:${idempotencyKey}`, () => changing(async () => {
@@ -510,8 +510,8 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
           const dir = await assertAllowedPath(grant, 'create', GRAPH_FILES_DIR);
           if (!dir.exists) await io.mkdir(dir.absolute).catch((e) => { if (e.code !== 'EEXIST') throw e; });
         }
-        const text = content ?? templateFor(extension, { newId });
-        const bytes = Buffer.from(text, 'utf8');
+        // what the file holds: the bytes given (a document this app made), else the text, else its kind's template
+        const bytes = given ? Buffer.from(given) : Buffer.from(content ?? templateFor(extension, { newId }), 'utf8');
         const revision = hashOf(bytes);
         const recordOrigin = importedFrom ? 'import' : origin;
         // the intent says what the file will hold, and each name is noted before it is tried, with the identity

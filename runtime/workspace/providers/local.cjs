@@ -109,6 +109,8 @@ function createLocalProvider(service, { pageSize = PAGE_SIZE } = {}) {
     /** What a file held before each save that replaced it. */
     async listVersions(scope, fileId) { assertLocal(scope); return service.listVersions(fileId); },
     async readTextRange(scope, fileId, range) { assertLocal(scope); return service.readTextRange(fileId, range); },
+    /** A document made from a file, put beside it as a new file (see the service's exportBeside). */
+    async exportBeside(scope, fileId, extension, bytes, opId) { assertLocal(scope); return service.exportBeside(fileId, extension, bytes, opId); },
     async readVersion(scope, fileId, revision) { assertLocal(scope); return service.readVersion(fileId, revision); },
     async restoreVersion(scope, fileId, revision, baseRevision, opId) { assertLocal(scope); return service.restoreVersion(fileId, revision, baseRevision, opId); },
     /** Text typed into a file and not yet written to it, kept so it is not lost. */

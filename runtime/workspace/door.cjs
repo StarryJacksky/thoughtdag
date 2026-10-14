@@ -22,6 +22,9 @@ const helpers = import('../../shared/workspace/provider-helpers.mjs');
 const MAX_PAGE_READ_BYTES = 8 * 1024 * 1024;
 /** Above this a file is not sent to the page even to be looked at (a PDF, an image). */
 const MAX_VIEW_BYTES = 64 * 1024 * 1024;
+/** What the page may put beside a file as a document it made from it, and how large such a document may be. */
+const EXPORTABLE = new Set(['docx']);
+const MAX_EXPORT_BYTES = 64 * 1024 * 1024;
 
 const newlineOf = (text) => {
   const crlf = (text.match(/\r\n/g) ?? []).length;
@@ -185,6 +188,20 @@ function createWorkspaceDoor({ service, providers, canvasFolder, showInFileManag
     'workspace:read-text-range': async (_context, fileId, offset, length) => {
       const { scope, provider } = await ofFile(fileId, 'read');
       return extra(provider, 'readTextRange')(scope, String(fileId), { offset: Number(offset), length: Number(length) });
+    },
+    /**
+     * A document the page made from a file (a Word document from a Markdown
+     * note), put beside it as a new file: only of the kinds this app writes,
+     * from bytes, within a size, never over anything that is there.
+     */
+    'workspace:export-beside': async (_context, fileId, extension, bytes, opId) => {
+      if (typeof extension !== 'string' || !EXPORTABLE.has(extension)) throw new WorkspaceAccessError('invalid-request', 'that is not a kind of document this app makes');
+      if (!(bytes instanceof Uint8Array)) throw new WorkspaceAccessError('invalid-request', 'the document is not bytes');
+      if (bytes.byteLength > MAX_EXPORT_BYTES) throw new WorkspaceAccessError('too-large', 'the document is too large');
+      if (typeof opId !== 'string' || !opId) throw new WorkspaceAccessError('invalid-operation', 'the operation has no id');
+      await ofFile(fileId, 'read');
+      const { scope, provider } = await ofFile(fileId, 'create');
+      return extra(provider, 'exportBeside')(scope, String(fileId), extension, bytes, opId);
     },
     'workspace:read-version': async (_context, fileId, revision) => {
       const { scope, provider } = await ofFile(fileId, 'read');

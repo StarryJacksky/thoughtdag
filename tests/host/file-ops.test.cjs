@@ -440,3 +440,47 @@ test('an operation id is good for one kind of operation', async () => {
   await assert.rejects(service.trashFile(read.record.fileId, 'op-1'), (e) => e.code === 'invalid-operation');
   await assert.rejects(service.trashFile(read.record.fileId, ''), (e) => e.code === 'invalid-operation');
 });
+
+// ── T10f: a text too large to open for typing is read a part at a time ─
+
+test('[T10f] a large text file is read a part at a time, and the parts put together are the file', async () => {
+  const { service, at, workspace } = await setup();
+  // lines of different lengths, Chinese among them, so that parts would split a line and a character if they could
+  const lines = Array.from({ length: 4000 }, (_, n) => `第${n}行 line ${n} ${'x'.repeat(n % 97)}`);
+  fs.writeFileSync(at('notes/big.txt'), lines.join('\n') + '\n');
+  const record = await service.registerEntry(workspace.workspaceId, entryIdOf('notes/big.txt'));
+  const size = fs.statSync(at('notes/big.txt')).size;
+  let offset = 0;
+  const parts = [];
+  for (let i = 0; i < 400 && offset < size; i++) {
+    const part = await service.readTextRange(record.fileId, { offset, length: 4096 });
+    assert.equal(part.size, size);
+    assert.equal(part.offset, offset);
+    assert.ok(part.nextOffset > offset, 'each part moves on');
+    assert.ok(part.nextOffset - offset <= 4096);
+    assert.ok(part.text === '' || part.text.endsWith('\n') || part.nextOffset === size, 'a part ends at the end of a line');
+    assert.ok(!part.text.includes('�'), 'no character is cut in two');
+    parts.push(part.text);
+    offset = part.nextOffset;
+  }
+  assert.equal(offset, size);
+  assert.equal(parts.join(''), fs.readFileSync(at('notes/big.txt'), 'utf8'));
+  // nothing of it was opened for typing, and nothing was written
+  assert.equal(fs.readFileSync(at('notes/big.txt'), 'utf8'), lines.join('\n') + '\n');
+});
+
+test('[T10f] a line longer than one part is cut at a character, never inside one', async () => {
+  const { service, at, workspace } = await setup();
+  fs.writeFileSync(at('notes/long-line.txt'), '漢'.repeat(5000));
+  const record = await service.registerEntry(workspace.workspaceId, entryIdOf('notes/long-line.txt'));
+  const first = await service.readTextRange(record.fileId, { offset: 0, length: 1000 });
+  assert.equal(first.nextOffset % 3, 0, 'the part ends between two characters');
+  assert.equal(first.text, '漢'.repeat(first.nextOffset / 3));
+  const past = await service.readTextRange(record.fileId, { offset: first.size + 10, length: 1000 });
+  assert.deepEqual([past.text, past.nextOffset], ['', first.size]);
+  // a part is never longer than the most a part may be
+  const big = await service.readTextRange(record.fileId, { offset: 0, length: 100 * 1024 * 1024 });
+  assert.ok(big.nextOffset <= 1024 * 1024);
+  await assert.rejects(service.readTextRange(record.fileId, { offset: -1, length: 10 }), { code: 'invalid-request' });
+  await assert.rejects(service.readTextRange('file_nobody_knows', { offset: 0, length: 10 }), { code: 'unknown-file' });
+});

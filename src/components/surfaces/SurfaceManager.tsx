@@ -9,6 +9,7 @@ import FocusPanel from '../focus-panel';
 import { useStore } from '../../store';
 import { closeSurface } from '../../lib/documents/surface-store';
 import DocumentBody from './DocumentBody';
+import LargeTextView from './LargeTextView';
 import SurfaceFrame from './SurfaceFrame';
 import SurfaceTray from './SurfaceTray';
 
@@ -27,9 +28,24 @@ interface Props {
 /** A file that could not be opened to type into: the surface says why, and what can be done about it. */
 function NoticeBody({ surface }: { surface: Surface }) {
   const t = useT();
+  // a text too large to type into is still text: it is shown, read-only, a part at a time
+  if (surface.notice === 'too-large') {
+    return (
+      <div className="flex-1 min-h-0 flex flex-col" data-surface-notice="too-large">
+        <LargeTextView fileId={surface.fileId} name={surface.title} />
+        <div className="shrink-0 flex items-center justify-between gap-2 border-t border-line/70 px-3 py-1.5">
+          <span className="text-2xs text-ink-faint leading-snug">{t('surface.tooLargeToEdit')}</span>
+          <button onClick={() => void revealFile(surface.fileId).catch(() => {})} data-surface-reveal
+            className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-md text-2xs text-ink bg-wash hover:bg-line/40 transition-colors">
+            <FolderOpen size={12} strokeWidth={1.75} /> {t('workspace.reveal')}
+          </button>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="flex-1 flex flex-col items-start gap-3 px-4 py-4" data-surface-notice={surface.notice}>
-      <p className="text-xs text-ink-muted leading-relaxed">{t(surface.notice === 'too-large' ? 'surface.tooLargeToEdit' : 'surface.notText')}</p>
+      <p className="text-xs text-ink-muted leading-relaxed">{t('surface.notText')}</p>
       <button onClick={() => void revealFile(surface.fileId).catch(() => {})} data-surface-reveal
         className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-2xs text-ink bg-wash hover:bg-line/40 transition-colors">
         <FolderOpen size={12} strokeWidth={1.75} /> {t('workspace.reveal')}

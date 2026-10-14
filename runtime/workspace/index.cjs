@@ -562,6 +562,11 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
       return (await operationsOf(await grantOfFile(fileId))).listVersions(fileId);
     },
 
+    /** One part of a text file too large to open for typing, to look at (see file-ops). */
+    async readTextRange(fileId, range) {
+      return (await operationsOf(await grantOfFile(fileId))).readTextRange(fileId, range ?? {});
+    },
+
     /** The text a file held in one of its earlier versions, to look at. Nothing is put back. */
     async readVersion(fileId, revision) {
       return (await operationsOf(await grantOfFile(fileId))).readVersion(fileId, revision);

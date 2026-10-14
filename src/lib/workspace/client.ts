@@ -232,6 +232,15 @@ export async function listVersions(fileId: string): Promise<FileVersion[]> {
   return versions.map((version) => checked('FileVersion', version));
 }
 
+export interface TextRange { text: string; offset: number; nextOffset: number; size: number; stamp: string }
+
+/** One part of a text file too large to open for typing, to look at. */
+export async function readTextRange(fileId: string, offset: number, length: number): Promise<TextRange> {
+  const part = await call((b) => b.readTextRange(fileId, offset, length));
+  if (!part || typeof part.text !== 'string' || !Number.isInteger(part.nextOffset) || !Number.isInteger(part.size) || part.nextOffset < offset) throw new WorkspaceError('contract', 'the shell answered with something that is not a part of a file');
+  return part;
+}
+
 /** The text of one of a file's earlier versions, to look at. Nothing is put back. */
 export async function readVersion(fileId: string, revision: ContentHash): Promise<TextRevision> {
   return checked('TextRevision', await call((b) => b.readVersion(fileId, revision)));

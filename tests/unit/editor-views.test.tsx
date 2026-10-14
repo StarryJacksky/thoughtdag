@@ -300,6 +300,31 @@ describe('a file that cannot be opened to type into', () => {
     expect(shell.calls.filter((c) => c.method === 'reveal').map((c) => c.args)).toEqual([[fileIdOf('data/huge.csv')]]);
   });
 
+  it('[T10f] a text file above the limit is shown read-only, a part at a time, and nothing of it is opened to type into', async () => {
+    const lines = Array.from({ length: 120000 }, (_, n) => `row ${n},value ${n % 7}`);
+    shell.seed('data/huge.csv', lines.join('\n') + '\n');
+    shell.failNext('readText', 'too-large', 'the file is too large to be read here');
+    const id = await opened(fileIdOf('data/huge.csv'));
+    view = await mount(<SurfaceManager />);
+    const frame = () => view!.container.querySelector<HTMLElement>(`[data-surface="${id}"]`)!;
+    for (let i = 0; i < 100 && !frame().querySelector('[data-large-part]'); i++) await during(tick);
+    const shown = () => [...frame().querySelectorAll('[data-large-part]')].map((part) => part.textContent).join('');
+    expect(shown().startsWith('row 0,value 0\nrow 1,value 1\n')).toBe(true);
+    expect(shown().length, 'only the beginning is read at first').toBeLessThan(lines.join('\n').length);
+    expect(frame().querySelector('[data-large-readonly]'), 'it says that it is shown read-only').not.toBeNull();
+    // asked for more until it is all there: what is shown is the file, whole and in order
+    for (let i = 0; i < 20 && frame().querySelector('[data-large-more]'); i++) {
+      await during(async () => { frame().querySelector<HTMLElement>('[data-large-more]')!.click(); await tick(); });
+    }
+    expect(frame().querySelector('[data-large-more]'), 'nothing more to show').toBeNull();
+    expect(shown()).toBe(lines.join('\n') + '\n');
+    expect(frame().querySelector('.cm-editor')).toBeNull();
+    expect(frame().querySelector('textarea, [contenteditable="true"]')).toBeNull();
+    expect(documents.documentOf(fileIdOf('data/huge.csv'))).toBeUndefined();
+    expect(shell.calls.filter((c) => ['saveText', 'putDraft'].includes(c.method))).toEqual([]);
+    expect(frame().querySelector('[data-surface-reveal]'), 'it can still be shown in the file manager').not.toBeNull();
+  });
+
   it('a file that is not text says that it is not', async () => {
     shell.seed('data/blob.bin', '');
     shell.failNext('readText', 'not-text', 'the file is not text that can be opened for editing');

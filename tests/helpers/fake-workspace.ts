@@ -240,6 +240,16 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
       return entryIdOf(kept.item.relativePath);
     }),
     listVersions: door('listVersions', null, (fileId: string): FileVersion[] => (versions.get(fileId) ?? []).map((content) => ({ fileId, revision: fakeRevision(content), keptAt: '2026-10-05T00:00:00Z', size: content.length }))),
+    readTextRange: door('readTextRange', null, (fileId: string, offset: number, length: number) => {
+      const f = files.get(fileId);
+      if (!f || f.status === 'missing' || f.status === 'ambiguous') throw new Error('lost: the file is lost; it has to be found again first');
+      // the stand-in counts in characters, not bytes, and ends a part at a line end when there is one
+      const text = f.content;
+      const end = Math.min(text.length, offset + Math.min(length, 1024 * 1024));
+      const newline = text.lastIndexOf('\n', end - 1);
+      const cut = end < text.length && newline >= offset ? newline + 1 : end;
+      return { text: text.slice(offset, cut), offset, nextOffset: Math.max(offset, cut), size: text.length, stamp: fakeRevision(text) };
+    }),
     readVersion: door('readVersion', null, (fileId: string, revision: string) => {
       const content = (versions.get(fileId) ?? []).find((c) => fakeRevision(c) === revision);
       if (content === undefined) throw new Error('not-found: that version is not kept in the recovery area');

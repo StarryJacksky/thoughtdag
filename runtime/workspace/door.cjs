@@ -174,6 +174,11 @@ function createWorkspaceDoor({ service, providers, canvasFolder, showInFileManag
       const { scope, provider } = await ofFile(fileId, 'read');
       return extra(provider, 'listVersions')(scope, String(fileId));
     },
+    /** One part of a text too large to open for typing: a file of that size is looked at a part at a time. */
+    'workspace:read-text-range': async (_context, fileId, offset, length) => {
+      const { scope, provider } = await ofFile(fileId, 'read');
+      return extra(provider, 'readTextRange')(scope, String(fileId), { offset: Number(offset), length: Number(length) });
+    },
     'workspace:read-version': async (_context, fileId, revision) => {
       const { scope, provider } = await ofFile(fileId, 'read');
       return extra(provider, 'readVersion')(scope, String(fileId), String(revision));

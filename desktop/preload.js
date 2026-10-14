@@ -79,6 +79,7 @@ contextBridge.exposeInMainWorld('desktopWorkspace', {
   listRecovery: (workspaceId) => ipcRenderer.invoke('workspace:list-recovery', workspaceId),
   restore: (workspaceId, receiptId, opId) => ipcRenderer.invoke('workspace:restore', workspaceId, receiptId, opId),
   listVersions: (fileId) => ipcRenderer.invoke('workspace:list-versions', fileId),
+  readTextRange: (fileId, offset, length) => ipcRenderer.invoke('workspace:read-text-range', fileId, offset, length),
   readVersion: (fileId, revision) => ipcRenderer.invoke('workspace:read-version', fileId, revision),
   restoreVersion: (fileId, revision, baseRevision, opId) => ipcRenderer.invoke('workspace:restore-version', fileId, revision, baseRevision, opId),
   putDraft: (fileId, draft) => ipcRenderer.invoke('workspace:put-draft', fileId, draft),

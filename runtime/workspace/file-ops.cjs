@@ -39,6 +39,8 @@ const { keepPreviousVersion, readPreviousVersion, listPreviousVersions, moveToRe
 
 /** Text above this size is not opened for editing. */
 const MAX_EDITABLE_BYTES = 8 * 1024 * 1024;
+/** A text too large to open for editing is read this much at a time, at most. */
+const MAX_RANGE_BYTES = 1024 * 1024;
 /** Where files created from the graph land, at the workspace root. */
 const GRAPH_FILES_DIR = 'Graph Files';
 const UTF8_BOM = Buffer.from([0xef, 0xbb, 0xbf]);
@@ -490,6 +492,46 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
       const revision = hashOf(bytes);
       await noteRead(record, revision, stat);
       return { bytes, revision };
+    },
+
+    /**
+     * One part of a text file, to be looked at: what a file too large to
+     * open for typing is read as, a part at a time. `offset` is in bytes.
+     * A part ends at the end of a line when there is one in it, and
+     * otherwise between two characters, never inside one; `nextOffset` is
+     * where the next part begins. `stamp` changes when the file does, so a
+     * reader that sees another stamp starts again. Nothing is written.
+     */
+    async readTextRange(fileId, { offset, length }) {
+      const record = await liveRecordOf(fileId);
+      if (!Number.isInteger(offset) || offset < 0 || !Number.isInteger(length) || length < 1) throw new WorkspaceAccessError('invalid-request', 'that is not a part of a file');
+      const target = await assertAllowedPath(grant, 'read', record.relativePath);
+      const handle = await io.open(target.absolute, fs.constants.O_RDONLY | NOFOLLOW);
+      try {
+        const stat = await handle.stat();
+        if (!stat.isFile()) throw new WorkspaceAccessError('not-a-file', 'only a regular file can be read');
+        const stamp = `${stat.size}:${stat.mtimeMs}`;
+        if (offset >= stat.size) return { text: '', offset, nextOffset: stat.size, size: stat.size, stamp };
+        const want = Math.min(length, MAX_RANGE_BYTES, stat.size - offset);
+        const buffer = Buffer.alloc(want);
+        const { bytesRead } = await handle.read(buffer, 0, want, offset);
+        let bytes = buffer.subarray(0, bytesRead);
+        if (offset + bytes.length < stat.size) {
+          // end at the end of a line; a line longer than the part ends between two characters
+          const newline = bytes.lastIndexOf(0x0a);
+          if (newline >= 0) bytes = bytes.subarray(0, newline + 1);
+          else {
+            let end = bytes.length;
+            // step back over the continuation bytes of a character that does not fit whole, and its lead byte
+            while (end > 0 && (bytes[end - 1] & 0xc0) === 0x80) end--;
+            if (end > 0 && bytes[end - 1] >= 0xc0) end--;
+            if (end > 0) bytes = bytes.subarray(0, end);
+          }
+        }
+        return { text: new TextDecoder('utf-8').decode(bytes), offset, nextOffset: offset + bytes.length, size: stat.size, stamp };
+      } finally {
+        await handle.close();
+      }
     },
 
     /**

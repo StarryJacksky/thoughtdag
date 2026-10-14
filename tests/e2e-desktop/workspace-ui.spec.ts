@@ -891,11 +891,17 @@ test.describe.serial('editors and readers, in the desktop shell', () => {
     await html.locator('[data-surface-close]').click();
   });
 
-  test('a text file above the limit is not opened to type into: the surface says so and offers to show the file', async () => {
+  test('a text file above the limit is shown read-only, a part at a time, and offers to show the file', async () => {
     await openFromTree('huge.csv');
     const huge = surface('huge.csv');
     await expect(huge.locator('[data-surface-notice="too-large"]')).toBeVisible();
     await expect(huge.locator('.cm-editor')).toHaveCount(0);
+    // its beginning is shown, read-only; more of it comes as it is asked for
+    await expect(huge.locator('[data-large-part]').first()).toContainText('aaaaaaaaaa');
+    const first = await huge.locator('[data-large-part]').count();
+    await huge.locator('[data-large-more]').click();
+    await expect.poll(() => huge.locator('[data-large-part]').count()).toBeGreaterThan(first);
+    await expect(huge.locator('textarea, [contenteditable="true"]')).toHaveCount(0);
     await huge.locator('[data-surface-reveal]').click();
     await expect.poll(() => eApp.evaluate(() => (globalThis as unknown as { __shown: string[] }).__shown)).toEqual([disk('huge.csv')]);
     expect(fs.statSync(disk('huge.csv')).size).toBe(8 * 1024 * 1024 + 1);

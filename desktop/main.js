@@ -43,6 +43,24 @@ function whyLib() {
 let serverProc = null;
 let win = null;
 
+// ─── Who may call ──────────────────────────────────────────────────────
+// The preload bridge exists in whatever page the window shows, so every
+// channel into the shell answers one caller only: the top frame of the app
+// window, showing the app's own origin (runtime/workspace/ipc-guard.cjs).
+// A frame inside the page, or the window after it was sent somewhere else,
+// is refused before the handler runs. Channels register through handle(),
+// never ipcMain.handle directly.
+const RUNTIME_DIR = app.isPackaged ? path.join(process.resourcesPath, 'payload', 'runtime') : path.join(__dirname, '..', 'runtime');
+const { checkSender, senderOf, isAppUrl } = require(path.join(RUNTIME_DIR, 'workspace', 'ipc-guard.cjs'));
+let appOrigin = null; // set by boot() once the bundled server has its port
+function handle(channel, fn) {
+  ipcMain.handle(channel, async (event, ...args) => {
+    const verdict = checkSender(senderOf(event), { origin: appOrigin, webContentsId: win?.webContents.id ?? null });
+    if (!verdict.trusted) throw new Error('refused: ' + verdict.reason);
+    return fn(event, ...args);
+  });
+}
+
 // first free port from a quiet base — never collide with dev servers
 function freePort(start = 31173) {
   return new Promise((resolve) => {
@@ -90,19 +108,31 @@ async function boot() {
   // splash first: the window exists from the first moment, breathing,
   // while the bundled server warms up behind it
   win.loadFile(path.join(__dirname, 'splash.html'));
+  // What the system is asked to open on the page's behalf: a web or mail
+  // link, nothing else. The address under a link comes from data (a search
+  // result, a link card, an imported canvas), and any other scheme starts
+  // whichever app claims it: a network share, a remote shell, another
+  // app's own links. The app's thoughtdag:// links are followed inside the
+  // page and never pass through here.
+  const openOutside = (url) => { if (/^(https?|mailto):/.test(url)) shell.openExternal(url); };
   // external links belong to the system browser, not this window
   win.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    openOutside(url);
     return { action: 'deny' };
   });
   // In-page navigation to the outside (a plain link inside a response)
-  // would replace the app with the target site, with no way back. The
-  // app's own origins navigate; everything else goes to the browser.
-  win.webContents.on('will-navigate', (e, url) => {
-    if (/^(http:\/\/(127\.0\.0\.1|localhost)[:/]|file:|data:)/.test(url)) return;
+  // would replace the app with the target page, with no way back — and
+  // that page would be handed the preload bridge. The top frame moves only
+  // within the app's own origin; a web or mail link (one to another local
+  // port included) goes to the browser, and anything else is dropped.
+  const stayInApp = (e, url) => {
+    if (isAppUrl(url, appOrigin)) return;
     e.preventDefault();
-    if (/^(https?|mailto):/.test(url)) shell.openExternal(url);
-  });
+    openOutside(url);
+  };
+  win.webContents.on('will-navigate', stayInApp);
+  // a redirect answered on the app's own origin must not carry the top frame out either
+  win.webContents.on('will-redirect', (e, url, _isInPlace, isMainFrame) => { if (isMainFrame) stayInApp(e, url); });
 
   const ready = await waitReady(port);
   if (!ready) {
@@ -353,14 +383,14 @@ function setupSessionAtlas() {
     return alive.filter(Boolean);
   };
 
-  ipcMain.handle('sessions:open-targets', async () => ({
+  handle('sessions:open-targets', async () => ({
     terminals: (await probedTerminals()).map((t) => ({ id: t.id, name: t.name, custom: !!t.custom })),
     apps: (await Promise.all(Object.entries(APP_TARGETS).map(async ([runner, a]) => (await dirExists(a.app)) ? { runner, name: a.name } : null))).filter(Boolean),
     prefs: { terminal: atlasPrefs.terminal },
     canAddCustom: process.platform === 'darwin',
   }));
 
-  ipcMain.handle('sessions:set-open-prefs', async (_e, p) => {
+  handle('sessions:set-open-prefs', async (_e, p) => {
     if (p && typeof p === 'object' && typeof p.terminal === 'string' && buildTerminalRegistry().some((t) => t.id === p.terminal)) {
       atlasPrefs.terminal = p.terminal;
       await savePrefs();
@@ -370,7 +400,7 @@ function setupSessionAtlas() {
 
   // "pick another terminal app": the native picker again — the page never
   // names an app path. The chosen app rides the .command road.
-  ipcMain.handle('sessions:add-terminal', async () => {
+  handle('sessions:add-terminal', async () => {
     if (process.platform !== 'darwin') return null;
     const r = await dialog.showOpenDialog(win, {
       properties: ['openApplication'],
@@ -387,7 +417,7 @@ function setupSessionAtlas() {
     return { id: entry.id, name: entry.name };
   });
 
-  ipcMain.handle('sessions:roots', async () => {
+  handle('sessions:roots', async () => {
     const out = [];
     for (const [key, p] of Object.entries(allRoots())) {
       const exists = await fsp.stat(p).then((s) => s.isDirectory()).catch(() => false);
@@ -396,7 +426,7 @@ function setupSessionAtlas() {
     return out;
   });
 
-  ipcMain.handle('sessions:add-root', async () => {
+  handle('sessions:add-root', async () => {
     const r = await dialog.showOpenDialog(win, { properties: ['openDirectory'] });
     const p = r.canceled ? null : r.filePaths[0];
     if (!p) return null;
@@ -408,14 +438,14 @@ function setupSessionAtlas() {
     return { key, path: p, builtin: false, exists: true };
   });
 
-  ipcMain.handle('sessions:remove-root', async (_e, key) => {
+  handle('sessions:remove-root', async (_e, key) => {
     if (key in customRoots) {
       delete customRoots[key];
       await fsp.writeFile(rootsFile(), JSON.stringify(customRoots, null, 2));
     }
   });
 
-  ipcMain.handle('sessions:list', async (_e, rootKey) => {
+  handle('sessions:list', async (_e, rootKey) => {
     const root = allRoots()[rootKey];
     if (!root) return [];
     const out = [];
@@ -446,7 +476,7 @@ function setupSessionAtlas() {
   const expandHome = (p) => (p.startsWith('~/') ? path.join(os.homedir(), p.slice(2)) : p);
   const VIEWABLE = /\.(png|jpe?g|gif|webp|svg|pdf)$/i;
   const IMAGE_MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml' };
-  ipcMain.handle('local:open', async (_e, raw) => {
+  handle('local:open', async (_e, raw) => {
     if (typeof raw !== 'string') return { ok: false, reason: 'invalid' };
     const p = expandHome(raw);
     if (!path.isAbsolute(p)) return { ok: false, reason: 'invalid' };
@@ -457,7 +487,7 @@ function setupSessionAtlas() {
     shell.showItemInFolder(p);
     return { ok: true, kind: 'file', opened: 'finder' };
   });
-  ipcMain.handle('local:image', async (_e, raw) => {
+  handle('local:image', async (_e, raw) => {
     if (typeof raw !== 'string') return null;
     const p = expandHome(raw);
     const ext = (p.match(/\.(png|jpe?g|gif|webp|svg)$/i)?.[1] ?? '').toLowerCase();
@@ -476,7 +506,7 @@ function setupSessionAtlas() {
   const THOUGHTDAG_HOME = process.env.THOUGHTDAG_HOME || path.join(os.homedir(), '.thoughtdag');
   const CANVAS_DIR = path.join(THOUGHTDAG_HOME, 'canvases');
   const PROJECT_ID = /^[A-Za-z0-9_-]{1,128}$/;
-  ipcMain.handle('canvas:record-write', async (_e, projectId, json) => {
+  handle('canvas:record-write', async (_e, projectId, json) => {
     if (typeof projectId !== 'string' || !PROJECT_ID.test(projectId) || typeof json !== 'string' || json.length > 64 * 1024 * 1024) return { ok: false, reason: 'invalid' };
     await fsp.mkdir(CANVAS_DIR, { recursive: true, mode: 0o700 });
     await fsp.chmod(THOUGHTDAG_HOME, 0o700).catch(() => undefined);
@@ -488,13 +518,13 @@ function setupSessionAtlas() {
     await fsp.rename(tmp, file);
     return { ok: true, file };
   });
-  ipcMain.handle('canvas:record-remove', async (_e, projectId) => {
+  handle('canvas:record-remove', async (_e, projectId) => {
     if (typeof projectId !== 'string' || !PROJECT_ID.test(projectId)) return { ok: false };
     await fsp.rm(path.join(CANVAS_DIR, `${projectId}.thoughtdag.json`), { force: true }).catch(() => undefined);
     return { ok: true };
   });
 
-  ipcMain.handle('sessions:head', async (_e, rootKey, rel, bytes) => {
+  handle('sessions:head', async (_e, rootKey, rel, bytes) => {
     if (typeof rel === 'string' && rel.endsWith('.zstd')) {
       const dec = await sessionText(rootKey, rel);
       const n = Math.min(Math.max(1024, bytes | 0), 524288);
@@ -513,7 +543,7 @@ function setupSessionAtlas() {
     }
   });
 
-  ipcMain.handle('sessions:read', (_e, rootKey, rel) => {
+  handle('sessions:read', (_e, rootKey, rel) => {
     if (typeof rel === 'string' && rel.endsWith('.zstd')) return sessionText(rootKey, rel);
     return fsp.readFile(resolveInRoot(rootKey, rel), 'utf8');
   });
@@ -523,7 +553,7 @@ function setupSessionAtlas() {
   // so every returned piece parses cleanly; a single line longer than the
   // chunk (never observed — the worst line seen is 49KB) is dropped whole
   // rather than split into two corrupt halves.
-  ipcMain.handle('sessions:read-range', async (_e, rootKey, rel, start, length) => {
+  handle('sessions:read-range', async (_e, rootKey, rel, start, length) => {
     // zstd sessions read from the decompressed buffer (see sessionText) —
     // chunk offsets address the DECODED text, exactly as a raw .jsonl's
     // offsets address its own file.
@@ -562,7 +592,7 @@ function setupSessionAtlas() {
   // decides what (if anything) to do with each event.
   const watchers = [];
   const pending = new Map(); // rootKey:rel → timer
-  ipcMain.handle('sessions:watch-start', async () => {
+  handle('sessions:watch-start', async () => {
     if (watchers.length) return true;
     const fs = require('fs');
     for (const [rootKey, root] of Object.entries(allRoots())) {
@@ -594,7 +624,7 @@ function setupSessionAtlas() {
   };
   // mode is the user's explicit per-click choice ('app' | 'terminal') —
   // no stored preference decides between the two roads.
-  ipcMain.handle('sessions:open-in-cli', async (_e, runner, cwd, sessionId, mode) => {
+  handle('sessions:open-in-cli', async (_e, runner, cwd, sessionId, mode) => {
     const buildProgram = PROGRAMS[runner];
     if (!buildProgram || !/^[\w.-]{4,}$/.test(String(sessionId))) return { opened: false, via: '', command: '' };
     const cwdOk = typeof cwd === 'string' && path.isAbsolute(cwd) && await dirExists(cwd);
@@ -683,12 +713,12 @@ function setupAutoUpdate() {
   // Menu → Check for updates. A downloaded update short-circuits straight
   // to the restart toast; asking during a download answers with progress;
   // asking by hand re-offers a version dismissed earlier.
-  ipcMain.handle('update:check', () => {
+  handle('update:check', () => {
     if (downloadedInfo) { sendUpdate({ kind: 'ready', version: downloadedInfo.version }); return; }
     if (downloading) { sendUpdate({ kind: 'downloading', percent: Math.round(lastPercent) }); return; }
     check(true);
   });
-  ipcMain.handle('update:download', () => {
+  handle('update:download', () => {
     if (downloading || downloadedInfo || !announced) return;
     downloading = true;
     sendUpdate({ kind: 'downloading', percent: 0 });
@@ -698,7 +728,7 @@ function setupAutoUpdate() {
       sendUpdate({ kind: 'download-failed' });
     });
   });
-  ipcMain.handle('update:install', () => {
+  handle('update:install', () => {
     if (downloadedInfo) updater.quitAndInstall();
   });
 }
@@ -730,7 +760,7 @@ const commandSource = (asset) => {
   }
   return null;
 };
-ipcMain.handle('commands:status', () => {
+handle('commands:status', () => {
   const out = {};
   for (const [runner, asset] of Object.entries(COMMAND_ASSETS)) {
     const src = commandSource(asset);
@@ -745,7 +775,7 @@ ipcMain.handle('commands:status', () => {
   }
   return out;
 });
-ipcMain.handle('commands:install', (_e, runner) => {
+handle('commands:install', (_e, runner) => {
   const asset = COMMAND_ASSETS[runner];
   if (!asset) return { ok: false };
   const src = commandSource(asset);
@@ -756,7 +786,7 @@ ipcMain.handle('commands:install', (_e, runner) => {
     return { ok: true, dest: asset.dest };
   } catch (e) { return { ok: false, error: String(e) }; }
 });
-ipcMain.handle('commands:remove', (_e, runner) => {
+handle('commands:remove', (_e, runner) => {
   const asset = COMMAND_ASSETS[runner];
   if (!asset) return { ok: false };
   try { fsSync.unlinkSync(asset.dest); return { ok: true }; } catch (e) { return { ok: false, error: String(e) }; }
@@ -775,7 +805,6 @@ let codexRpc = null; // null=not started, 'dead'=CLI absent, else client
 // runs default to are handed out under userData.
 // One module per runtime under agents/, created on first use. A run is
 // addressed by its id: abort and answer find the runtime that owns it.
-const RUNTIME_DIR = app.isPackaged ? path.join(process.resourcesPath, 'payload', 'runtime') : path.join(__dirname, '..', 'runtime');
 const agentOps = require(path.join(RUNTIME_DIR, 'agents', 'ops.cjs'));
 const RUNTIME_FACTORIES = {
   pi: () => require(path.join(RUNTIME_DIR, 'agents', 'pi.cjs')).createPiRuntime({ log: (line) => console.log(line) }),
@@ -793,54 +822,54 @@ const runOwners = new Map(); // runId → runtime name
 const workspaceFor = (canvasId) => agentOps.workspaceFor(path.join(app.getPath('userData'), 'workspaces'), canvasId);
 
 function setupAgents() {
-  ipcMain.handle('agents:available', async () => {
+  handle('agents:available', async () => {
     const out = {};
     for (const name of Object.keys(RUNTIME_FACTORIES)) out[name] = await agentsRuntime(name).available().catch(() => null);
     return out;
   });
-  ipcMain.handle('agents:models', async (_e, runtime) => {
+  handle('agents:models', async (_e, runtime) => {
     try { return await agentsRuntime(runtime).models(); } catch (e) { return { installed: false, models: [], default: null, error: e instanceof Error ? e.message : String(e) }; }
   });
-  ipcMain.handle('agents:run', async (_e, req) => {
+  handle('agents:run', async (_e, req) => {
     const r = req && typeof req === 'object' ? req : {};
     const name = RUNTIME_FACTORIES[r.runtime] ? r.runtime : 'pi';
     const runId = await agentsRuntime(name).run(r, (payload) => { if (win && !win.isDestroyed()) win.webContents.send('agents:event', payload); });
     runOwners.set(runId, name);
     return runId;
   });
-  ipcMain.handle('agents:abort', async (_e, runId) => agentsRuntime(runOwners.get(String(runId))).abort(String(runId)));
-  ipcMain.handle('agents:workspace', async (_e, canvasId) => workspaceFor(canvasId));
-  ipcMain.handle('agents:answer', async (_e, runId, requestId, response) => agentsRuntime(runOwners.get(String(runId))).answer(String(runId), String(requestId), response));
-  ipcMain.handle('agents:guard-write', async (_e, cwd, config) => agentOps.writeGuard(cwd, config));
+  handle('agents:abort', async (_e, runId) => agentsRuntime(runOwners.get(String(runId))).abort(String(runId)));
+  handle('agents:workspace', async (_e, canvasId) => workspaceFor(canvasId));
+  handle('agents:answer', async (_e, runId, requestId, response) => agentsRuntime(runOwners.get(String(runId))).answer(String(runId), String(requestId), response));
+  handle('agents:guard-write', async (_e, cwd, config) => agentOps.writeGuard(cwd, config));
   // a folder the person picks as a canvas's working directory
-  ipcMain.handle('agents:pick-cwd', async () => {
+  handle('agents:pick-cwd', async () => {
     const r = await dialog.showOpenDialog(win ?? undefined, { properties: ['openDirectory', 'createDirectory'] });
     return r.canceled || !r.filePaths?.[0] ? null : r.filePaths[0];
   });
-  ipcMain.handle('agents:write-materials', async (_e, cwd, files) => agentOps.writeMaterials(cwd, files));
+  handle('agents:write-materials', async (_e, cwd, files) => agentOps.writeMaterials(cwd, files));
 
   // ── the why layer: what was asked, answered and remembered across the local agents ──
-  ipcMain.handle('why:status', async () => {
+  handle('why:status', async () => {
     try { const w = await whyLib(); return { available: true, home: w.HOME }; }
     catch (e) { return { available: false, error: e instanceof Error ? e.message : String(e) }; }
   });
-  ipcMain.handle('why:find', async (_e, phrase, opts) => (await whyLib()).findJson(String(phrase ?? ''), opts && typeof opts === 'object' ? opts : {}));
-  ipcMain.handle('why:turns', async (_e, opts) => (await whyLib()).turnsJson(opts && typeof opts === 'object' ? opts : {}));
-  ipcMain.handle('why:recall', async (_e, session, turn) => (await whyLib()).recallJson(String(session ?? ''), Number(turn)));
-  ipcMain.handle('why:memories', async () => (await whyLib()).memoriesJson());
-  ipcMain.handle('why:suggest', async (_e, term, k) => (await whyLib()).suggestJson(String(term ?? ''), Number(k) || 8));
-  ipcMain.handle('why:topics', async () => (await whyLib()).topicsJson());
-  ipcMain.handle('why:set-topics', async (_e, topics) => (await whyLib()).setTopics(Array.isArray(topics) ? topics : []));
-  ipcMain.handle('why:label-start', async (_e, call, opts) => (await whyLib()).labelStart(call, opts && typeof opts === 'object' ? opts : {}));
-  ipcMain.handle('why:label-stop', async () => (await whyLib()).labelStop());
-  ipcMain.handle('why:by-topic', async (_e, ids, opts) => (await whyLib()).byTopicJson(Array.isArray(ids) ? ids.map(String) : [], opts && typeof opts === 'object' ? opts : {}));
-  ipcMain.handle('why:sample', async (_e, n) => (await whyLib()).sampleQuestions(Number(n) || 120));
-  ipcMain.handle('why:dossiers', async () => (await whyLib()).dossiersJson());
-  ipcMain.handle('why:dossier', async (_e, id) => (await whyLib()).dossierJson(String(id)));
-  ipcMain.handle('why:set-dossier', async (_e, id, d) => (await whyLib()).setDossier(String(id), d && typeof d === 'object' ? d : {}));
-  ipcMain.handle('why:delete-dossier', async (_e, id) => (await whyLib()).deleteDossier(String(id)));
-  ipcMain.handle('why:dossier-pending', async (_e, id, item) => (await whyLib()).dossierAddPending(String(id), item && typeof item === 'object' ? item : { text: '' }));
-  ipcMain.handle('why:dossier-new', async (_e, id, opts) => (await whyLib()).dossierNewTurns(String(id), opts && typeof opts === 'object' ? opts : {}));
+  handle('why:find', async (_e, phrase, opts) => (await whyLib()).findJson(String(phrase ?? ''), opts && typeof opts === 'object' ? opts : {}));
+  handle('why:turns', async (_e, opts) => (await whyLib()).turnsJson(opts && typeof opts === 'object' ? opts : {}));
+  handle('why:recall', async (_e, session, turn) => (await whyLib()).recallJson(String(session ?? ''), Number(turn)));
+  handle('why:memories', async () => (await whyLib()).memoriesJson());
+  handle('why:suggest', async (_e, term, k) => (await whyLib()).suggestJson(String(term ?? ''), Number(k) || 8));
+  handle('why:topics', async () => (await whyLib()).topicsJson());
+  handle('why:set-topics', async (_e, topics) => (await whyLib()).setTopics(Array.isArray(topics) ? topics : []));
+  handle('why:label-start', async (_e, call, opts) => (await whyLib()).labelStart(call, opts && typeof opts === 'object' ? opts : {}));
+  handle('why:label-stop', async () => (await whyLib()).labelStop());
+  handle('why:by-topic', async (_e, ids, opts) => (await whyLib()).byTopicJson(Array.isArray(ids) ? ids.map(String) : [], opts && typeof opts === 'object' ? opts : {}));
+  handle('why:sample', async (_e, n) => (await whyLib()).sampleQuestions(Number(n) || 120));
+  handle('why:dossiers', async () => (await whyLib()).dossiersJson());
+  handle('why:dossier', async (_e, id) => (await whyLib()).dossierJson(String(id)));
+  handle('why:set-dossier', async (_e, id, d) => (await whyLib()).setDossier(String(id), d && typeof d === 'object' ? d : {}));
+  handle('why:delete-dossier', async (_e, id) => (await whyLib()).deleteDossier(String(id)));
+  handle('why:dossier-pending', async (_e, id, item) => (await whyLib()).dossierAddPending(String(id), item && typeof item === 'object' ? item : { text: '' }));
+  handle('why:dossier-new', async (_e, id, opts) => (await whyLib()).dossierNewTurns(String(id), opts && typeof opts === 'object' ? opts : {}));
 }
 
 // ─── Workspace: the person's real project folders ──────────────────────
@@ -850,10 +879,8 @@ function setupAgents() {
 const { createWorkspaceService } = require(path.join(RUNTIME_DIR, 'workspace', 'index.cjs'));
 const { createProviderRegistry } = require(path.join(RUNTIME_DIR, 'workspace', 'providers', 'provider-registry.cjs'));
 const { createWorkspaceDoor, watchingThrough } = require(path.join(RUNTIME_DIR, 'workspace', 'door.cjs'));
-const { checkSender, senderOf } = require(path.join(RUNTIME_DIR, 'workspace', 'ipc-guard.cjs'));
 const { createSubscriptionHub, releaseWithPage } = require(path.join(RUNTIME_DIR, 'workspace', 'subscriptions.cjs'));
 const { createRunner } = require(path.join(RUNTIME_DIR, 'workspace', 'runner.cjs'));
-let appOrigin = null; // set by boot() once the bundled server has its port
 function setupWorkspace() {
   const service = createWorkspaceService({
     stateDir: app.getPath('userData'),
@@ -905,10 +932,9 @@ function setupWorkspace() {
     hub,
     runner,
   });
+  // registered like every other channel: through handle(), which checks the caller first
   for (const [channel, answer] of Object.entries(door)) {
-    ipcMain.handle(channel, async (event, ...args) => {
-      const verdict = checkSender(senderOf(event), { origin: appOrigin, webContentsId: win?.webContents.id ?? null });
-      if (!verdict.trusted) throw new Error('refused: ' + verdict.reason);
+    handle(channel, async (event, ...args) => {
       try { return await answer({ senderId: event.sender.id }, ...args); } catch (e) {
         // the page gets the reason's code and its words, never a stack or a path
         throw new Error(e && typeof e.code === 'string' ? `${e.code}: ${e.message}` : 'failed: the workspace call failed');
@@ -951,7 +977,7 @@ function codexAppServer() {
     return codexRpc;
   } catch { codexRpc = 'dead'; return null; }
 }
-ipcMain.handle('codex:threads', async () => {
+handle('codex:threads', async () => {
   const c = codexAppServer();
   if (!c) return null;
   await c.ready;
@@ -965,7 +991,7 @@ ipcMain.handle('codex:threads', async () => {
     updatedAt: t.updatedAt ?? null, cwd: t.cwd ?? null, path: t.path ?? null,
   }));
 });
-ipcMain.handle('codex:thread-read', async (_e, threadId) => {
+handle('codex:thread-read', async (_e, threadId) => {
   if (typeof threadId !== 'string' || !/^[A-Za-z0-9-]{8,}$/.test(threadId)) return null;
   const c = codexAppServer();
   if (!c) return null;
@@ -1001,7 +1027,7 @@ if (!lock) {
     }
   };
   app.on('open-url', (e, url) => { e.preventDefault(); deliverDeepLink(url); });
-  ipcMain.handle('sessions:pending-deeplink', () => { const l = pendingDeepLink; pendingDeepLink = null; return l; });
+  handle('sessions:pending-deeplink', () => { const l = pendingDeepLink; pendingDeepLink = null; return l; });
   app.on('second-instance', (_e, argv) => {
     if (win) { if (win.isMinimized()) win.restore(); win.focus(); }
     const link = argv.find((a) => typeof a === 'string' && a.startsWith('thoughtdag://'));
@@ -1016,7 +1042,7 @@ if (!lock) {
       setupAutoUpdate();
     } else {
       // dev shell: the menu entry exists (preload is loaded), so answer honestly
-      ipcMain.handle('update:check', () => { sendUpdate({ kind: 'dev' }); });
+      handle('update:check', () => { sendUpdate({ kind: 'dev' }); });
     }
   });
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) boot(); });

@@ -1,9 +1,16 @@
-// Who may call the workspace door. A workspace call reads and writes the
-// person's real files, so it is accepted from one place only: the top frame
-// of the app's own window, showing the app's own origin. A frame inside the
-// page, another window, or the app window after it was sent somewhere else
-// is refused, whatever it asks for.
+// Who may call into the desktop shell. A call there reads and writes the
+// person's real files and starts agents on their machine, so it is accepted
+// from one place only: the top frame of the app's own window, showing the
+// app's own origin. A frame inside the page, another window, or the app
+// window after it was sent somewhere else is refused, whatever it asks for.
+// The same origin test says where the app window's top frame may navigate.
 'use strict';
+
+/** Whether `url` lies inside the app's own origin. */
+function isAppUrl(url, origin) {
+  if (typeof origin !== 'string' || !origin) return false;
+  try { return new URL(String(url)).origin === origin; } catch { return false; }
+}
 
 /**
  * `sender` describes the frame an IPC message came from:
@@ -16,9 +23,7 @@ function checkSender(sender, app) {
   if (!app || typeof app.origin !== 'string' || !app.origin) return { trusted: false, reason: 'the app has no origin yet' };
   if (!sender || sender.webContentsId !== app.webContentsId) return { trusted: false, reason: 'the call did not come from the app window' };
   if (!sender.isMainFrame) return { trusted: false, reason: 'the call came from a frame inside the page' };
-  let origin = null;
-  try { origin = new URL(String(sender.url)).origin; } catch { /* not a URL */ }
-  if (origin !== app.origin) return { trusted: false, reason: 'the app window is not showing the app' };
+  if (!isAppUrl(sender.url, app.origin)) return { trusted: false, reason: 'the app window is not showing the app' };
   return { trusted: true };
 }
 
@@ -33,4 +38,4 @@ function senderOf(event) {
   };
 }
 
-module.exports = { checkSender, senderOf };
+module.exports = { checkSender, senderOf, isAppUrl };

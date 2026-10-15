@@ -15,6 +15,7 @@ import { usePlaqueClip } from '../lib/use-plaque-clip';
 import { countTokens } from '../utils';
 import { useT, fmt } from '../i18n';
 import { isViewerMode } from '../lib/viewer';
+import { isWebUrl } from '../../shared/web-url.mjs';
 import { recallSourceLine } from '../lib/recall';
 
 // Content nodes: canvas material, not turns. A note (markdown), a file
@@ -219,7 +220,7 @@ export default function ContentNode({ id, data, selected }: NodeProps<ThoughtNod
           >
             <BookOpen size={13} strokeWidth={1.75} />
           </button>
-          {kind === 'link' && data.linkUrl && (
+          {kind === 'link' && isWebUrl(data.linkUrl) && (
             <a
               href={data.linkUrl}
               target="_blank"

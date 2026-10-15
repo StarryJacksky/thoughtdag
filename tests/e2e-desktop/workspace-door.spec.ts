@@ -8,8 +8,9 @@ import path from 'node:path';
 
 // The workspace door in the real desktop shell: preload bridge, IPC, the
 // sender check and the service behind it, on a throwaway profile and a
-// synthetic project folder. The system folder picker is the one thing
-// replaced: it answers with the test's folder.
+// synthetic project folder. Two things are replaced: the system folder
+// picker answers with the test's folder, and a link handed to the system
+// browser is recorded instead of opened.
 
 const REPO = path.resolve(import.meta.dirname, '..', '..');
 const electronBinary = createRequire(import.meta.url)(path.join(REPO, 'desktop', 'node_modules', 'electron')) as string;
@@ -24,6 +25,24 @@ let otherUrl: string;
 /** Evaluate an expression in the page and report how it settled. */
 const settle = (expression: string) => page.evaluate(`(async () => { try { return { ok: true, value: await (${expression}) }; } catch (e) { return { ok: false, message: String(e && e.message) }; } })()`) as Promise<{ ok: true; value: unknown } | { ok: false; message: string }>;
 const json = (value: unknown) => JSON.stringify(value);
+
+/** What the shell did with each attempt to take the window out of the app. */
+type Leaving = { attempts: { url: string; prevented: boolean }[]; external: string[] };
+const leaving = () => app.evaluate(() => (globalThis as unknown as { tdagLeaving: Leaving }).tdagLeaving);
+
+// One call into each of the older bridges, chosen to change nothing when it
+// is answered: an unknown runner, a malformed id, a path that is not absolute.
+const olderBridgeCalls = [
+  'window.desktop.checkForUpdates()',
+  'window.desktopSessions.roots()',
+  'window.desktopSessions.pendingDeepLink()',
+  'window.desktopSessions.commandsInstall("no-such-runner")',
+  'window.desktopSessions.codexThreadRead("x")',
+  'window.desktopAgents.workspace("probe")',
+  'window.desktopWhy.status()',
+  'window.desktopLocal.image("not-absolute.png")',
+  'window.desktopCanvas.remove("!")',
+];
 
 test.describe.serial('the workspace door in the desktop shell', () => {
   test.beforeAll(async () => {
@@ -42,12 +61,22 @@ test.describe.serial('the workspace door in the desktop shell', () => {
       executablePath: electronBinary,
       args: [path.join(REPO, 'desktop'), `--user-data-dir=${path.join(base, 'profile')}`],
       cwd: REPO,
-      // no real session stores: the atlas is pointed at nothing
-      env: { ...process.env, TD_SESSION_ROOTS: '{}' },
+      // no real session stores: the atlas is pointed at nothing, and the
+      // shell's own records land in the throwaway folder
+      env: { ...process.env, TD_SESSION_ROOTS: '{}', THOUGHTDAG_HOME: path.join(base, 'home') },
     });
     await app.evaluate(({ dialog }, dir) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [dir] }); }, project);
     page = await app.firstWindow();
     await page.waitForURL(/^http:\/\/127\.0\.0\.1:\d+\//, { timeout: 60_000 });
+    // registered after the shell's own listener, so it sees the shell's decision
+    await app.evaluate(({ BrowserWindow, shell }) => {
+      const seen: Leaving = { attempts: [], external: [] };
+      (globalThis as unknown as { tdagLeaving: Leaving }).tdagLeaving = seen;
+      shell.openExternal = async (url: string) => { seen.external.push(url); };
+      BrowserWindow.getAllWindows()[0].webContents.on('will-navigate', (e: { defaultPrevented: boolean }, url: string) => {
+        seen.attempts.push({ url, prevented: e.defaultPrevented });
+      });
+    });
   });
 
   test.afterAll(async () => {
@@ -105,9 +134,96 @@ test.describe.serial('the workspace door in the desktop shell', () => {
     expect(await inner.evaluate('typeof window.desktopWorkspace')).toBe('undefined');
   });
 
-  // Last: this sends the app window somewhere else.
-  test('another page shown in the app window has the bridge and is refused at the door', async () => {
+  test('the older bridges answer the app itself', async () => {
+    for (const expression of olderBridgeCalls) {
+      const result = await settle(expression);
+      expect(result.ok, expression + (result.ok ? '' : ': ' + result.message)).toBe(true);
+    }
+  });
+
+  test('the window does not leave the app for another local page', async () => {
+    const appUrl = page.url();
     await page.evaluate(`location.href = ${json(otherUrl)}`);
+    await expect.poll(async () => (await leaving()).attempts).toContainEqual({ url: otherUrl, prevented: true });
+    // a web link belongs to the system browser
+    expect((await leaving()).external).toEqual([otherUrl]);
+
+    // the address of the app, worn as a user name by another host
+    const disguised = otherUrl.replace('http://', 'http://127.0.0.1:x@');
+    await page.evaluate(`location.href = ${json(disguised)}`);
+    await expect.poll(async () => (await leaving()).attempts).toContainEqual({ url: disguised, prevented: true });
+
+    // back in history is the splash page, a local file
+    await page.evaluate('history.back()');
+    await expect.poll(async () => (await leaving()).attempts.at(-1)).toMatchObject({ url: expect.stringMatching(/^file:.*splash\.html$/), prevented: true });
+
+    expect(page.url()).toBe(appUrl);
+    expect((await settle('window.desktopWorkspace.listWorkspaces()')).ok).toBe(true);
+  });
+
+  test('the window still moves within the app', async () => {
+    const appUrl = page.url();
+    const loaded = page.waitForEvent('load');
+    // a reload the page asks for itself, as the app does when a newer build lands
+    await page.evaluate('setTimeout(() => location.reload(), 0)');
+    await loaded;
+    expect((await leaving()).attempts.at(-1)).toEqual({ url: appUrl, prevented: false });
+    expect(page.url()).toBe(appUrl);
+    expect((await settle('window.desktopWorkspace.listWorkspaces()')).ok).toBe(true);
+  });
+
+  test('a link that opens a new window reaches the system only as a web or mail link', async () => {
+    const appUrl = page.url();
+    const before = (await leaving()).external.length;
+    // a link the way a reference under a response or a link card writes it:
+    // the address comes from data, the click from the person
+    await page.evaluate(`(() => {
+      const link = document.createElement('a');
+      link.id = 'tdag-test-link';
+      link.target = '_blank';
+      link.rel = 'noreferrer';
+      link.textContent = 'a link';
+      link.style.cssText = 'position:fixed;left:0;top:0;z-index:2147483647;background:#fff';
+      document.body.appendChild(link);
+    })()`);
+    const follow = async (url: string) => {
+      await page.evaluate(`document.getElementById('tdag-test-link').href = ${json(url)}`);
+      await page.click('#tdag-test-link');
+    };
+
+    // each of these would start whichever app claims the scheme
+    const dropped = [
+      'smb://example.invalid/share',
+      'ssh://example.invalid',
+      'someapp://do/something',
+      'thoughtdag://open?session=abcd1234',
+      'data:text/html,another page',
+      'file:///etc/hosts',
+    ];
+    for (const url of dropped) {
+      await follow(url);
+      await page.evaluate(`void window.open(${json(url)})`);
+    }
+
+    const handedOver = [`${otherUrl}linked`, 'https://example.invalid/page', 'mailto:someone@example.invalid'];
+    for (const url of handedOver) await follow(url);
+    // window.open with a web address, as the sign-in with a model provider does
+    const signIn = 'https://example.invalid/auth?callback_url=' + encodeURIComponent(new URL('/oauth/callback', appUrl).href);
+    await page.evaluate(`void window.open(${json(signIn)})`);
+
+    // requests are answered in order: once the last one is through, so are the rest
+    await expect.poll(async () => (await leaving()).external).toContain(signIn);
+    expect((await leaving()).external.slice(before)).toEqual([...handedOver, signIn]);
+
+    await page.evaluate(`document.getElementById('tdag-test-link').remove()`);
+    expect(app.windows()).toHaveLength(1);
+    expect(page.url()).toBe(appUrl);
+  });
+
+  // Last two: a page that is not the app, in the app window. The window no
+  // longer goes there by itself, so the shell is told to load it.
+  test('another page shown in the app window has the bridge and is refused at the door', async () => {
+    await app.evaluate(({ BrowserWindow }, url) => BrowserWindow.getAllWindows()[0].webContents.loadURL(url), otherUrl);
     await page.waitForURL(otherUrl);
     expect(await page.evaluate('typeof window.desktopWorkspace')).toBe('object');
     for (const expression of [
@@ -121,14 +237,12 @@ test.describe.serial('the workspace door in the desktop shell', () => {
     }
   });
 
-  // What the plan requires of every door into the shell, stated for the
-  // older agents bridge. It fails today: that bridge has no sender check, so
-  // a page the window was sent to is answered. Kept as an expected failure
-  // (TDAG_SHOW_GAPS=1 shows it); the fix is not part of the workspace door.
-  test('[gap] the agents bridge refuses a page that is not the app', async () => {
-    test.fail(!process.env.TDAG_SHOW_GAPS, 'the older bridges do not check who is calling');
+  test('the older bridges refuse a page that is not the app', async () => {
     expect(page.url()).toBe(otherUrl);
-    const result = await settle('window.desktopAgents.workspace("probe")');
-    expect(result.ok).toBe(false);
+    for (const expression of olderBridgeCalls) {
+      const result = await settle(expression);
+      expect(result.ok, expression).toBe(false);
+      expect((result as { message: string }).message, expression).toContain('refused: the app window is not showing the app');
+    }
   });
 });

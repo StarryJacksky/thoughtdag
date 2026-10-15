@@ -8,6 +8,7 @@ import { copyText } from '../../lib/export';
 import { Markdown, HighlightedMarkdown } from '../Markdown';
 import { useT } from '../../i18n';
 import { isViewerMode } from '../../lib/viewer';
+import { isWebUrl } from '../../../shared/web-url.mjs';
 import { collectExploreMarksKey, type ExploreMark } from '../../lib/explore-marks';
 import ReasoningDisclosure from '../ui/ReasoningDisclosure';
 import { ApprovalCard, DecisionsDisclosure } from '../ui/ApprovalCard';
@@ -308,7 +309,7 @@ export default function ResponseSection({
             {data.references.map((r, i) => (
               <li key={i} className="flex items-start gap-2 text-xs leading-snug">
                 <span className="shrink-0 text-2xs text-ink-faint font-mono mt-0.5">[{i + 1}]</span>
-                {r.url ? (
+                {isWebUrl(r.url) ? (
                   <a href={r.url} target="_blank" rel="noreferrer" className="text-accent hover:text-accent-strong hover:underline break-all">
                     {r.title}
                   </a>

@@ -23,6 +23,7 @@ import { t, fmt } from '../i18n';
 import { isViewerMode } from '../lib/viewer';
 import type { Reference } from '../types';
 import type { StoreState } from './types';
+import { sanitizeReferenceUrls } from '../lib/outbound-links';
 
 // Background summary generation — fire and forget. Display channel ONLY:
 // the human reads the summary on the map, the model always reads the full
@@ -460,7 +461,7 @@ export async function runNodeGeneration(
           ),
         }));
       },
-      onSources: (sources) => { references = sources; },
+      onSources: (sources) => { references = sanitizeReferenceUrls(sources); },
       onHarnessSession: (session) => { harnessSession = session; },
       onAgentTool: (call) => {
         if (!isCurrent()) return;

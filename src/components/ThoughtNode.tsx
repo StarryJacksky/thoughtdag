@@ -36,6 +36,7 @@ import { useT, fmt } from '../i18n';
 import MentionSurface from './ui/NodeMention';
 import { useMentions } from '../lib/mentions';
 import { isViewerMode } from '../lib/viewer';
+import { isWebUrl } from '../../shared/web-url.mjs';
 
 export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
   // Actions are stable references: selecting them one by one (instead of a
@@ -902,7 +903,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
             <div className="mt-2 px-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-ink-faint">
               <Globe size={11} strokeWidth={1.75} className="shrink-0" />
               {data.references!.slice(0, 3).map((r, i) =>
-                r.url ? (
+                isWebUrl(r.url) ? (
                   <a key={i} href={r.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-accent/80 hover:text-accent hover:underline nopan">
                     [{i + 1}] {r.title.length > 44 ? r.title.slice(0, 44) + '…' : r.title}
                   </a>

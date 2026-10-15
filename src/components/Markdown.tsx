@@ -36,6 +36,10 @@ function normalizeMath(src: string): string {
 // their own markup (hljs spans, KaTeX styles) is never touched.
 const SANITIZE_SCHEMA: Schema = {
   ...defaultSchema,
+  protocols: {
+    ...defaultSchema.protocols,
+    href: ['http', 'https', 'mailto'],
+  },
   // footnote ids already carry mdast's own user-content- prefix; a second one would break their links
   clobberPrefix: '',
   tagNames: [...(defaultSchema.tagNames ?? []), 'mark'],
@@ -101,6 +105,12 @@ function Anchor(props: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
         title={local}
         data-local-path={local}
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); void openLocalPath(local); }}
+        onAuxClick={(e) => {
+          if (e.button !== 1) return;
+          e.preventDefault();
+          e.stopPropagation();
+          void openLocalPath(local);
+        }}
       />
     );
   }

@@ -1,4 +1,5 @@
 import type { ThoughtNode, ThoughtEdge } from '../types';
+import { sanitizeNodeLinkUrls } from './outbound-links';
 
 // Read-only viewer: the link IS the canvas. Graph data travels in the URL
 // hash (#view=<deflate+base64url>), so nothing touches a server and the
@@ -70,7 +71,8 @@ export async function buildViewerLink(nodes: ThoughtNode[], edges: ThoughtEdge[]
 export async function decodeViewerHash(hash: string): Promise<ViewerPayload> {
   const packed = b64url.decode(hash.replace(/^#view=/, ''));
   const bytes = await pipe(packed, new DecompressionStream('deflate-raw'));
-  return JSON.parse(new TextDecoder().decode(bytes)) as ViewerPayload;
+  const payload = JSON.parse(new TextDecoder().decode(bytes)) as ViewerPayload;
+  return { ...payload, nodes: payload.nodes.map(sanitizeNodeLinkUrls) };
 }
 
 /** Boot path for viewer mode: silence persistence, then load the graph from

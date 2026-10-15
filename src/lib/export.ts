@@ -11,6 +11,7 @@ import { inlineVaultedContent, internNodes } from './attachment-vault';
 import { t, fmt } from '../i18n';
 import type { ThoughtNode, ThoughtEdge } from '../types';
 import type { ProjectMeta } from '../store/projects';
+import { sanitizeNodeLinkUrls } from './outbound-links';
 
 export const EXPORT_FORMAT_VERSION = 1;
 // Must match the main store's persist `version` — a mismatched envelope
@@ -101,7 +102,7 @@ export async function parseImportFile(file: File): Promise<
   }
   if (isParadigmFile(parsed)) {
     const id = crypto.randomUUID();
-    const reconciled = await internNodes(await reconcileImportedModels(parsed.nodes));
+    const reconciled = await internNodes(await reconcileImportedModels(parsed.nodes.map(sanitizeNodeLinkUrls)));
     await idbSet(projectStorageKey(id), JSON.stringify({ state: { nodes: reconciled, edges: parsed.edges }, version: PERSIST_VERSION }));
     await adoptImportedProject(id, parsed.name || 'Paradigm', 'paradigm');
     toast('success', fmt(t('toast.imported'), { name: parsed.name, n: parsed.nodes.length }));
@@ -226,7 +227,7 @@ export async function importProjectFromFile(file: File, pre?: unknown): Promise<
     }
   }
   const id = crypto.randomUUID();
-  const reconciled = await internNodes(await reconcileImportedModels(parsed.nodes));
+  const reconciled = await internNodes(await reconcileImportedModels(parsed.nodes.map(sanitizeNodeLinkUrls)));
   // Write in the zustand-persist envelope format so rehydration accepts it.
   await idbSet(projectStorageKey(id), JSON.stringify({
     state: { nodes: stripTransient(reconciled), edges: parsed.edges, ...(Array.isArray(parsed.events) ? { events: parsed.events } : {}) },

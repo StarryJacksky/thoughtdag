@@ -14,6 +14,7 @@
 import { streamText, generateText, tool, stepCountIs } from 'ai';
 import { z } from 'zod';
 import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
+import { isWebUrl } from '../../shared/web-url.mjs';
 
 // No output cap is sent: providers apply their own defaults, and a cap
 // larger than a model's allowed max makes some upstreams reject outright.
@@ -199,6 +200,8 @@ async function semanticScholarSearch(query, limit = 5) {
 
 function makeTools(sources, onSearch, prefs = {}) {
   const pushNumbered = (results) => {
+    // Keep evidence and citation order, but only expose absolute web links.
+    results = results.map((r) => ({ ...r, url: isWebUrl(r.url) ? r.url : undefined }));
     const start = sources.length;
     sources.push(...results);
     if (results.length === 0) return 'No results found.';

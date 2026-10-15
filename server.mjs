@@ -22,6 +22,7 @@ import { execSync, execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { isWebUrl } from './shared/web-url.mjs';
 
 // ─── Environment ────────────────────────────────────────────────
 // Minimal .env loader (avoids dotenv dependency and Node --env-file version quirks)
@@ -428,6 +429,8 @@ async function semanticScholarSearch(query, limit = 5) {
 // tool to call and when; `prefs` lets the user hide whole tool groups.
 function makeTools(sources, onSearch, prefs = {}) {
   const pushNumbered = (results) => {
+    // Keep evidence and citation order, but only expose absolute web links.
+    results = results.map((r) => ({ ...r, url: isWebUrl(r.url) ? r.url : undefined }));
     const start = sources.length;
     sources.push(...results);
     if (results.length === 0) return 'No results found.';

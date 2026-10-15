@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { createWorkspaceService, entryIdOf } = require('../../runtime/workspace/index.cjs');
-const { checkSender, senderOf } = require('../../runtime/workspace/ipc-guard.cjs');
+const { checkSender, senderOf, isAppUrl } = require('../../runtime/workspace/ipc-guard.cjs');
 const { loadContracts } = require('../../shared/schemas/host.cjs');
 
 const posix = process.platform !== 'win32';
@@ -250,4 +250,41 @@ test('an IPC event is read as its frame: the top frame has no parent', () => {
   assert.equal(senderOf({ sender: { id: 1 }, senderFrame: { url: 'http://127.0.0.1:31173/frame', parent: {} } }).isMainFrame, false);
   // a frame that was destroyed before the call was handled
   assert.equal(senderOf({ sender: { id: 1 }, senderFrame: null }).isMainFrame, false);
+});
+
+test('every channel in the desktop shell registers through the sender check', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', '..', 'desktop', 'main.js'), 'utf8');
+  const code = source.split('\n').filter((line) => !line.trim().startsWith('//')).join('\n');
+  // the one direct registration is the wrapper, and the check comes before the handler
+  assert.equal(code.match(/ipcMain\.handle\(/g)?.length, 1);
+  assert.match(code, /function handle\(channel, fn\) \{\s+ipcMain\.handle\(channel, async \(event, \.\.\.args\) => \{\s+const verdict = checkSender\(senderOf\(event\)/);
+  // and there is no other way in
+  assert.equal(/ipcMain\.(on|once|handleOnce)\(/.test(code), false);
+});
+
+// ── where the app window may go ────────────────────────────────────────
+
+test('the app window may move within the app, and nowhere else', () => {
+  for (const url of ['http://127.0.0.1:31173/', 'http://127.0.0.1:31173/?dv=0.5.16&su=1#view=abc']) {
+    assert.equal(isAppUrl(url, app.origin), true, url);
+  }
+  for (const url of [
+    'http://127.0.0.1:9999/', // the same host on another port
+    'http://localhost:31173/', // another name for this machine
+    'https://127.0.0.1:31173/',
+    'http://127.0.0.1:31173@example.com/', // the app's address as a user name on another host
+    'http://127.0.0.1:x@example.com/',
+    'http://127.0.0.1.example.com:31173/',
+    'https://example.com/',
+    'file:///synthetic/page.html',
+    'data:text/html,<p>page</p>',
+    'thoughtdag://open?session=abc',
+    'not a url',
+    '',
+  ]) {
+    assert.equal(isAppUrl(url, app.origin), false, url);
+  }
+  // before the app has an origin, nothing is inside it
+  assert.equal(isAppUrl('http://127.0.0.1:31173/', null), false);
+  assert.equal(isAppUrl('http://127.0.0.1:31173/', ''), false);
 });

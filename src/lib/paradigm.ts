@@ -2,6 +2,7 @@ import type { ThoughtNode, ThoughtEdge, ThoughtData } from '../types';
 import { generateId } from '../utils';
 import { autoLayout } from './layout';
 import { COLORS } from './constants';
+import { sanitizeNodeLinkUrls } from './outbound-links';
 
 // Paradigm = the score; a chat canvas = the performance. This module turns
 // an orchestration graph (steps, instructions, roles, flow kinds) into a
@@ -183,5 +184,5 @@ export function instantiateParadigm(pNodes: ThoughtNode[], pEdges: ThoughtEdge[]
     if (!hasIncoming.has(n.id)) n.data.isRoot = true;
   }
 
-  return { nodes: autoLayout(nodes, edges), edges };
+  return { nodes: autoLayout(nodes.map(sanitizeNodeLinkUrls), edges), edges };
 }

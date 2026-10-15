@@ -81,3 +81,18 @@ export async function readDocx(bytes: Uint8Array): Promise<DocxContent> {
   if (body) block(body);
   return { hasMath, blocks };
 }
+
+/**
+ * The document as text for a model: its paragraphs apart by a blank line,
+ * its formulas in LaTeX, `$…$` in the line and `$$…$$` on lines of their
+ * own (see latex.ts).
+ */
+export async function docxTextWithFormulas(bytes: Uint8Array): Promise<string> {
+  const { ommlToLatex } = await import('./latex');
+  const { blocks } = await readDocx(bytes);
+  return blocks.map((block) => block.parts.map((part) => {
+    if (part.kind === 'text') return part.text;
+    const tex = ommlToLatex(part.omml);
+    return part.display ? `\n$$\n${tex}\n$$\n` : `$${tex}$`;
+  }).join('').replace(/^\n+|\n+$/g, '')).join('\n\n').trim();
+}

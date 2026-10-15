@@ -72,6 +72,13 @@ export function readFileToAttachment(file: File): Promise<Attachment | null> {
       // lazily — first .docx pays the module download, everyone else never does)
       void file.arrayBuffer().then(async (buf) => {
         try {
+          // one with formulas is read here, its formulas written in LaTeX for the model (lib/docx); otherwise mammoth reads it
+          const { docxHasMath, docxTextWithFormulas } = await import('./docx/read');
+          const bytes = new Uint8Array(buf);
+          if (await docxHasMath(bytes.slice())) {
+            resolve({ id, name: file.name, type: 'text/plain', size: file.size, addedAt, content: await docxTextWithFormulas(bytes.slice()) });
+            return;
+          }
           const mammoth = await import('mammoth');
           const r = await mammoth.extractRawText({ arrayBuffer: buf });
           resolve({ id, name: file.name, type: 'text/plain', size: file.size, addedAt, content: r.value.trim() });

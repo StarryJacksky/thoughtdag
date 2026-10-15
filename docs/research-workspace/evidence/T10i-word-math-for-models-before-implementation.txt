@@ -1,0 +1,92 @@
+# npx vitest run tests/unit/word-math-for-models.test.ts at 74430f7, before Word formulas are written for models (src/lib/docx/latex.ts a placeholder that throws)
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/word-math-for-models.test.ts (5 tests | 4 failed) 76ms
+   ❯ a Word formula, written for a model (2)
+     × is LaTeX that draws what the formula draws 7ms
+     × writes the structures by their LaTeX names 1ms
+   ❯ a Word document with formulas, as material (3)
+     × is read with its formulas in LaTeX, in the line and on lines of their own 53ms
+     × reaches a question it is wired to with its formulas 10ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/word-math-for-models.test.ts > a Word formula, written for a model > is LaTeX that draws what the formula draws
+Error: not written yet
+ ❯ ommlToLatex src/lib/docx/latex.ts:2:62
+      1| // placeholder: written next (see tests/unit/word-math-for-models.test…
+      2| export function ommlToLatex(_oMath: Element): string { throw new Error…
+       |                                                              ^
+      3|
+ ❯ throughWord tests/unit/word-math-for-models.test.ts:20:10
+ ❯ tests/unit/word-math-for-models.test.ts:32:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  tests/unit/word-math-for-models.test.ts > a Word formula, written for a model > writes the structures by their LaTeX names
+Error: not written yet
+ ❯ ommlToLatex src/lib/docx/latex.ts:2:62
+      1| // placeholder: written next (see tests/unit/word-math-for-models.test…
+      2| export function ommlToLatex(_oMath: Element): string { throw new Error…
+       |                                                              ^
+      3|
+ ❯ throughWord tests/unit/word-math-for-models.test.ts:20:10
+ ❯ tests/unit/word-math-for-models.test.ts:39:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  tests/unit/word-math-for-models.test.ts > a Word document with formulas, as material > is read with its formulas in LaTeX, in the line and on lines of their own
+AssertionError: expected 'The mean  is robust.\n\n\n\nThe end.' to contain 'The mean $'
+
+- Expected
++ Received
+
+- The mean $
++ The mean  is robust.
++
++
++
++ The end.
+
+ ❯ tests/unit/word-math-for-models.test.ts:54:18
+     52|     expect(att).not.toBeNull();
+     53|     const text = att!.content;
+     54|     expect(text).toContain('The mean $');
+       |                  ^
+     55|     expect(text).toMatch(/\$[^$]*\\frac\{1\}\{n\}[^$]*\$ is robust\./);
+     56|     expect(text).toMatch(/\n\$\$\n[^$]*\\int_\{0\}\^\{1\}[^$]*\n\$\$\n…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  tests/unit/word-math-for-models.test.ts > a Word document with formulas, as material > reaches a question it is wired to with its formulas
+AssertionError: expected '[File: paper.docx]\nThe mean  is robu…' to contain '\frac{1}{n}'
+
+- Expected
++ Received
+
+- \frac{1}{n}
++ [File: paper.docx]
++ The mean  is robust.
++
++
++
++ The end.
++ What does the integral say?
+
+ ❯ tests/unit/word-math-for-models.test.ts:66:21
+     64|     const ask = node('q', { question: 'What does the integral say?' });
+     65|     const context = buildContext('q', [material, ask], [{ id: 'e', sou…
+     66|     expect(context).toContain('\\frac{1}{n}');
+       |                     ^
+     67|     expect(context).toContain('\\int_{0}^{1}');
+     68|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 1 passed (5)
+   Start at  01:09:48
+   Duration  673ms (transform 40%, environment 34%, tests 13%, import 12%, setup 1%)
+

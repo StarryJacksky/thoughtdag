@@ -711,4 +711,27 @@ function triggerAutoReruns(set: Set, get: Get, completedNodeId: string): void {
       void get().rerunNode(n.id, { auto: true });
     }
   }
+
+  // 3) feedback lines set to go back and forth (lib/feedback): within the wave
+  //    the person started, the two ends answer each other in turn. The line's
+  //    source (the critic) answers again each time its target (the writer)
+  //    finishes; the target starts its next round each time the source
+  //    finishes, up to the rounds the line is set to. Every round of the
+  //    target moves the line to the source's latest finished answer.
+  const busy = (id: string) => !!get().nodes.find((n) => n.id === id)?.data.isLoading || activeAbortControllers.has(id);
+  for (const line of get().edges) {
+    const rounds = line.data?.feedback?.auto ?? 0;
+    if (rounds <= 0) continue;
+    if (line.source === completedNodeId) {
+      const key = `feedback:${line.id}`;
+      const spent = autoRunCounts.get(key) ?? 0;
+      if (spent >= rounds || busy(line.target)) continue;
+      autoRunCounts.set(key, spent + 1);
+      void get().rerunNode(line.target, { auto: true });
+    } else if (completedNodeId === line.target || walkUpAncestors(line.source, nodes, edges).ordered.some((a) => a.id === completedNodeId)) {
+      // what the source reads has a new answer: it answers it, unless it is already doing so
+      if (busy(line.source)) continue;
+      void get().rerunNode(line.source, { auto: true });
+    }
+  }
 }

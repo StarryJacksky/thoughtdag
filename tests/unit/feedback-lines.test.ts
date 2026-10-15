@@ -196,3 +196,69 @@ describe('a feedback line', () => {
     expect(edgeOf(critic, writer)!.data).toMatchObject({ isCrossLink: true, feedback: { version: 0 } });
   });
 });
+
+describe('a feedback line set to go back and forth', () => {
+  /** Wait for the runs a run sets off to end: nothing loading, and nothing new started for a while. */
+  const chainEnds = async () => {
+    let quiet = 0;
+    let seen = -1;
+    for (let i = 0; i < 400 && quiet < 10; i++) {
+      await settled();
+      const busy = useStore.getState().nodes.some((n) => n.data.isLoading);
+      quiet = !busy && desktop.runs.length === seen ? quiet + 1 : 0;
+      seen = desktop.runs.length;
+    }
+  };
+  const runtimes = () => desktop.runs.map((r) => r.runtime);
+
+  it('[T26b-auto] has the two ends answer each other in turn, for the rounds it is set to, once the person runs one of them', async () => {
+    const { writer, critic } = writerAndCritic();
+    connectNode(critic, writer);
+    const line = edgeOf(critic, writer)!;
+    useStore.getState().setFeedbackRounds(line.id, 2);
+    expect(edgeOf(critic, writer)!.data?.feedback).toMatchObject({ version: 0, auto: 2 });
+    await useStore.getState().rerunNode(writer);
+    await chainEnds();
+    // the writer, then the critic on its draft, twice more each way, and the critic on the last draft
+    expect(runtimes()).toEqual(['codex', 'claude-code', 'codex', 'claude-code', 'codex', 'claude-code']);
+    // each round of the writer read the critique finished just before it: the last one read the critic's third answer
+    expect(edgeOf(critic, writer)!.data?.feedback).toMatchObject({ version: 2 });
+    expect(node(writer).data.lastFeedback).toEqual({ [line.id]: { source: critic, version: 2 } });
+    expect(node(critic).data.responses.length, 'the critique of the last draft is there, and newer than what the writer read').toBe(4);
+  });
+
+  it('[T26b-auto] counts again from the next run the person starts', async () => {
+    const { writer, critic } = writerAndCritic();
+    connectNode(critic, writer);
+    useStore.getState().setFeedbackRounds(edgeOf(critic, writer)!.id, 1);
+    await useStore.getState().rerunNode(writer);
+    await chainEnds();
+    expect(runtimes()).toEqual(['codex', 'claude-code', 'codex', 'claude-code']);
+    await useStore.getState().rerunNode(writer);
+    await chainEnds();
+    expect(runtimes().length).toBe(8);
+  });
+
+  it('[T26b-auto] is off unless it is set, and off again when set back to none', async () => {
+    const { writer, critic } = writerAndCritic();
+    connectNode(critic, writer);
+    const line = edgeOf(critic, writer)!;
+    useStore.getState().setFeedbackRounds(line.id, 3);
+    useStore.getState().setFeedbackRounds(line.id, 0);
+    expect(edgeOf(critic, writer)!.data?.feedback?.auto).toBeUndefined();
+    await useStore.getState().rerunNode(writer);
+    await chainEnds();
+    expect(runtimes()).toEqual(['codex']);
+  });
+
+  it('[T26b-auto] is a setting of feedback lines only, within ten rounds', () => {
+    const { writer, critic } = writerAndCritic();
+    connectNode(critic, writer);
+    const live = edgeOf(writer, critic)!;
+    useStore.getState().setFeedbackRounds(live.id, 2);
+    expect(edgeOf(writer, critic)!.data?.feedback).toBeUndefined();
+    const line = edgeOf(critic, writer)!;
+    useStore.getState().setFeedbackRounds(line.id, 99);
+    expect(edgeOf(critic, writer)!.data?.feedback?.auto).toBe(10);
+  });
+});

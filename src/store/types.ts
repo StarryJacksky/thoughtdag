@@ -41,6 +41,8 @@ export interface NodeSlice {
   addFeedbackLink: (sourceId: string, targetId: string) => string | null;
   /** A round starts for `nodeId`: every feedback line into what it reads moves to its other end's latest finished answer. */
   advanceFeedback: (nodeId: string) => void;
+  /** How many rounds a feedback line goes back and forth by itself (0: it does not; at most 10). Only a feedback line has this. */
+  setFeedbackRounds: (edgeId: string, rounds: number) => void;
   /** Flip a dashed reference between quote (default) and full-chain depth. (Legacy: kept for stored canvases; new UI converts line kind instead.) */
   setCrossLinkDepth: (edgeId: string, depth: 'quote' | 'full') => void;
   /** Convert an edge between dashed summary reference and solid full-context

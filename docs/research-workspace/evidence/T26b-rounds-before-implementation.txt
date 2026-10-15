@@ -1,0 +1,67 @@
+# npx vitest run tests/unit/feedback-lines.test.ts -t T26b-auto at 28ad1a4, before the rounds are implemented
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/feedback-lines.test.ts (15 tests | 4 failed | 11 skipped) 8ms
+   ❯ a feedback line set to go back and forth (4)
+     × [T26b-auto] has the two ends answer each other in turn, for the rounds it is set to, once the person runs one of them 4ms
+     × [T26b-auto] counts again from the next run the person starts 1ms
+     × [T26b-auto] is off unless it is set, and off again when set back to none 1ms
+     × [T26b-auto] is a setting of feedback lines only, within ten rounds 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/feedback-lines.test.ts > a feedback line set to go back and forth > [T26b-auto] has the two ends answer each other in turn, for the rounds it is set to, once the person runs one of them
+TypeError: useStore.getState(...).setFeedbackRounds is not a function
+ ❯ tests/unit/feedback-lines.test.ts:218:25
+    216|     connectNode(critic, writer);
+    217|     const line = edgeOf(critic, writer)!;
+    218|     useStore.getState().setFeedbackRounds(line.id, 2);
+       |                         ^
+    219|     expect(edgeOf(critic, writer)!.data?.feedback).toMatchObject({ ver…
+    220|     await useStore.getState().rerunNode(writer);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  tests/unit/feedback-lines.test.ts > a feedback line set to go back and forth > [T26b-auto] counts again from the next run the person starts
+TypeError: useStore.getState(...).setFeedbackRounds is not a function
+ ❯ tests/unit/feedback-lines.test.ts:233:25
+    231|     const { writer, critic } = writerAndCritic();
+    232|     connectNode(critic, writer);
+    233|     useStore.getState().setFeedbackRounds(edgeOf(critic, writer)!.id, …
+       |                         ^
+    234|     await useStore.getState().rerunNode(writer);
+    235|     await chainEnds();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  tests/unit/feedback-lines.test.ts > a feedback line set to go back and forth > [T26b-auto] is off unless it is set, and off again when set back to none
+TypeError: useStore.getState(...).setFeedbackRounds is not a function
+ ❯ tests/unit/feedback-lines.test.ts:246:25
+    244|     connectNode(critic, writer);
+    245|     const line = edgeOf(critic, writer)!;
+    246|     useStore.getState().setFeedbackRounds(line.id, 3);
+       |                         ^
+    247|     useStore.getState().setFeedbackRounds(line.id, 0);
+    248|     expect(edgeOf(critic, writer)!.data?.feedback?.auto).toBeUndefined…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  tests/unit/feedback-lines.test.ts > a feedback line set to go back and forth > [T26b-auto] is a setting of feedback lines only, within ten rounds
+TypeError: useStore.getState(...).setFeedbackRounds is not a function
+ ❯ tests/unit/feedback-lines.test.ts:258:25
+    256|     connectNode(critic, writer);
+    257|     const live = edgeOf(writer, critic)!;
+    258|     useStore.getState().setFeedbackRounds(live.id, 2);
+       |                         ^
+    259|     expect(edgeOf(writer, critic)!.data?.feedback).toBeUndefined();
+    260|     const line = edgeOf(critic, writer)!;
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 11 skipped (15)
+   Start at  01:05:13
+   Duration  825ms (environment 53%, transform 38%, import 6%, setup 2%, tests 1%)
+

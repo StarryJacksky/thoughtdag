@@ -436,7 +436,11 @@ export interface ThoughtEdge extends Edge {
     /** A feedback line (see lib/feedback): a reference that closes a loop.
         It holds one finished answer of its source (`version`, an index into
         its responses; null while the source has none), not the live one. */
-    feedback?: { version: number | null; pinnedAt: string };
+    feedback?: {
+      version: number | null; pinnedAt: string;
+      /** go back and forth by itself: within a run the person starts, the two ends answer each other in turn, the target up to this many more times */
+      auto?: number;
+    };
     /** Context Focus role, set ONLY by the render pipeline — never persisted.
         path = structural feed line, ref = reference into the context,
         down = one step downstream. */

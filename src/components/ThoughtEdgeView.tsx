@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { BaseEdge, EdgeLabelRenderer, type EdgeProps } from '@xyflow/react';
 import { X } from 'lucide-react';
 import { useStore } from '../store';
@@ -27,6 +27,8 @@ export default function ThoughtEdgeView({
 }: EdgeProps<ThoughtEdge>) {
   const deleteEdges = useStore((s) => s.deleteEdges);
   const setEdgeStructural = useStore((s) => s.setEdgeStructural);
+  const setFeedbackRounds = useStore((s) => s.setFeedbackRounds);
+  const [roundsOpen, setRoundsOpen] = useState(false);
   const nodes = useStore((s) => s.nodes);
   const edges = useStore((s) => s.edges);
   const t = useT();
@@ -111,15 +113,32 @@ export default function ThoughtEdgeView({
         <EdgeLabelRenderer>
           <div
             className="nodrag nopan"
-            style={{ position: 'absolute', pointerEvents: 'all', transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
+            // above the lines, whose wide invisible click areas would otherwise take the clicks meant for it
+            style={{ position: 'absolute', pointerEvents: 'all', zIndex: 1001, transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
             data-feedback-edge={feedback.version ?? 'none'}
             data-feedback-newer={newer || undefined}
+            data-feedback-auto={feedback.auto ?? 0}
             title={t('edge.feedbackTitle')}
           >
-            <div className="h-5 px-2 rounded-full bg-card border shadow-sm flex items-center gap-1 text-2xs whitespace-nowrap" style={{ borderColor: COLORS.feedback, color: COLORS.feedback }}>
+            {/* the label is also where the line is set to go back and forth by itself */}
+            <button onClick={(e) => { e.stopPropagation(); setRoundsOpen((o) => !o); }} data-feedback-label
+              className="h-5 px-2 rounded-full bg-card border shadow-sm flex items-center gap-1 text-2xs whitespace-nowrap" style={{ borderColor: COLORS.feedback, color: COLORS.feedback }}>
               <span>{feedback.version === null ? t('edge.feedbackEmpty') : fmt(t('edge.feedbackLabel'), { n: feedback.version + 1 })}</span>
+              {!!feedback.auto && <span data-feedback-auto-label>{fmt(t('edge.feedbackAuto'), { n: feedback.auto })}</span>}
               {newer && <span className="rounded-full px-1.5 text-white" style={{ background: COLORS.feedback }}>{t('edge.feedbackNewer')}</span>}
-            </div>
+            </button>
+            {roundsOpen && (
+              <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 bg-card border border-line rounded-lg shadow-lg px-2 py-1.5 flex items-center gap-1 text-2xs whitespace-nowrap" data-feedback-rounds-menu>
+                <span className="text-ink-faint mr-1" title={t('edge.feedbackRoundsTitle')}>{t('edge.feedbackRounds')}</span>
+                {[0, 1, 2, 3, 5].map((n) => (
+                  <button key={n} data-feedback-rounds={n} onClick={(e) => { e.stopPropagation(); setFeedbackRounds(id, n); setRoundsOpen(false); }}
+                    className={`px-1.5 py-0.5 rounded-full transition-colors ${(feedback.auto ?? 0) === n ? 'text-white' : 'bg-wash text-ink-muted hover:text-ink'}`}
+                    style={(feedback.auto ?? 0) === n ? { background: COLORS.feedback } : undefined}>
+                    {n === 0 ? t('edge.feedbackRoundsOff') : n}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </EdgeLabelRenderer>
       )}

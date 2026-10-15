@@ -334,9 +334,26 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
       const version = latestFinished(source);
       if (version === e.data.feedback.version) return e;
       moved = true;
-      return { ...e, data: { ...e.data, feedback: { version, pinnedAt: now } } };
+      return { ...e, data: { ...e.data, feedback: { ...e.data.feedback, version, pinnedAt: now } } };
     });
     if (moved) set({ edges: next });
+  },
+
+  setFeedbackRounds: (edgeId: string, rounds: number) => {
+    const edge = get().edges.find((e) => e.id === edgeId);
+    if (!edge?.data?.feedback) return;
+    const auto = Math.max(0, Math.min(10, Math.floor(Number(rounds) || 0)));
+    if ((edge.data.feedback.auto ?? 0) === auto) return;
+    get().pushHistory();
+    set((state) => ({
+      edges: state.edges.map((e) => {
+        if (e.id !== edgeId || !e.data?.feedback) return e;
+        const feedback = { ...e.data.feedback };
+        if (auto > 0) feedback.auto = auto; else delete feedback.auto;
+        return { ...e, data: { ...e.data, feedback } };
+      }),
+    }));
+    get().pushHistory();
   },
 
   setEdgeStructural: (edgeId: string, structural: boolean) => {

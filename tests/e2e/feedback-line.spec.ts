@@ -139,4 +139,21 @@ test('a wire that would close a loop is a feedback line: it holds the critique t
   await expect(writer.locator('[data-stale-badge]')).toHaveCount(0);
   await expect(critic.locator('[data-stale-badge]'), 'the critic has a newer draft to read: that one is').toHaveCount(1);
   if (process.env.T26B_SHOT) await page.screenshot({ path: process.env.T26B_SHOT });
+
+  // set to go back and forth twice: asked again by hand, the writer and the critic answer each other in turn
+  await label.locator('[data-feedback-label]').click();
+  await page.locator('[data-feedback-rounds-menu] [data-feedback-rounds="2"]').click();
+  await expect(label).toHaveAttribute('data-feedback-auto', '2');
+  await expect(label).toContainText('auto 2 rounds');
+  const beforeRounds = asked.length;
+  await askAgain(writer);
+  await expect.poll(() => asked.length, { timeout: 15_000 }).toBe(beforeRounds + 6);
+  await page.waitForTimeout(800);
+  expect(asked.length, 'and then it stops').toBe(beforeRounds + 6);
+  expect(asked.slice(beforeRounds).map((a) => (a.question.includes('C_TASK') ? 'critic' : 'writer'))).toEqual(['writer', 'critic', 'writer', 'critic', 'writer', 'critic']);
+  // each round of the writer read the critique finished just before it
+  expect(asked[beforeRounds + 2].text).toContain(`C_CRITIQUE_${critiques - 2}`);
+  expect(asked[beforeRounds + 4].text).toContain(`C_CRITIQUE_${critiques - 1}`);
+  await expect(writer).toContainText(`W_DRAFT_${drafts}`);
+  if (process.env.T26B_SHOT) await page.screenshot({ path: process.env.T26B_SHOT.replace('.png', '-rounds.png') });
 });

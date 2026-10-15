@@ -1,0 +1,45 @@
+# playwright (desktop) -g "documents open beside the canvas" on the app built from 71af50d, before the fix. The new test is the one committed;
+# its line numbers here are two lower, because the focus check added to the second test came after this run.
+
+
+Running 11 tests using 1 worker
+
+  ✓   1 tests/e2e-desktop/workspace-ui.spec.ts:510:3 › documents open beside the canvas, in the desktop shell › four files open at once, each in its own frame, by a double click in the tree, and the canvas gets no nodes (250ms)
+  ✓   2 tests/e2e-desktop/workspace-ui.spec.ts:518:3 › documents open beside the canvas, in the desktop shell › the canvas and its question box stay within reach with the documents open (883ms)
+  ✓   3 tests/e2e-desktop/workspace-ui.spec.ts:537:3 › documents open beside the canvas, in the desktop shell › switching quickly between the documents sends each keystroke to the one in front, and none of it to the canvas (197ms)
+  ✓   4 tests/e2e-desktop/workspace-ui.spec.ts:555:3 › documents open beside the canvas, in the desktop shell › a frame brought forward by its title bar alone takes the keys that follow, and the one typed into before gets none of them (70ms)
+  ✓   5 tests/e2e-desktop/workspace-ui.spec.ts:585:3 › documents open beside the canvas, in the desktop shell › a frame is moved by its title bar, resized from its corner, and never smaller than its smallest size (107ms)
+  ✓   6 tests/e2e-desktop/workspace-ui.spec.ts:607:3 › documents open beside the canvas, in the desktop shell › a frame fills the canvas area and goes back, docks to a side, and is put away and brought back (179ms)
+  ✓   7 tests/e2e-desktop/workspace-ui.spec.ts:631:3 › documents open beside the canvas, in the desktop shell › a frame that the window shrinks away from is brought back to where its title bar can be reached (44ms)
+  ✓   8 tests/e2e-desktop/workspace-ui.spec.ts:644:3 › documents open beside the canvas, in the desktop shell › the documents are where they were after the page is loaded again: floating, docked and put away (702ms)
+  ✘   9 tests/e2e-desktop/workspace-ui.spec.ts:653:3 › documents open beside the canvas, in the desktop shell › after the page is loaded again the question waiting on the canvas leaves the focus with the document in front (509ms)
+  -  10 tests/e2e-desktop/workspace-ui.spec.ts:670:3 › documents open beside the canvas, in the desktop shell › what a file held before each save is listed in its surface, can be looked at, and can be put back
+  -  11 tests/e2e-desktop/workspace-ui.spec.ts:701:3 › documents open beside the canvas, in the desktop shell › closing a document's view deletes nothing
+
+
+  1) tests/e2e-desktop/workspace-ui.spec.ts:653:3 › documents open beside the canvas, in the desktop shell › after the page is loaded again the question waiting on the canvas leaves the focus with the document in front 
+
+    Error: the document brought forward last keeps the focus
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "three.py"
+    Received: "the canvas"
+
+      662 |       return at?.closest('.react-flow__node') ? 'the canvas' : at?.closest('[data-surface]')?.querySelector('[data-surface-title]')?.textContent ?? 'nothing';
+      663 |     });
+    > 664 |     expect(focused, 'the document brought forward last keeps the focus').toBe('three.py');
+          |                                                                          ^
+      665 |     // and a key pressed now is no part of a question
+      666 |     await sp.keyboard.insertText('STRAY_KEYS_K4');
+      667 |     await expect(question).toHaveValue('');
+        at <repo>/tests/e2e-desktop/workspace-ui.spec.ts:664:74
+
+    Error Context: test-results/workspace-ui-documents-ope-77259--with-the-document-in-front/error-context.md
+
+    Error Context: test-results/workspace-ui-documents-ope-77259--with-the-document-in-front/error-context.md
+
+  1 failed
+    tests/e2e-desktop/workspace-ui.spec.ts:653:3 › documents open beside the canvas, in the desktop shell › after the page is loaded again the question waiting on the canvas leaves the focus with the document in front 
+  2 did not run
+  8 passed (4.2s)

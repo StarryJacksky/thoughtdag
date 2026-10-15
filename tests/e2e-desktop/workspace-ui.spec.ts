@@ -41,6 +41,8 @@ const textIn = (surface: Locator): Promise<string> => surface.locator('.cm-conte
 async function typeIn(surface: Locator, text: string): Promise<void> {
   const on = surface.page();
   await surface.locator('.cm-content').click();
+  // the keys that follow are the editor's: if something takes the focus away, it shows here and not as typing gone elsewhere
+  await expect(surface.locator('.cm-content')).toBeFocused();
   await on.keyboard.press('ControlOrMeta+a');
   await on.keyboard.press('Backspace');
   const lines = text.split('\n');
@@ -526,6 +528,8 @@ test.describe.serial('documents open beside the canvas, in the desktop shell', (
     await sp.locator('.react-flow__pane').dblclick({ position: { x: 120, y: 560 } });
     await expect(sp.locator('.react-flow__node')).toHaveCount(1);
     const question = sp.locator('.react-flow__node textarea').first();
+    // a question made just now takes the keys by itself
+    await expect(question).toBeFocused();
     await question.click();
     await question.fill('What do these four files have in common?');
     await expect(question).toHaveValue('What do these four files have in common?');
@@ -646,6 +650,23 @@ test.describe.serial('documents open beside the canvas, in the desktop shell', (
     await expect(surface('three.py')).toHaveAttribute('data-surface-placement', 'left');
     await expect(sp.locator('[data-surface-tray] [data-surface-chip]')).toHaveCount(1);
     await expect.poll(() => textIn(surface('two.tex'))).toMatch(/^content of two\.tex/);
+  });
+
+  test('after the page is loaded again the question waiting on the canvas leaves the focus with the document in front', async () => {
+    // the question box from before is still empty: it waits for its question, but it was not made just now
+    const question = sp.locator('.react-flow__node textarea').first();
+    await expect(question).toHaveValue('');
+    // a moment for the canvas to settle: whatever was going to take the focus has taken it by now
+    await sp.waitForTimeout(500);
+    const focused = await sp.evaluate(() => {
+      type El = { closest(selector: string): { querySelector(selector: string): { textContent: string | null } | null } | null };
+      const at = (globalThis as unknown as { document: { activeElement: El | null } }).document.activeElement;
+      return at?.closest('.react-flow__node') ? 'the canvas' : at?.closest('[data-surface]')?.querySelector('[data-surface-title]')?.textContent ?? 'nothing';
+    });
+    expect(focused, 'the document brought forward last keeps the focus').toBe('three.py');
+    // and a key pressed now is no part of a question
+    await sp.keyboard.insertText('STRAY_KEYS_K4');
+    await expect(question).toHaveValue('');
   });
 
   test('what a file held before each save is listed in its surface, can be looked at, and can be put back', async () => {

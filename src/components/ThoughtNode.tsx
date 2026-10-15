@@ -37,6 +37,7 @@ import MentionSurface from './ui/NodeMention';
 import { useMentions } from '../lib/mentions';
 import { isViewerMode } from '../lib/viewer';
 import { isWebUrl } from '../../shared/web-url.mjs';
+import { isFreshNode, markNodeSeen } from '../lib/fresh-nodes';
 
 export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
   // Actions are stable references: selecting them one by one (instead of a
@@ -148,8 +149,13 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
   // React Flow mounts new nodes visibility:hidden until measured, so the
   // textarea's autoFocus fires against a hidden element and is dropped.
   // Re-focus a fresh ask / human slot shortly after mount instead.
+  // Only a node made just now takes the focus (see lib/fresh-nodes): one its
+  // canvas was opened with, or one mounted again as it comes back into view,
+  // leaves the focus where it is, in a document or wherever the person types.
+  const [takesFocus] = useState(() => (isAwaitingAsk || isAwaitingHuman) && isFreshNode(id));
   useEffect(() => {
-    if (!isAwaitingAsk && !isAwaitingHuman) return;
+    if (!takesFocus) return;
+    markNodeSeen(id);
     const timer = setTimeout(() => questionTaRef.current?.focus(), 80);
     return () => clearTimeout(timer);
     // mount-only: a node awaits input exactly once, at creation
@@ -689,7 +695,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                   isHuman ? 'border-warm focus:ring-warm/20' : 'border-accent focus:ring-accent/20'
                 }`}
                 rows={2}
-                autoFocus
+                autoFocus={!(isAwaitingAsk || isAwaitingHuman) || takesFocus}
               />
               {/* A fresh node is a landing page in a card: the same per-ask
                   switches (web, scholar, recall) sit under its question, so

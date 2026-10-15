@@ -29,6 +29,13 @@ export default function TextEditor({ documentId, surfaceId, onSave, preview = fa
   useEffect(() => {
     if (!holder.current) return;
     bound.current = bindEditor(holder.current, documentId, surfaceId, () => save.current(), { preview: shown.current, onTogglePreview: () => toggle.current?.(), onCursor: (line, column) => cursor.current?.(line, column) });
+    // A surface brought forward before its editor was made (it was just
+    // opened, or put back with its canvas) found nothing to type into, and
+    // its frame took the focus itself (see SurfaceFrame): it is passed on to
+    // the editor now. A focus anywhere else, in the frame or outside it, is
+    // left where it is.
+    const frame = holder.current.closest('[data-surface]');
+    if (bound.current && frame && document.activeElement === frame) bound.current.view.focus();
     return () => { bound.current?.destroy(); bound.current = null; };
   }, [documentId, surfaceId]);
 

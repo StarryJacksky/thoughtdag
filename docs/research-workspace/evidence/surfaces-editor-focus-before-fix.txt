@@ -1,0 +1,115 @@
+# The editor of a surface just opened or put back does not get the focus: the frame keeps it, and keys typed with no click go nowhere.
+# On the app built from c9c2aa8 with the new tests, before the fix.
+
+## playwright (desktop) -g "documents open beside the canvas"
+
+Running 11 tests using 1 worker
+
+  ✓   1 tests/e2e-desktop/workspace-ui.spec.ts:510:3 › documents open beside the canvas, in the desktop shell › four files open at once, each in its own frame, by a double click in the tree, and the canvas gets no nodes (275ms)
+  ✓   2 tests/e2e-desktop/workspace-ui.spec.ts:518:3 › documents open beside the canvas, in the desktop shell › the canvas and its question box stay within reach with the documents open (959ms)
+  ✓   3 tests/e2e-desktop/workspace-ui.spec.ts:539:3 › documents open beside the canvas, in the desktop shell › switching quickly between the documents sends each keystroke to the one in front, and none of it to the canvas (208ms)
+  ✓   4 tests/e2e-desktop/workspace-ui.spec.ts:557:3 › documents open beside the canvas, in the desktop shell › a frame brought forward by its title bar alone takes the keys that follow, and the one typed into before gets none of them (64ms)
+  ✓   5 tests/e2e-desktop/workspace-ui.spec.ts:587:3 › documents open beside the canvas, in the desktop shell › a frame is moved by its title bar, resized from its corner, and never smaller than its smallest size (119ms)
+  ✓   6 tests/e2e-desktop/workspace-ui.spec.ts:609:3 › documents open beside the canvas, in the desktop shell › a frame fills the canvas area and goes back, docks to a side, and is put away and brought back (179ms)
+  ✓   7 tests/e2e-desktop/workspace-ui.spec.ts:633:3 › documents open beside the canvas, in the desktop shell › a frame that the window shrinks away from is brought back to where its title bar can be reached (37ms)
+  ✓   8 tests/e2e-desktop/workspace-ui.spec.ts:646:3 › documents open beside the canvas, in the desktop shell › the documents are where they were after the page is loaded again: floating, docked and put away (697ms)
+  ✘   9 tests/e2e-desktop/workspace-ui.spec.ts:655:3 › documents open beside the canvas, in the desktop shell › after the page is loaded again the question waiting on the canvas leaves the focus with the document in front (5.4s)
+  -  10 tests/e2e-desktop/workspace-ui.spec.ts:677:3 › documents open beside the canvas, in the desktop shell › what a file held before each save is listed in its surface, can be looked at, and can be put back
+  -  11 tests/e2e-desktop/workspace-ui.spec.ts:708:3 › documents open beside the canvas, in the desktop shell › closing a document's view deletes nothing
+
+
+  1) tests/e2e-desktop/workspace-ui.spec.ts:655:3 › documents open beside the canvas, in the desktop shell › after the page is loaded again the question waiting on the canvas leaves the focus with the document in front 
+
+    Error: the keys went to the editor of the document in front
+
+    the keys went to the editor of the document in front
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "KEYS_AFTER_RELOAD_K4content of three.py r"
+    Received: "content of three.py r"
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      669 |     await sp.keyboard.insertText('KEYS_AFTER_RELOAD_K4');
+      670 |     await expect(question).toHaveValue('');
+    > 671 |     await expect.poll(() => textIn(surface('three.py')), 'the keys went to the editor of the document in front').toBe(`KEYS_AFTER_RELOAD_K4${before}`);
+          |                                                                                                                  ^
+      672 |     // taken back, so the document is as it was
+      673 |     await sp.keyboard.press('ControlOrMeta+z');
+      674 |     await expect.poll(() => textIn(surface('three.py'))).toBe(before);
+        at <repo>/tests/e2e-desktop/workspace-ui.spec.ts:671:114
+
+    Error Context: test-results/workspace-ui-documents-ope-77259--with-the-document-in-front/error-context.md
+
+    Error Context: test-results/workspace-ui-documents-ope-77259--with-the-document-in-front/error-context.md
+
+  1 failed
+    tests/e2e-desktop/workspace-ui.spec.ts:655:3 › documents open beside the canvas, in the desktop shell › after the page is loaded again the question waiting on the canvas leaves the focus with the document in front 
+  2 did not run
+  8 passed (9.7s)
+
+## playwright (desktop) -g "editors and readers"
+
+Running 12 tests using 1 worker
+
+  ✓   1 tests/e2e-desktop/workspace-ui.spec.ts:769:3 › editors and readers, in the desktop shell › Markdown, LaTeX and Python are typed into side by side while a PDF is open to read, and each lands in its own file (3.1s)
+  ✓   2 tests/e2e-desktop/workspace-ui.spec.ts:802:3 › editors and readers, in the desktop shell › a Markdown file is written as it reads, formulas drawn, and markup in it is shown and never run (1.4s)
+  ✓   3 tests/e2e-desktop/workspace-ui.spec.ts:833:3 › editors and readers, in the desktop shell › a PDF is read page by page with its words selectable, and a quote from it lands on the canvas with its page (103ms)
+  ✓   4 tests/e2e-desktop/workspace-ui.spec.ts:857:3 › editors and readers, in the desktop shell › a selection that runs from one page of a PDF onto the next is quoted with both pages, whichever way it was dragged (73ms)
+  ✓   5 tests/e2e-desktop/workspace-ui.spec.ts:880:3 › editors and readers, in the desktop shell › a Word document shows the text taken out of it and says so; the file itself is not changed and is not typed into (240ms)
+  ✓   6 tests/e2e-desktop/workspace-ui.spec.ts:894:3 › editors and readers, in the desktop shell › words that stand twice in a Word document are quoted from the place that was selected, and the reader follows the file when it is replaced (778ms)
+  ✓   7 tests/e2e-desktop/workspace-ui.spec.ts:928:3 › editors and readers, in the desktop shell › an image is shown, and an HTML page is shown without any of its scripts running (459ms)
+  ✓   8 tests/e2e-desktop/workspace-ui.spec.ts:944:3 › editors and readers, in the desktop shell › a script is run from its editor with the interpreter installed here, and its output shows under the code (122ms)
+  ✓   9 tests/e2e-desktop/workspace-ui.spec.ts:957:3 › editors and readers, in the desktop shell › a LaTeX source with Chinese is compiled to a PDF beside it, which opens to read (893ms)
+  ✓  10 tests/e2e-desktop/workspace-ui.spec.ts:973:3 › editors and readers, in the desktop shell › a Markdown note with formulas is made into a Word document beside it, whose formulas are drawn where it is read (335ms)
+  ✓  11 tests/e2e-desktop/workspace-ui.spec.ts:996:3 › editors and readers, in the desktop shell › a text file above the limit is shown read-only, a part at a time, and offers to show the file (244ms)
+  ✘  12 tests/e2e-desktop/workspace-ui.spec.ts:1012:3 › editors and readers, in the desktop shell › a file opened from the tree is typed into straight away, with no click into it first (5.0s)
+
+
+  1) tests/e2e-desktop/workspace-ui.spec.ts:1012:3 › editors and readers, in the desktop shell › a file opened from the tree is typed into straight away, with no click into it first 
+
+    Error: the keys went to the editor of at-once.md
+
+    the keys went to the editor of at-once.md
+
+    expect(received).toBe(expected) // Object.is equality
+
+    - Expected  - 1
+    + Received  + 1
+
+    - TYPED_AT_ONCE_M5 A note, typed into at once.
+    + A note, typed into at once.
+      ↵
+
+    Call Log:
+    - Timeout 5000ms exceeded while waiting on the predicate
+
+      1016 |       await expect(doc.locator('.cm-content')).toBeVisible();
+      1017 |       await ep.keyboard.insertText(typed);
+    > 1018 |       await expect.poll(() => textIn(doc), `the keys went to the editor of ${name}`).toBe(`${typed}${held}`);
+           |                                                                                      ^
+      1019 |       await expect(doc.locator('[data-surface-state]')).toHaveAttribute('data-surface-state', 'clean');
+      1020 |       expect(fs.readFileSync(disk(name), 'utf8')).toBe(`${typed}${held}`);
+      1021 |       await doc.locator('[data-surface-close]').click();
+        at <repo>/tests/e2e-desktop/workspace-ui.spec.ts:1018:86
+
+    Error Context: test-results/workspace-ui-editors-and-r-36c4d-with-no-click-into-it-first/error-context.md
+
+    Error Context: test-results/workspace-ui-editors-and-r-36c4d-with-no-click-into-it-first/error-context.md
+
+  1 failed
+    tests/e2e-desktop/workspace-ui.spec.ts:1012:3 › editors and readers, in the desktop shell › a file opened from the tree is typed into straight away, with no click into it first 
+  11 passed (14.4s)
+
+## vitest tests/unit/surface-manager.test.tsx -t "typed into at once|leaves it there" (the DOM dumps left out)
+ ❯ tests/unit/surface-manager.test.tsx (45 tests | 2 failed | 42 skipped) 182ms
+     × a surface just opened is typed into at once: the focus is in its editor, not only in its frame 113ms
+     × the surface in front when a canvas's surfaces are put back is typed into at once 43ms
+AssertionError: the editor, made after the frame took the focus, has it: expected <div …(5)>…(3)</div> to be <div style="tab-size: 4;" …(10)>…(2)</div> // Object.is equality
+ ❯ tests/unit/surface-manager.test.tsx:396:95
+AssertionError: expected <div …(5)>…(3)</div> to be <div style="tab-size: 4;" …(11)>…(2)</div> // Object.is equality
+ ❯ tests/unit/surface-manager.test.tsx:409:36
+ Test Files  1 failed (1)
+      Tests  2 failed | 1 passed | 42 skipped (45)

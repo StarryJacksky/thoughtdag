@@ -13,8 +13,10 @@ import { useT } from '../../i18n';
 // surface forward (a press anywhere on it, its title bar included, a drag,
 // coming back from the tray, being opened) also brings the focus into it:
 // to its editor, which keeps its own cursor, or to the frame itself when
-// it has nothing to type into. The surface that was typed into before
-// gets no key after that.
+// it has nothing to type into. An editor that is made only after the
+// frame took the focus (a surface just opened, or put back with its
+// canvas) takes it from the frame when it is made: see TextEditor. The
+// surface that was typed into before gets no key after that.
 
 interface Props {
   surface: Surface;

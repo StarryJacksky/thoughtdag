@@ -390,6 +390,36 @@ describe('the surface in front is the one that is typed into', () => {
     expect(textOf('b.tex')).toBe('content of b.tex\n');
   });
 
+  it('a surface just opened is typed into at once: the focus is in its editor, not only in its frame', async () => {
+    let a = '';
+    await during(async () => { a = await opened(fileIdOf('notes/a.md')); });
+    expect(document.activeElement, 'the editor, made after the frame took the focus, has it').toBe(editorOf(frameOf(a)).contentDOM);
+    await pressKey({ key: 'Tab', code: 'Tab', keyCode: 9 });
+    expect(textOf('a.md')).not.toBe('content of a.md\n');
+  });
+
+  it('the surface in front when a canvas\'s surfaces are put back is typed into at once', async () => {
+    await during(async () => { await opened(fileIdOf('notes/a.md')); await opened(fileIdOf('notes/b.tex')); });
+    saveLayout('canvas-1');
+    await during(async () => { for (const s of [...useSurfaces.getState().surfaces]) closeSurface(s.surfaceId); await documents.dispose(); });
+    document.body.focus();
+    await during(async () => { await restoreLayout('canvas-1'); });
+    const front = useSurfaces.getState().order.at(-1)!;
+    expect(useSurfaces.getState().surfaces.find((s) => s.surfaceId === front)!.title).toBe('b.tex');
+    expect(document.activeElement).toBe(editorOf(frameOf(front)).contentDOM);
+  });
+
+  it('an editor made while the focus is somewhere else in its frame leaves it there: a note switched back from reading to writing keeps it on the switch', async () => {
+    let a = '';
+    await during(async () => { a = await opened(fileIdOf('notes/a.md')); });
+    const tab = (mode: string) => frameOf(a).querySelector<HTMLElement>(`[data-markdown-mode="${mode}"]`)!;
+    await during(() => { tab('reading').focus(); tab('reading').click(); });
+    expect(frameOf(a).querySelector('.cm-content')).toBeNull();
+    await during(() => { tab('live').focus(); tab('live').click(); });
+    expect(frameOf(a).querySelector('.cm-content'), 'the editor is made anew').not.toBeNull();
+    expect(document.activeElement).toBe(tab('live'));
+  });
+
   it('[R2-15] a surface with nothing to type into still takes the focus from the one behind it', async () => {
     shell.seed('notes/big.txt', '');
     shell.files.get(fileIdOf('notes/big.txt'))!.bytes = new Uint8Array(8 * 1024 * 1024 + 1);

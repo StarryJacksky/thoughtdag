@@ -664,9 +664,14 @@ test.describe.serial('documents open beside the canvas, in the desktop shell', (
       return at?.closest('.react-flow__node') ? 'the canvas' : at?.closest('[data-surface]')?.querySelector('[data-surface-title]')?.textContent ?? 'nothing';
     });
     expect(focused, 'the document brought forward last keeps the focus').toBe('three.py');
-    // and a key pressed now is no part of a question
-    await sp.keyboard.insertText('STRAY_KEYS_K4');
+    // and a key pressed now is no part of a question: it is typed into that document, with no click into it first
+    const before = await textIn(surface('three.py'));
+    await sp.keyboard.insertText('KEYS_AFTER_RELOAD_K4');
     await expect(question).toHaveValue('');
+    await expect.poll(() => textIn(surface('three.py')), 'the keys went to the editor of the document in front').toBe(`KEYS_AFTER_RELOAD_K4${before}`);
+    // taken back, so the document is as it was
+    await sp.keyboard.press('ControlOrMeta+z');
+    await expect.poll(() => textIn(surface('three.py'))).toBe(before);
   });
 
   test('what a file held before each save is listed in its surface, can be looked at, and can be put back', async () => {
@@ -733,6 +738,8 @@ test.describe.serial('editors and readers, in the desktop shell', () => {
     fs.writeFileSync(disk('hello.py'), 'import sys\nprint("RUN_FROM_DESKTOP_R1")\nprint("WARN_TO_STDERR_R2", file=sys.stderr)\n');
     fs.writeFileSync(disk('report.tex'), '\\documentclass{ctexart}\n\\begin{document}\n中文报告，公式 $a^2+b^2=c^2$。\n\\end{document}\n');
     fs.writeFileSync(disk('formulas.md'), '# 公式笔记\n\n均值 $\\bar x = \\frac{1}{n}\\sum_{i=1}^{n} x_i$ 用于估计。\n\n$$\n\\int_0^1 f(t)\\,dt\n$$\n');
+    fs.writeFileSync(disk('at-once.md'), 'A note, typed into at once.\n');
+    fs.writeFileSync(disk('at-once.py'), 'x = 1\n');
     eApp = await electron.launch({
       executablePath: electronBinary,
       args: [path.join(REPO, 'desktop'), `--user-data-dir=${path.join(eBase, 'profile')}`],
@@ -1000,6 +1007,19 @@ test.describe.serial('editors and readers, in the desktop shell', () => {
     await huge.locator('[data-surface-reveal]').click();
     await expect.poll(() => eApp.evaluate(() => (globalThis as unknown as { __shown: string[] }).__shown)).toEqual([disk('huge.csv')]);
     expect(fs.statSync(disk('huge.csv')).size).toBe(8 * 1024 * 1024 + 1);
+  });
+
+  test('a file opened from the tree is typed into straight away, with no click into it first', async () => {
+    for (const [name, held, typed] of [['at-once.md', 'A note, typed into at once.\n', 'TYPED_AT_ONCE_M5 '], ['at-once.py', 'x = 1\n', 'TYPED_AT_ONCE_P5 ']] as const) {
+      await openFromTree(name);
+      const doc = surface(name);
+      await expect(doc.locator('.cm-content')).toBeVisible();
+      await ep.keyboard.insertText(typed);
+      await expect.poll(() => textIn(doc), `the keys went to the editor of ${name}`).toBe(`${typed}${held}`);
+      await expect(doc.locator('[data-surface-state]')).toHaveAttribute('data-surface-state', 'clean');
+      expect(fs.readFileSync(disk(name), 'utf8')).toBe(`${typed}${held}`);
+      await doc.locator('[data-surface-close]').click();
+    }
   });
 });
 

@@ -1,0 +1,180 @@
+# npx vitest run tests/unit/prepare-run.test.ts at 29a2519 with the host snapshots in place, before prepareRun is written (a placeholder that throws)
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/prepare-run.test.ts (11 tests | 11 failed) 68ms
+   ❯ preparing a run (5)
+     × [T11] saves what is typed into a file the run reads, then freezes the file as saved, and gives the run that 5ms
+     × [T11] is refused for a file that is lost, and nothing is frozen or sent 1ms
+     × [T11] is refused for a file whose open document is in conflict with it 55ms
+     × [T11] gives a run the passage selected, found again by its words; a passage that stands twice, or no more, refuses it 1ms
+     × [T11] is not changed by the file changing afterwards: the snapshot it names still holds what it was given 0ms
+   ❯ the digests of a run (4)
+     × [T11] are the same for the same input, prepared twice; only the run id differs 0ms
+     × [T11] tell apart two images of the same size, where the old context hash did not 0ms
+     × [T11] do not change when cards are moved or folded 0ms
+     × [T11] keep what is asked apart from how: another model changes the execution digest, not the input digest 1ms
+   ❯ what is sent (2)
+     × [T11] is checked against the envelope at the last moment: exactly it goes; a system message or a tool added on the way does not 1ms
+     × [T11] may leave out every image for a model that cannot see them, when each has its text beside it, and that is said 0ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 11 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/prepare-run.test.ts > preparing a run > [T11] saves what is typed into a file the run reads, then freezes the file as saved, and gives the run that
+Error: not written yet
+ ❯ prepareRun src/lib/context/prepare-run.ts:6:93
+      4| export type PrepareRunRequest = Record<string, unknown>;
+      5| export class RunBlocked extends Error { reason = ''; nodeId: string | …
+      6| export async function prepareRun(_request: PrepareRunRequest): Promise…
+       |                                                                                             ^
+      7| export function verifyDispatch(_envelope: RunEnvelope, _payload: unkno…
+      8| export function envelopeImages(_envelope: RunEnvelope): ImageAttachmen…
+ ❯ tests/unit/prepare-run.test.ts:77:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/11]⎯
+
+ FAIL  tests/unit/prepare-run.test.ts > preparing a run > [T11] is refused for a file that is lost, and nothing is frozen or sent
+AssertionError: expected Error: not written yet to be an instance of RunBlocked
+ ❯ tests/unit/prepare-run.test.ts:96:21
+     94|     shell.files.get(fileIdOf('notes/a.md'))!.status = 'missing';
+     95|     const refused = await prepareRun(request(t)).then(() => null, (e) …
+     96|     expect(refused).toBeInstanceOf(RunBlocked);
+       |                     ^
+     97|     expect(refused).toMatchObject({ reason: 'lost', nodeId: m });
+     98|     expect(calls()).not.toContain('freezeFile');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/11]⎯
+
+ FAIL  tests/unit/prepare-run.test.ts > preparing a run > [T11] is refused for a file whose open document is in conflict with it
+AssertionError: expected Error: not written yet to match object { reason: 'conflict', …(1) }
+
+- Expected
++ Received
+
+- {
+-   "nodeId": "node-1792108126216-6",
+-   "reason": "conflict",
++ Error {
++   "message": "not written yet",
+  }
+
+ ❯ tests/unit/prepare-run.test.ts:111:40
+    109|     documents.noteWorkspaceEvent({ workspaceId: 'ws_1', fileId, change…
+    110|     await vi.waitFor(() => expect(documents.get(doc.documentId)!.state…
+    111|     await expect(prepareRun(request(t))).rejects.toMatchObject({ reaso…
+       |                                        ^
+    112|     expect(calls()).not.toContain('freezeFile');
+    113|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/11]⎯
+
+ FAIL  tests/unit/prepare-run.test.ts > preparing a run > [T11] gives a run the passage selected, found again by its words; a passage that stands twice, or no more, refuses it
+Error: not written yet
+ ❯ prepareRun src/lib/context/prepare-run.ts:6:93
+      4| export type PrepareRunRequest = Record<string, unknown>;
+      5| export class RunBlocked extends Error { reason = ''; nodeId: string | …
+      6| export async function prepareRun(_request: PrepareRunRequest): Promise…
+       |                                                                                             ^
+      7| export function verifyDispatch(_envelope: RunEnvelope, _payload: unkno…
+      8| export function envelopeImages(_envelope: RunEnvelope): ImageAttachmen…
+ ❯ tests/unit/prepare-run.test.ts:121:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/11]⎯
+
+ FAIL  tests/unit/prepare-run.test.ts > preparing a run > [T11] is not changed by the file changing afterwards: the snapshot it names still holds what it was given
+Error: not written yet
+ ❯ prepareRun src/lib/context/prepare-run.ts:6:93
+      4| export type PrepareRunRequest = Record<string, unknown>;
+      5| export class RunBlocked extends Error { reason = ''; nodeId: string | …
+      6| export async function prepareRun(_request: PrepareRunRequest): Promise…
+       |                                                                                             ^
+      7| export function verifyDispatch(_envelope: RunEnvelope, _payload: unkno…
+      8| export function envelopeImages(_envelope: RunEnvelope): ImageAttachmen…
+ ❯ tests/unit/prepare-run.test.ts:135:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/11]⎯
+
+ FAIL  tests/unit/prepare-run.test.ts > the digests of a run > [T11] are the same for the same input, prepared twice; only the run id differs
+Error: not written yet
+ ❯ prepareRun src/lib/context/prepare-run.ts:6:93
+      4| export type PrepareRunRequest = Record<string, unknown>;
+      5| export class RunBlocked extends Error { reason = ''; nodeId: string | …
+      6| export async function prepareRun(_request: PrepareRunRequest): Promise…
+       |                                                                                             ^
+      7| export function verifyDispatch(_envelope: RunEnvelope, _payload: unkno…
+      8| export function envelopeImages(_envelope: RunEnvelope): ImageAttachmen…
+ ❯ tests/unit/prepare-run.test.ts:149:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/11]⎯
+
+ FAIL  tests/unit/prepare-run.test.ts > the digests of a run > [T11] tell apart two images of the same size, where the old context hash did not
+Error: not written yet
+ ❯ prepareRun src/lib/context/prepare-run.ts:6:93
+      4| export type PrepareRunRequest = Record<string, unknown>;
+      5| export class RunBlocked extends Error { reason = ''; nodeId: string | …
+      6| export async function prepareRun(_request: PrepareRunRequest): Promise…
+       |                                                                                             ^
+      7| export function verifyDispatch(_envelope: RunEnvelope, _payload: unkno…
+      8| export function envelopeImages(_envelope: RunEnvelope): ImageAttachmen…
+ ❯ tests/unit/prepare-run.test.ts:162:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/11]⎯
+
+ FAIL  tests/unit/prepare-run.test.ts > the digests of a run > [T11] do not change when cards are moved or folded
+Error: not written yet
+ ❯ prepareRun src/lib/context/prepare-run.ts:6:93
+      4| export type PrepareRunRequest = Record<string, unknown>;
+      5| export class RunBlocked extends Error { reason = ''; nodeId: string | …
+      6| export async function prepareRun(_request: PrepareRunRequest): Promise…
+       |                                                                                             ^
+      7| export function verifyDispatch(_envelope: RunEnvelope, _payload: unkno…
+      8| export function envelopeImages(_envelope: RunEnvelope): ImageAttachmen…
+ ❯ tests/unit/prepare-run.test.ts:172:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/11]⎯
+
+ FAIL  tests/unit/prepare-run.test.ts > the digests of a run > [T11] keep what is asked apart from how: another model changes the execution digest, not the input digest
+Error: not written yet
+ ❯ prepareRun src/lib/context/prepare-run.ts:6:93
+      4| export type PrepareRunRequest = Record<string, unknown>;
+      5| export class RunBlocked extends Error { reason = ''; nodeId: string | …
+      6| export async function prepareRun(_request: PrepareRunRequest): Promise…
+       |                                                                                             ^
+      7| export function verifyDispatch(_envelope: RunEnvelope, _payload: unkno…
+      8| export function envelopeImages(_envelope: RunEnvelope): ImageAttachmen…
+ ❯ tests/unit/prepare-run.test.ts:183:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/11]⎯
+
+ FAIL  tests/unit/prepare-run.test.ts > what is sent > [T11] is checked against the envelope at the last moment: exactly it goes; a system message or a tool added on the way does not
+Error: not written yet
+ ❯ prepareRun src/lib/context/prepare-run.ts:6:93
+      4| export type PrepareRunRequest = Record<string, unknown>;
+      5| export class RunBlocked extends Error { reason = ''; nodeId: string | …
+      6| export async function prepareRun(_request: PrepareRunRequest): Promise…
+       |                                                                                             ^
+      7| export function verifyDispatch(_envelope: RunEnvelope, _payload: unkno…
+      8| export function envelopeImages(_envelope: RunEnvelope): ImageAttachmen…
+ ❯ tests/unit/prepare-run.test.ts:200:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/11]⎯
+
+ FAIL  tests/unit/prepare-run.test.ts > what is sent > [T11] may leave out every image for a model that cannot see them, when each has its text beside it, and that is said
+Error: not written yet
+ ❯ prepareRun src/lib/context/prepare-run.ts:6:93
+      4| export type PrepareRunRequest = Record<string, unknown>;
+      5| export class RunBlocked extends Error { reason = ''; nodeId: string | …
+      6| export async function prepareRun(_request: PrepareRunRequest): Promise…
+       |                                                                                             ^
+      7| export function verifyDispatch(_envelope: RunEnvelope, _payload: unkno…
+      8| export function envelopeImages(_envelope: RunEnvelope): ImageAttachmen…
+ ❯ tests/unit/prepare-run.test.ts:212:23
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/11]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  11 failed (11)
+   Start at  00:48:45
+   Duration  739ms (transform 46%, environment 34%, tests 10%, import 7%, setup 2%)
+

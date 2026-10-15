@@ -482,6 +482,16 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
       return (await operationsOf(await grantOfFile(fileId))).readBytes(fileId, options);
     },
 
+    /** Freeze a file for a run: `{ bytes, contentHash, snapshotId }` (see file-ops). */
+    async freezeFile(fileId, options) {
+      return (await operationsOf(await grantOfFile(fileId))).freeze(fileId, options);
+    },
+
+    /** What a snapshot of a workspace holds, or null. */
+    async readSnapshot(workspaceId, snapshotId) {
+      return (await operationsOf(await grantOf(workspaceId))).readSnapshot(snapshotId);
+    },
+
     /** Whether a subscribed workspace's folder is being watched. A volume that cannot be watched still answers explicit rescans. */
     watching(workspaceId) {
       return watchers.get(workspaceId)?.watching() ?? false;

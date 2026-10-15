@@ -254,6 +254,16 @@ export interface ThoughtData extends Record<string, unknown> {
   lastContextHash?: string;
   /** per upstream node, at generation time: a hash of what it contributed and its opening text — so a later change can be judged, not only detected */
   lastContextParts?: Record<string, { h: string; head: string }>;
+  /** the run the latest answer came from (lib/context/prepare-run): its digests, and what it was given, frozen */
+  lastRun?: {
+    runId: string;
+    inputDigest: string;
+    executionDigest: string;
+    graphRevision: string;
+    inputs: { inputId: string; snapshotId: string; contentHash: string }[];
+    /** its images were left out for a model that cannot see them (their text was in the messages) */
+    imagesDropped?: boolean;
+  };
   /** the answer each feedback line into this node held when its latest answer was written (see lib/feedback): by edge id, the other node and which of its answers */
   lastFeedback?: Record<string, { source: string; version: number | null }>;
   lastGeneratedAt?: string;

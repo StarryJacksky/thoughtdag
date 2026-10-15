@@ -2,7 +2,7 @@ import type { StateCreator } from 'zustand';
 import { shownStaleIds } from '../../lib/stale-judge';
 import type { ThoughtData } from '../../types';
 import { buildContext } from '../context-builder';
-import { runNodeGeneration, autoRunCounts } from '../streaming';
+import { runNodeGeneration, autoRunCounts, freezeForRun } from '../streaming';
 import { toast, updateToast, useUiStore } from '../../lib/ui-store';
 import { t, fmt } from '../../i18n';
 import type { StoreState, EvaluatorSlice } from '../types';
@@ -68,6 +68,8 @@ export const createEvaluatorSlice: StateCreator<StoreState, [], [], EvaluatorSli
     // A run in place starts a round: feedback lines into what it reads move to
     // their latest finished answers (lib/feedback), before the context is built.
     get().advanceFeedback(nodeId);
+    // the files it reads are saved and frozen before its context is built (lib/context/prepare-run)
+    if (!(await freezeForRun(set, get, nodeId))) return;
     const { nodes: nodesNow, edges: edgesNow } = get();
     // Standard context with this node's own Q&A blanked out (same pattern
     // as editQuestion) — ancestors, roles, highlights, attachments all
@@ -97,6 +99,7 @@ export const createEvaluatorSlice: StateCreator<StoreState, [], [], EvaluatorSli
       images: ctx.images,
       versionMode: 'append',
       sources: ctx.sources,
+      imageSources: ctx.imageSources,
       autoChain: opts?.auto,
     });
   },

@@ -35,6 +35,7 @@ const path = require('node:path');
 const { createHash, randomUUID } = require('node:crypto');
 const { assertAllowedPath, assertPortableName, WorkspaceAccessError } = require('./path-policy.cjs');
 const { mediaTypeOf } = require('./media-types.cjs');
+const { keepSnapshot, readSnapshot } = require('./snapshots.cjs');
 const { readBounded, keepPreviousVersion, readPreviousVersion, listPreviousVersions, moveToRecoveryTrash, listRecoveryTrash, readRecoveryNote, clearRecoveryReceipt } = require('./recovery.cjs');
 
 /** What the disk says when it fails for a moment: an operation that meets one is tried again later, not given up. */
@@ -565,6 +566,26 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
       await noteRead(record, revision, stat);
       return { bytes, revision };
     },
+
+    /**
+     * Freeze a file for a run: its bytes as they are now, read once, kept as
+     * a snapshot (snapshots.cjs), and handed back as they were kept. What
+     * the run is given is the snapshot, whatever the file says later.
+     */
+    async freeze(fileId, { maxBytes = Infinity } = {}) {
+      const record = await liveRecordOf(fileId);
+      const target = await assertAllowedPath(grant, 'read', record.relativePath);
+      const { bytes, stat } = await readChecked(target.absolute, maxBytes);
+      const revision = hashOf(bytes);
+      await noteRead(record, revision, stat);
+      // a read-only folder is not written to: its snapshots are kept nowhere, and the run is told so
+      if (await readOnly()) return { bytes, contentHash: revision, snapshotId: null };
+      const kept = await keepSnapshot(grant.rootPath, bytes, io);
+      return { bytes, contentHash: kept.contentHash, snapshotId: kept.snapshotId };
+    },
+
+    /** What a snapshot of this workspace holds, or null. */
+    readSnapshot: (snapshotId) => readSnapshot(grant.rootPath, snapshotId, io),
 
     /**
      * One part of a text file, to be looked at: what a file too large to

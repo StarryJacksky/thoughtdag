@@ -120,6 +120,22 @@ function createWorkspaceDoor({ service, providers, canvasFolder, showInFileManag
       return provider.read(scope, String(fileId), { maxBytes: MAX_VIEW_BYTES });
     },
 
+    /**
+     * Freeze a file for a run: its content as it is now, kept as a snapshot
+     * of the workspace that later edits do not touch, and handed to the page
+     * in the shape a read answers with, beside the snapshot's id.
+     */
+    'workspace:freeze-file': async (_context, fileId) => {
+      const { scope, provider } = await ofFile(fileId, 'read');
+      return extra(provider, 'freeze')(scope, String(fileId), { maxBytes: MAX_PAGE_READ_BYTES });
+    },
+    /** What a snapshot holds: what a run was given, read back. */
+    'workspace:read-snapshot': async (_context, workspaceId, snapshotId) => {
+      if (typeof snapshotId !== 'string' || !/^snap_[0-9a-f]{64}$/.test(snapshotId)) throw new WorkspaceAccessError('invalid-request', 'that is not the name of a snapshot');
+      const { scope, provider } = await ofWorkspace(workspaceId, 'read');
+      return extra(provider, 'readSnapshot')(scope, snapshotId);
+    },
+
     /** A file's text and the revision a later save must name. */
     'workspace:read-text': async (_context, fileId) => {
       const { scope, provider } = await ofFile(fileId, 'read');

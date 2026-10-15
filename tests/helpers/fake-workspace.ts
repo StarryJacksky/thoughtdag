@@ -76,6 +76,8 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
   // the recovery area: what was trashed (with the files that went), and what each file held before a save
   const recovery = new Map<string, { item: RecoveryItem; fileIds: string[] }>();
   const versions = new Map<string, string[]>();
+  // what was frozen for runs, by snapshot id: the content as it was then
+  const snapshots = new Map<string, { content: string; bytes: Uint8Array | null; contentHash: string }>();
   const drafts = new Map<string, DocumentDraft>();
   const runs: { runId: string; fileId: string }[] = [];
   const stopped: string[] = [];
@@ -193,6 +195,25 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
       return bytes
         ? { fileId, sourceRevision: null, contentHash: bytesRevision(bytes), representation: 'bytes' as const, payload: bytes, fidelity: 'original' as const }
         : { fileId, sourceRevision: null, contentHash: fakeRevision(f.content), representation: 'text' as const, payload: f.content, fidelity: 'original' as const };
+    }),
+    freezeFile: door('freezeFile', null, (fileId: string) => {
+      // as the shell does it: the content as it is now, kept under its hash, handed back as kept
+      const f = files.get(fileId);
+      if (!f || f.status === 'missing' || f.status === 'ambiguous') throw new Error("Error invoking remote method 'workspace:freeze-file': Error: lost: the file is lost; it has to be found again first");
+      const bytes = f.bytes ? f.bytes.slice() : null;
+      const contentHash = bytes ? bytesRevision(bytes) : fakeRevision(f.content);
+      const snapshotId = `snap_${contentHash.slice('sha256:'.length)}`;
+      snapshots.set(snapshotId, { content: f.content, bytes, contentHash });
+      return bytes
+        ? { fileId, snapshotId, sourceRevision: null, contentHash, representation: 'bytes' as const, payload: bytes, fidelity: 'original' as const }
+        : { fileId, snapshotId, sourceRevision: null, contentHash, representation: 'text' as const, payload: f.content, fidelity: 'original' as const };
+    }),
+    readSnapshot: door('readSnapshot', null, (_workspace: string, snapshotId: string) => {
+      const kept = snapshots.get(snapshotId);
+      if (!kept) throw new Error("Error invoking remote method 'workspace:read-snapshot': Error: not-found: no such snapshot is kept here");
+      return kept.bytes
+        ? { fileId: '', snapshotId, sourceRevision: null, contentHash: kept.contentHash, representation: 'bytes' as const, payload: kept.bytes, fidelity: 'original' as const }
+        : { fileId: '', snapshotId, sourceRevision: null, contentHash: kept.contentHash, representation: 'text' as const, payload: kept.content, fidelity: 'original' as const };
     }),
     readView: door('readView', null, (fileId: string) => {
       const f = files.get(fileId);

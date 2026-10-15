@@ -176,6 +176,26 @@ export async function readView(fileId: string): Promise<SourceRead> {
   return checkedSource(await call((b) => b.readView(fileId)));
 }
 
+/** A file's content frozen for a run, and the snapshot it is kept as (null where the folder is read-only and nothing is kept). */
+export type FrozenRead = SourceRead & { snapshotId: string | null };
+
+/**
+ * Freeze a file for a run: its content as it is now, read once and kept as a
+ * snapshot that later edits do not touch. What is handed back is what was
+ * kept: the run is given exactly that.
+ */
+export async function freezeFile(fileId: string): Promise<FrozenRead> {
+  const result = await call((b) => b.freezeFile(fileId));
+  const snapshotId = (result as { snapshotId?: unknown }).snapshotId;
+  if (snapshotId !== null && (typeof snapshotId !== 'string' || !/^snap_[0-9a-f]{64}$/.test(snapshotId))) throw new WorkspaceError('contract', 'the shell answered with something that is not a snapshot');
+  return { ...checkedSource(result), snapshotId };
+}
+
+/** What a snapshot of a workspace holds: what a run was given, read back. */
+export async function readSnapshot(workspaceId: string, snapshotId: string): Promise<SourceRead> {
+  return checkedSource(await call((b) => b.readSnapshot(workspaceId, snapshotId)));
+}
+
 function checkedSource(result: SourceRead): SourceRead {
   // the bytes cross a context boundary, so they are recognised by what they are, not by whose constructor made them
   const text = result?.representation === 'text' && typeof result.payload === 'string';

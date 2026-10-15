@@ -19,6 +19,19 @@ function offsetOf(cursor) {
   return Number(m[1]);
 }
 
+/** Bytes as the page is handed them: text when they are text a person could edit, else the bytes. */
+function answerOf(bytes, contentHash) {
+  let text = null;
+  if (bytes.length <= MAX_EDITABLE_BYTES) { try { text = decodeText(bytes).text; } catch { /* not text */ } }
+  return {
+    sourceRevision: null, // a local file has no version but its content
+    contentHash,
+    representation: text === null ? 'bytes' : 'text',
+    payload: text === null ? new Uint8Array(bytes) : text,
+    fidelity: 'original',
+  };
+}
+
 function assertLocal(scope) {
   if (!scope || scope.kind !== 'local') throw new WorkspaceAccessError('wrong-source', 'this is not a local workspace');
 }
@@ -56,16 +69,7 @@ function createLocalProvider(service, { pageSize = PAGE_SIZE } = {}) {
     async read(scope, fileId, options = {}) {
       assertLocal(scope);
       const { bytes, revision } = await service.readBytes(fileId, { maxBytes: options.maxBytes });
-      let text = null;
-      if (bytes.length <= MAX_EDITABLE_BYTES) { try { text = decodeText(bytes).text; } catch { /* not text */ } }
-      return {
-        fileId,
-        sourceRevision: null, // a local file has no version but its content
-        contentHash: revision,
-        representation: text === null ? 'bytes' : 'text',
-        payload: text === null ? new Uint8Array(bytes) : text,
-        fidelity: 'original',
-      };
+      return { fileId, ...answerOf(bytes, revision) };
     },
 
     /** A local file has no version but its content: the base a write names is
@@ -109,6 +113,19 @@ function createLocalProvider(service, { pageSize = PAGE_SIZE } = {}) {
     /** What a file held before each save that replaced it. */
     async listVersions(scope, fileId) { assertLocal(scope); return service.listVersions(fileId); },
     async readTextRange(scope, fileId, range) { assertLocal(scope); return service.readTextRange(fileId, range); },
+    /** A file frozen for a run: its content as kept in a snapshot, in the shape a read answers with. */
+    async freeze(scope, fileId, options = {}) {
+      assertLocal(scope);
+      const { bytes, contentHash, snapshotId } = await service.freezeFile(fileId, { maxBytes: options.maxBytes });
+      return { fileId, snapshotId, ...answerOf(bytes, contentHash) };
+    },
+    /** What a snapshot of this workspace holds. */
+    async readSnapshot(scope, snapshotId) {
+      assertLocal(scope);
+      const bytes = await service.readSnapshot(scope.workspaceId, snapshotId);
+      if (!bytes) throw new WorkspaceAccessError('not-found', 'no such snapshot is kept here');
+      return { snapshotId, ...answerOf(bytes, `sha256:${snapshotId.slice('snap_'.length)}`) };
+    },
     /** A document made from a file, put beside it as a new file (see the service's exportBeside). */
     async exportBeside(scope, fileId, extension, bytes, opId) { assertLocal(scope); return service.exportBeside(fileId, extension, bytes, opId); },
     async readVersion(scope, fileId, revision) { assertLocal(scope); return service.readVersion(fileId, revision); },

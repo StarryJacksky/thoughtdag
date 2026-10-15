@@ -24,6 +24,8 @@ import { isViewerMode } from '../lib/viewer';
 import type { Reference } from '../types';
 import type { StoreState } from './types';
 import { sanitizeReferenceUrls } from '../lib/outbound-links';
+import type { RunEnvelope } from '../lib/context/contracts';
+import type { FrozenInputs, RunBlocked as RunBlockedError } from '../lib/context/prepare-run';
 
 // Background summary generation — fire and forget. Display channel ONLY:
 // the human reads the summary on the map, the model always reads the full
@@ -126,6 +128,50 @@ export const autoRunCounts = new Map<string, number>();
 type Set = StoreApi<StoreState>['setState'];
 type Get = StoreApi<StoreState>['getState'];
 
+// ── runs, frozen before they are sent (lib/context/prepare-run, plan §7) ──
+
+/** What a run's entry froze before it built the context, kept for the run to be prepared from. */
+const frozenFor = new Map<string, FrozenInputs>();
+
+/** What leaving was stopped for: the request about to leave was not the one prepared. */
+class DispatchRefused extends Error {
+  readonly part: 'messages' | 'images' | 'model' | 'tools';
+  constructor(part: 'messages' | 'images' | 'model' | 'tools') { super(`the request about to leave is not the one prepared (${part})`); this.part = part; }
+}
+
+/** A run that was not sent: the task says why, and nothing is recorded as asked or answered. */
+function markNotSent(set: Set, get: Get, nodeId: string, message: string): void {
+  activeAbortControllers.delete(nodeId);
+  toast('error', message, 9000);
+  set((state) => ({
+    nodes: state.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, response: message, isLoading: false, restreaming: undefined, reasoning: undefined, generationFailed: true } } : n)),
+  }));
+  get().pushHistory();
+}
+
+/** Why a run could not be prepared, in the person's words, naming the file. */
+function blockedText(get: Get, e: RunBlockedError): string {
+  const name = (e.nodeId ? get().nodes.find((n) => n.id === e.nodeId)?.data.resourceHint?.name : undefined) ?? '';
+  return fmt(t(`run.blocked.${e.reason}`), { name, why: e.message });
+}
+
+/**
+ * Freeze the files a run of `nodeId` reads, before its context is built:
+ * typing not yet saved is saved, each file is frozen into a snapshot, and
+ * the canvas's copies are set to what was frozen. Resolves false, with the
+ * task saying why, when the run cannot be given its files as they are.
+ */
+export async function freezeForRun(set: Set, get: Get, nodeId: string): Promise<boolean> {
+  const { freezeInputs, RunBlocked } = await import('../lib/context/prepare-run');
+  try {
+    frozenFor.set(nodeId, await freezeInputs(nodeId, { apply: true }));
+    return true;
+  } catch (e) {
+    markNotSent(set, get, nodeId, e instanceof RunBlocked ? blockedText(get, e) : fmt(t('run.notPrepared'), { why: e instanceof Error ? e.message : String(e) }));
+    return false;
+  }
+}
+
 /**
  * The one streaming pipeline for filling a node's response:
  * register an AbortController (Stop button) → stream chunks into
@@ -149,6 +195,8 @@ export async function runNodeGeneration(
     onSuccess?: (response: string) => void;
     /** where each context message came from — the members of this request */
     sources?: MessageSource[];
+    /** where each image came from, parallel to `images` */
+    imageSources?: { nodeId: string; attachmentId: string }[];
   },
 ): Promise<void> {
   // Read-only viewer: no generation whatsoever — belt-and-braces behind the
@@ -156,6 +204,11 @@ export async function runNodeGeneration(
   if (isViewerMode) return;
   const { question, images, onSuccess, versionMode = 'replace' } = opts;
   let { messages } = opts;
+  // where each message came from, kept in step with the messages as memory and recall are put in
+  const sources: (MessageSource | undefined)[] = [...(opts.sources ?? [])];
+  // the run as prepared (below), and whether its images were left out for a model that cannot see them
+  let envelope: RunEnvelope | null = null;
+  let imagesDropped = false;
   if (!opts.autoChain) autoRunCounts.clear(); // a fresh user action starts a new wave
   // Supersede: abort any generation already running on this node; its late
   // callbacks are dropped via the sequence check below.
@@ -296,7 +349,9 @@ export async function runNodeGeneration(
         const reasonings = [...kept.map(({ rs }) => rs), n.data.reasoning || undefined];
         const generatedAts = [...kept.map(({ at }) => at), now];
         const editedAts = [...kept.map(({ ed }) => ed), undefined];
-        return { ...n, data: { ...n.data, response, responses, questions, generatedBy, gatewaySearches, generatedEfforts, reasonings, generatedAts, editedAts, reasoning: undefined, restreaming: undefined, pendingApprovals: undefined, agentTrace: undefined, responseIndex: responses.length - 1, isLoading: false, tokenCount, generationFailed: failed || undefined, references, highlights: pruneHighlights(n.data.highlights, response), lastContextHash: contextHash, lastContextParts: contextParts, lastFeedback: Object.keys(feedbackRead).length > 0 ? feedbackRead : undefined, lastGeneratedAt: now } };
+        return { ...n, data: { ...n.data, response, responses, questions, generatedBy, gatewaySearches, generatedEfforts, reasonings, generatedAts, editedAts, reasoning: undefined, restreaming: undefined, pendingApprovals: undefined, agentTrace: undefined, responseIndex: responses.length - 1, isLoading: false, tokenCount, generationFailed: failed || undefined, references, highlights: pruneHighlights(n.data.highlights, response), lastContextHash: contextHash, lastContextParts: contextParts, lastFeedback: Object.keys(feedbackRead).length > 0 ? feedbackRead : undefined, lastGeneratedAt: now,
+          // the run this answer came from: its digests and what it was given, frozen
+          ...(envelope ? { lastRun: { runId: envelope.runId, inputDigest: envelope.inputDigest, executionDigest: envelope.executionDigest, graphRevision: envelope.graphRevision, inputs: envelope.inputs.map((i) => ({ inputId: i.inputId, snapshotId: i.snapshotId, contentHash: i.contentHash })), ...(imagesDropped ? { imagesDropped: true } : {}) } } : {}) } };
       }),
     }));
   };
@@ -318,6 +373,7 @@ export async function runNodeGeneration(
       if (messages[i].role === 'assistant') { insertAt = i + 1; break; }
     }
     messages = [...messages.slice(0, insertAt), memBlock, ...messages.slice(insertAt)];
+    sources.splice(insertAt, 0, { layer: 'system' });
   }
 
   // Recall (the node's 回忆 switch): the why layer's exact-word hits for this
@@ -342,8 +398,52 @@ export async function runNodeGeneration(
       let at = messages.length - 1;
       for (let i = messages.length - 1; i >= 0; i--) { if (messages[i].role === 'assistant') { at = i + 1; break; } }
       messages = [...messages.slice(0, at), block, ...messages.slice(at)];
+      sources.splice(at, 0, { layer: 'system' });
     }
   }
+
+  // The run, frozen and digested before anything leaves: one list of everything it is given (the
+  // envelope), which the request is checked against at the last moment. The files it reads were
+  // frozen by its entry before the context was built (freezeForRun); a run that cannot be given
+  // them as they are is not sent, and says why.
+  const toolPrefs = (() => {
+    // Search permissions live on the node (snapshotted at ask time);
+    // legacy nodes without flags follow the current shared defaults
+    const selfNow = get().nodes.find((n) => n.id === nodeId)?.data;
+    return {
+      web: selfNow?.webSearch ?? useUiStore.getState().webSearchEnabled,
+      scholar: selfNow?.scholarSearch ?? useUiStore.getState().scholarSearchEnabled,
+      mcp: useUiStore.getState().mcpEnabled,
+    };
+  })();
+  const prep = await import('../lib/context/prepare-run');
+  const frozen = frozenFor.get(nodeId);
+  frozenFor.delete(nodeId);
+  try {
+    const { useProjects } = await import('./projects');
+    envelope = await prep.prepareRun({
+      graphId: useProjects.getState().activeId ?? 'canvas',
+      targetNodeId: nodeId,
+      question,
+      mode: runTarget?.kind === 'agent' ? 'workspace' : 'research',
+      runtimeSelection: {
+        kind: runTarget?.kind ?? (isAgentModel(requestedModel) ? 'agent' : 'provider'),
+        runtime: runTarget?.runtime ?? null,
+        connectionRef: runTarget?.connectionRef ?? 'default',
+        model: pinnedModel ?? requestedModel ?? '',
+        effort: runEffort ?? null,
+        capabilityVersion: null,
+      },
+      tools: toolPrefs,
+      context: { messages, images: images ?? [], sources, imageSources: opts.imageSources ?? [] },
+      ...(frozen ? { frozen } : {}),
+    });
+  } catch (e) {
+    if (!isCurrent()) return;
+    markNotSent(set, get, nodeId, e instanceof prep.RunBlocked ? blockedText(get, e) : fmt(t('run.notPrepared'), { why: e instanceof Error ? e.message : String(e) }));
+    return;
+  }
+  if (!isCurrent()) return;
 
   try {
     // Context budget: browser-configured models carry their probed window.
@@ -419,7 +519,13 @@ export async function runNodeGeneration(
           : n)) }));
       }
     }, abortController.signal, images, {
-      onDispatch: (p) => { void commitDispatch(p).catch(() => undefined); },
+      onDispatch: (p) => {
+        // the last moment before it leaves: it must be the request prepared, nothing added on the way
+        const check = prep.verifyDispatch(envelope!, p);
+        if (!check.ok) throw new DispatchRefused(check.reason);
+        imagesDropped = check.imagesDropped;
+        void commitDispatch(p).catch(() => undefined);
+      },
       onToolCall: (name, query) => {
         if (!isCurrent()) return;
         if (harnessRoute) {
@@ -531,18 +637,9 @@ export async function runNodeGeneration(
       onReasoning: (_chunk, fullSoFar) => {
         pushStream({ reasoning: fullSoFar });
       },
-    }, (() => {
-      // Search permissions live on the node (snapshotted at ask time);
-      // legacy nodes without flags follow the current shared defaults
-      const selfData = get().nodes.find((n) => n.id === nodeId)?.data;
-      return {
-        web: selfData?.webSearch ?? useUiStore.getState().webSearchEnabled,
-        scholar: selfData?.scholarSearch ?? useUiStore.getState().scholarSearchEnabled,
-        mcp: useUiStore.getState().mcpEnabled,
-      };
-      // the model is named in the request, also when it came from the defaults: the task was just bound to it,
-      // and what answers must be what the task says it runs on, not whatever the server's default is by then
-    })(), pinnedModel ?? requestedModel, harnessRoute ?? (agentRoute ? { ...agentRoute, nodeId, ...(runEffort !== undefined ? { effort: runEffort } : {}) } : undefined));
+      // the tools are the ones the run was prepared with; the model is named in the request, also when it came from
+      // the defaults: the task was just bound to it, and what answers must be what the task says it runs on
+    }, toolPrefs, pinnedModel ?? requestedModel, harnessRoute ?? (agentRoute ? { ...agentRoute, nodeId, ...(runEffort !== undefined ? { effort: runEffort } : {}) } : undefined));
     flushStream();
     if (!isCurrent()) return; // superseded while finishing: drop everything
     activeAbortControllers.delete(nodeId);
@@ -587,6 +684,11 @@ export async function runNodeGeneration(
     triggerParadigmCascade(get, nodeId);
   } catch (err) {
     if (!isCurrent()) return; // superseded: the abort was ours to swallow
+    if (err instanceof DispatchRefused) {
+      // stopped before it left: nothing was asked, nothing is recorded as answered
+      markNotSent(set, get, nodeId, fmt(t('run.dispatchRefused'), { what: t(`run.dispatchPart.${err.part}`) }));
+      return;
+    }
     activeAbortControllers.delete(nodeId);
     const partial = get().nodes.find((n) => n.id === nodeId)?.data.response || '';
     const isAbort = err instanceof DOMException && err.name === 'AbortError';

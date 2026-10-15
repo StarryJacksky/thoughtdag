@@ -392,8 +392,15 @@ export function resolveExplicitRole(
 }
 
 // Replace any system message in-place with the given role (no-op if undefined).
-export function applyRoleOverride(messages: ContextMessage[], role: string | undefined): void {
+export function applyRoleOverride(messages: ContextMessage[], role: string | undefined, sources?: (MessageSource | undefined)[]): void {
   if (!role) return;
+  // the sources, when given, follow the messages: the run's envelope says where each one came from
+  if (sources) {
+    const kept = sources.filter((_s, i) => messages[i]?.role !== 'system');
+    kept.unshift({ layer: 'system', part: 'role' });
+    sources.length = 0;
+    sources.push(...kept);
+  }
   const filtered = messages.filter((m) => m.role !== 'system');
   filtered.unshift({ role: 'system', content: role });
   messages.length = 0;

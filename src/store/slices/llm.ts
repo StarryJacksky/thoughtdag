@@ -6,7 +6,7 @@ import { getDescendantIds, selectionSinks, walkUpAncestors } from '../../lib/gra
 import { COLORS } from '../../lib/constants';
 import type { ContextMessage, ImageAttachment } from '../../lib/api';
 import { buildContext, resolveExplicitRole, applyRoleOverride, type MessageSource } from '../context-builder';
-import { activeAbortControllers, autoRunCounts, runNodeGeneration, triggerParadigmCascade } from '../streaming';
+import { activeAbortControllers, autoRunCounts, freezeForRun, runNodeGeneration, triggerParadigmCascade } from '../streaming';
 import { useUiStore, toast, recallSnapshot } from '../../lib/ui-store';
 // the stale set a request carries is the one the preview shows: the fingerprint's minus the judge's dismissals (#51)
 import { shownStaleIds } from '../../lib/stale-judge';
@@ -151,15 +151,17 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
 
     // a question asked starts a round: feedback lines into what it reads move to their latest finished answers
     get().advanceFeedback(id);
+    // the files it reads are saved and frozen before its context is built (lib/context/prepare-run)
+    if (!(await freezeForRun(set, get, id))) return;
     // Build full context from ancestors + explicit role for the new node
     const selfNode = get().nodes.find((n) => n.id === id);
     const ctx = parentId
       ? buildContext(parentId, get().nodes, get().edges, branchContext, selfNode?.data.excludedAttachmentIds, selfNode?.data.includedAttachmentIds, shownStaleIds(get()))
-      : { messages: [] as ContextMessage[], images: [] as ImageAttachment[], sources: [] as MessageSource[] };
+      : { messages: [] as ContextMessage[], images: [] as ImageAttachment[], sources: [] as MessageSource[], imageSources: [] as { nodeId: string; attachmentId: string }[] };
     const contextMessages = ctx.messages;
     const contextImages = ctx.images;
     const parentNode = parentId ? get().nodes.find((n) => n.id === parentId) : null;
-    applyRoleOverride(contextMessages, resolveExplicitRole(selfNode?.data, parentNode?.data, !!parentId));
+    applyRoleOverride(contextMessages, resolveExplicitRole(selfNode?.data, parentNode?.data, !!parentId), ctx.sources);
 
     // Collect this node's own attachments (skip if same file already from ancestors)
     const selfAttachments = selfNode?.data.attachments || [];
@@ -192,7 +194,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
       ),
     }));
 
-    await runNodeGeneration(set, get, id, { question, messages: contextMessages, images: contextImages, sources: ctx.sources });
+    await runNodeGeneration(set, get, id, { question, messages: contextMessages, images: contextImages, sources: ctx.sources, imageSources: ctx.imageSources });
   },
 
   /**
@@ -428,8 +430,9 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
         } } : n
       ),
     }));
-    // asking again starts a round (lib/feedback)
+    // asking again starts a round (lib/feedback); the files it reads are frozen before its context is built
     get().advanceFeedback(nodeId);
+    if (!(await freezeForRun(set, get, nodeId))) return;
     // Rebuild context with this node's own Q&A blanked out
     const editNode = get().nodes.find((n) => n.id === nodeId);
     const editCtx = buildContext(nodeId, get().nodes.map(n =>
@@ -443,7 +446,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     // Append, never replace: the old (question, answer) pairs stay switchable
     // — an edited question must not orphan or erase the versions written
     // against the old wording.
-    await runNodeGeneration(set, get, nodeId, { question, messages: contextMessages, images: editCtx.images, versionMode: 'append', sources: editCtx.sources });
+    await runNodeGeneration(set, get, nodeId, { question, messages: contextMessages, images: editCtx.images, versionMode: 'append', sources: editCtx.sources, imageSources: editCtx.imageSources });
   },
 
   regenerate: async (nodeId: string) => {
@@ -497,6 +500,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     // the context is built the way a rerun in place builds it, from the sibling with its own question and answer
     // left out: ancestors, material, references, roles and attachments resolve as they do for the original
     get().advanceFeedback(id); // a sibling asked starts a round (lib/feedback)
+    if (!(await freezeForRun(set, get, id))) return; // its files frozen before its context is built
     const regenSelf = get().nodes.find((n) => n.id === id);
     const regenCtx = buildContext(
       id,
@@ -513,7 +517,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     contextMessages.push({ role: 'user', content: node.data.question });
     set((state) => ({ nodes: state.nodes.map((n) => n.id === id ? { ...n, data: { ...n.data, appliedRole } } : n) }));
 
-    await runNodeGeneration(set, get, id, { question: node.data.question, messages: contextMessages, images: regenCtx.images, sources: regenCtx.sources });
+    await runNodeGeneration(set, get, id, { question: node.data.question, messages: contextMessages, images: regenCtx.images, sources: regenCtx.sources, imageSources: regenCtx.imageSources });
   },
 
   batchMergeSummarize: async (nodeIds: string[], deleteAfter?: boolean, intent?: string) => {

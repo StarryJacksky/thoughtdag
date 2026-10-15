@@ -148,6 +148,8 @@ export function semanticSnapshot(nodes: ThoughtNode[], edges: ThoughtEdge[]): un
       isCrossLink: e.data?.isCrossLink || undefined,
       isWatch: e.data?.isWatch || undefined,
       contextDepth: (e.data as { contextDepth?: string } | undefined)?.contextDepth,
+      // a feedback line reads the answer it holds: which one is part of what the canvas says
+      feedback: e.data?.feedback ? { version: e.data.feedback.version } : undefined,
     }));
   return { nodes: nodePart, edges: edgePart };
 }

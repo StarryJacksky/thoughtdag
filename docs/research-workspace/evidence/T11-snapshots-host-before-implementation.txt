@@ -1,0 +1,107 @@
+# node --test tests/host/snapshots.test.cjs at 29a2519, before snapshots exist
+TAP version 13
+# Subtest: a file frozen for a run is kept as it was, and is read back as it was after the file changes
+not ok 1 - a file frozen for a run is kept as it was, and is read back as it was after the file changes
+  ---
+  duration_ms: 25.500208
+  type: 'test'
+  location: '<repo>/tests/host/snapshots.test.cjs:27:1'
+  failureType: 'testCodeFailure'
+  error: 'door[channel] is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    ask (<repo>/tests/host/snapshots.test.cjs:22:65)
+    TestContext.<anonymous> (<repo>/tests/host/snapshots.test.cjs:30:24)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: the same content frozen twice is one snapshot; other content is another
+not ok 2 - the same content frozen twice is one snapshot; other content is another
+  ---
+  duration_ms: 17.484042
+  type: 'test'
+  location: '<repo>/tests/host/snapshots.test.cjs:44:1'
+  failureType: 'testCodeFailure'
+  error: 'door[channel] is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    ask (<repo>/tests/host/snapshots.test.cjs:22:65)
+    TestContext.<anonymous> (<repo>/tests/host/snapshots.test.cjs:47:21)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a binary file is frozen as its bytes
+not ok 3 - a binary file is frozen as its bytes
+  ---
+  duration_ms: 12.768375
+  type: 'test'
+  location: '<repo>/tests/host/snapshots.test.cjs:57:1'
+  failureType: 'testCodeFailure'
+  error: 'door[channel] is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    ask (<repo>/tests/host/snapshots.test.cjs:22:65)
+    TestContext.<anonymous> (<repo>/tests/host/snapshots.test.cjs:62:24)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a snapshot that does not hash to its name is not read; one that is not there is not either
+not ok 4 - a snapshot that does not hash to its name is not read; one that is not there is not either
+  ---
+  duration_ms: 17.019542
+  type: 'test'
+  location: '<repo>/tests/host/snapshots.test.cjs:69:1'
+  failureType: 'testCodeFailure'
+  error: 'door[channel] is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    ask (<repo>/tests/host/snapshots.test.cjs:22:65)
+    TestContext.<anonymous> (<repo>/tests/host/snapshots.test.cjs:72:24)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a lost file cannot be frozen, nor one too large to send to the page
+not ok 5 - a lost file cannot be frozen, nor one too large to send to the page
+  ---
+  duration_ms: 22.025
+  type: 'test'
+  location: '<repo>/tests/host/snapshots.test.cjs:81:1'
+  failureType: 'testCodeFailure'
+  error: 'door[channel] is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    ask (<repo>/tests/host/snapshots.test.cjs:22:65)
+    TestContext.<anonymous> (<repo>/tests/host/snapshots.test.cjs:86:24)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a snapshot is written whole: the name it is read by is only ever given to complete content
+not ok 6 - a snapshot is written whole: the name it is read by is only ever given to complete content
+  ---
+  duration_ms: 17.110083
+  type: 'test'
+  location: '<repo>/tests/host/snapshots.test.cjs:92:1'
+  failureType: 'testCodeFailure'
+  error: 'door[channel] is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    ask (<repo>/tests/host/snapshots.test.cjs:22:65)
+    TestContext.<anonymous> (<repo>/tests/host/snapshots.test.cjs:95:24)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 0
+# fail 6
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 180.636834

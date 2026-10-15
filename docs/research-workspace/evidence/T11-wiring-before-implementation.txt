@@ -1,0 +1,140 @@
+# npx vitest run tests/unit/run-envelope-wiring.test.ts at 29a2519 with prepareRun written, before it is wired into the runs
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/run-envelope-wiring.test.ts (4 tests | 4 failed) 204ms
+   ❯ a run, frozen before it is sent (4)
+     × [T11] saves what is typed into a file the task reads, freezes it, sends that, and the answer names the run it came from 11ms
+     × [T11] is not sent when a file it reads is lost: the task says why, and no answer is recorded 64ms
+     × [T11] is not sent, asked below a task, when the file it reads is in conflict with what is typed into it 122ms
+     × [T11] to a model through its API sends exactly the envelope's messages 5ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/run-envelope-wiring.test.ts > a run, frozen before it is sent > [T11] saves what is typed into a file the task reads, freezes it, sends that, and the answer names the run it came from
+AssertionError: expected [] to deeply equal [ 'saveText', 'freezeFile' ]
+
+- Expected
++ Received
+
+- [
+-   "saveText",
+-   "freezeFile",
+- ]
++ []
+
+ ❯ tests/unit/run-envelope-wiring.test.ts:72:31
+     70|     await useStore.getState().rerunNode(t);
+     71|     const order = calls().filter((c) => c === 'saveText' || c === 'fre…
+     72|     expect(order.slice(0, 2)).toEqual(['saveText', 'freezeFile']);
+       |                               ^
+     73|     expect(everythingSent()).toContain('TYPED_AND_NOT_SAVED_YET');
+     74|     expect(everythingSent()).not.toContain('SAVED_BEFORE');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  tests/unit/run-envelope-wiring.test.ts > a run, frozen before it is sent > [T11] is not sent when a file it reads is lost: the task says why, and no answer is recorded
+AssertionError: expected [ { runtime: 'codex', …(4) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "cwd": "/synthetic/project",
++     "images": [],
++     "model": {
++       "id": "gpt-synthetic",
++       "provider": "codex",
++     },
++     "prompt": "[ThoughtDAG canvas context] The question that follows was asked from a ThoughtDAG canvas. Treat the material below as the conversation so far; answer the question at the end.
++
++ The conversation the canvas wired into this question, oldest first:
++
++ [user]
++ [File: a.md]
++ A
++
++ The canvas's materials are also on disk, readable with your tools, under /synthetic/project/.thoughtdag/materials:
++ - a.md
++
++ ---
++
++ What does it say?",
++     "runtime": "codex",
++   },
++ ]
+
+ ❯ tests/unit/run-envelope-wiring.test.ts:89:26
+     87|     await useStore.getState().rerunNode(t);
+     88|     for (let i = 0; i < 5; i++) await settled();
+     89|     expect(desktop.runs).toEqual([]);
+       |                          ^
+     90|     expect(node(t).data.responses).toEqual(['an earlier answer']);
+     91|     expect(node(t).data.isLoading).toBe(false);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  tests/unit/run-envelope-wiring.test.ts > a run, frozen before it is sent > [T11] is not sent, asked below a task, when the file it reads is in conflict with what is typed into it
+AssertionError: expected [ { runtime: 'codex', …(4) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "cwd": "/synthetic/project",
++     "images": [],
++     "model": {
++       "id": "gpt-synthetic",
++       "provider": "codex",
++     },
++     "prompt": "[ThoughtDAG canvas context] The question that follows was asked from a ThoughtDAG canvas. Treat the material below as the conversation so far; answer the question at the end.
++
++ The conversation the canvas wired into this question, oldest first:
++
++ [user]
++ [File: a.md]
++ A
++
++ [user]
++ What does it say?
++
++ [assistant]
++ an earlier answer
++
++ The canvas's materials are also on disk, readable with your tools, under /synthetic/project/.thoughtdag/materials:
++ - a.md
++
++ ---
++
++ FOLLOW_UP: and then?",
++     "runtime": "codex",
++   },
++ ]
+
+ ❯ tests/unit/run-envelope-wiring.test.ts:108:26
+    106|     await useStore.getState().addQuestion('FOLLOW_UP: and then?', { pa…
+    107|     for (let i = 0; i < 5; i++) await settled();
+    108|     expect(desktop.runs).toEqual([]);
+       |                          ^
+    109|     const asked = useStore.getState().nodes.find((n) => n.data.questio…
+    110|     expect(asked.data.isLoading).toBe(false);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  tests/unit/run-envelope-wiring.test.ts > a run, frozen before it is sent > [T11] to a model through its API sends exactly the envelope's messages
+TypeError: Cannot read properties of undefined (reading 'inputDigest')
+ ❯ tests/unit/run-envelope-wiring.test.ts:134:25
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed (4)
+   Start at  00:53:24
+   Duration  995ms (environment 38%, transform 33%, tests 22%, import 5%, setup 1%)
+

@@ -9,7 +9,8 @@ import type { ResourceRef, ResourceSelector } from '../workspace/contracts';
 import { freezeFile, reconcileFile, WorkspaceError } from '../workspace/client';
 import { documents } from '../documents/document-service';
 import type { ResolvedInput } from './contracts';
-import { digestOf } from './canonicalize';
+import { digestOf, hashText } from './canonicalize';
+import { isMindMap, meaningOf } from './meaning';
 
 export type BlockReason = 'lost' | 'conflict' | 'not-saved' | 'selection-ambiguous' | 'selection-lost' | 'too-large' | 'copy-out-of-date' | 'unavailable' | 'policy' | 'inputs-too-large';
 
@@ -33,6 +34,10 @@ export interface ResolvedResource {
   input: ResolvedInput;
   text: string | null;
   bytes: Uint8Array | null;
+  /** the workspace the file is in: where the run's record is kept */
+  workspaceId: string;
+  /** for a whole mind map, the hash of what it says without its layout (lib/context/meaning) */
+  semanticHash?: string;
 }
 
 /**
@@ -120,5 +125,6 @@ export async function resolveRef(ref: ResourceRef, { nodeId = null, reason, disp
     size: { bytes: given.byteLength, ...(text !== null ? { textChars: text.length } : {}) },
     reason,
   };
-  return { input, text, bytes: fileBytes };
+  const mindMap = ref.selector.kind === 'document' && fileText !== null && (isMindMap(record.mediaType) || isMindMap(record.relativePath));
+  return { input, text, bytes: fileBytes, workspaceId: record.workspaceId, ...(mindMap ? { semanticHash: await hashText(meaningOf(fileText)) } : {}) };
 }

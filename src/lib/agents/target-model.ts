@@ -23,6 +23,16 @@ export const RESEARCH_POLICY = 'research';
 export type RunMode = 'research' | 'workspace';
 export const runModeOf = (target: Pick<ExecutionTarget, 'policyId'> | undefined): RunMode => (target?.policyId === RESEARCH_POLICY ? 'research' : 'workspace');
 
+/**
+ * Whether a task's runs may change files: an agent at work runs in its folder with tools that write.
+ * Such a run is never set off on its own (by a replay, by an automatic rerun when something upstream
+ * changed): the person starts it, having seen what it is to write.
+ */
+export function writesFiles(task: { target?: ExecutionTarget; model?: string }): boolean {
+  if (task.target) return task.target.kind === 'agent' && runModeOf(task.target) === 'workspace';
+  return !!task.model && runtimeOf(task.model) !== null;
+}
+
 /** What of a target makes it the AI it is: two targets with the same settings are the same revision. */
 const settingsOf = (t: ExecutionTarget) => [t.kind, t.runtime, t.connectionRef, t.model, t.effort, t.roleRef, t.memoryPolicyId, t.policyId, t.workspaceId, t.budgetId];
 function revisionOf(target: ExecutionTarget): string {

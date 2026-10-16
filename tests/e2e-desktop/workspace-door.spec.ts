@@ -147,6 +147,28 @@ test.describe.serial('the workspace door in the desktop shell', () => {
     fs.writeFileSync(path.join(project, 'readme.md'), 'TOP_NOTE_J6');
   });
 
+  test('[T13] a run\'s record is kept in the folder beside its snapshots, and checked against them', async () => {
+    const listed = await settle(`window.desktopWorkspace.listChildren(${json(workspaceId)})`) as { value: { name: string; entryId: string }[] };
+    const readme = listed.value.find((e) => e.name === 'readme.md')!;
+    const { value: record } = await settle(`window.desktopWorkspace.registerEntry(${json(workspaceId)}, ${json(readme.entryId)})`) as { value: { fileId: string } };
+    const { value: frozen } = await settle(`window.desktopWorkspace.freezeFile(${json(record.fileId)})`) as { value: { snapshotId: string; contentHash: string } };
+    const run = {
+      schemaVersion: '1', runId: 'run_desktop_record', graphId: 'canvas-1', taskNodeId: 'n1', targetId: 'target_1', targetRevision: 'rev_1',
+      inputDigest: 'sha256:' + 'a'.repeat(64), executionDigest: 'sha256:' + 'b'.repeat(64), graphRevision: 'sha256:' + 'c'.repeat(64),
+      runtime: { kind: 'provider', runtime: null, connectionRef: 'p', model: 'p/m', effort: null, capabilityVersion: null },
+      inputs: [{ inputId: 'in_readme', fileId: record.fileId, snapshotId: frozen.snapshotId, contentHash: frozen.contentHash }],
+      nativeBinding: null, output: null, state: 'prepared', preparedAt: '2026-10-16T00:00:00.000Z', endedAt: null,
+    };
+    const written = await settle(`window.desktopWorkspace.recordRun(${json(workspaceId)}, ${json(run)})`);
+    expect(written.ok, json(written)).toBe(true);
+    expect(JSON.parse(fs.readFileSync(path.join(project, '.thoughtdag', 'runs', 'run_desktop_record', 'record.json'), 'utf8'))).toEqual(run);
+    const report = await settle(`window.desktopWorkspace.reconcileRuns(${json(workspaceId)})`) as { ok: true; value: { runs: { runId: string; state: string; missing: string[] }[] } };
+    expect(report.value.runs.find((r) => r.runId === 'run_desktop_record')).toMatchObject({ state: 'unknown', missing: [] });
+    const refused = await settle(`window.desktopWorkspace.recordRun(${json(workspaceId)}, ${json({ ...run, runId: '../x' })})`);
+    expect(refused).toMatchObject({ ok: false });
+    expect((refused as { message: string }).message).toContain('invalid-request');
+  });
+
   test('a path that climbs out is refused by the shell, with a code and no path in the message', async () => {
     const forged = 'e_' + Buffer.from('../outside.txt').toString('base64url');
     const result = await settle(`window.desktopWorkspace.registerEntry(${json(workspaceId)}, ${json(forged)})`);

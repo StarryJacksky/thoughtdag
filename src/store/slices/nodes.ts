@@ -6,7 +6,8 @@ import { COLORS } from '../../lib/constants';
 import { healLegacyNoteEdges, autoLayout, estimateNodeHeight, nodeHeight } from '../../lib/layout';
 import { getDescendantIds, walkUpAncestors } from '../../lib/graph';
 import { closesLoop, latestFinished } from '../../lib/feedback';
-import { referenceBlockContent, upstreamFingerprint, buildContext } from '../context-builder';
+import { referenceBlockContent, buildContext } from '../context-builder';
+import { detectStale, staleKeyOf, type StaleReason } from '../../lib/context/staleness';
 import { pruneHighlights } from '../../lib/highlight-match';
 import { toast } from '../../lib/ui-store';
 import { t, fmt } from '../../i18n';
@@ -267,27 +268,28 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
   staleIds: [],
   staleFps: {},
   staleVerdicts: {},
+  staleReasons: {},
   setStaleVerdicts: (verdicts) => set((s) => ({ staleVerdicts: { ...s.staleVerdicts, ...verdicts } })),
 
-  // A node is stale when the live fingerprint of everything it depended on
+  // A node is stale when something it was given has changed since its answer
+  // was written (lib/context/staleness): a file its run read holds something
+  // else or is lost, or the fingerprint of everything else it depended on
   // (materials, references, ancestor turns) no longer matches the one
-  // recorded when its answer was generated. Nodes generated before
-  // provenance recording (no lastContextHash) are never flagged — honest:
-  // unknown provenance, not known-stale. Re-running a node re-records.
+  // recorded then. A rename, a card moved or folded, a mind map's nodes moved
+  // about mark nothing. Nodes generated before provenance recording (no
+  // lastContextHash, no run) are never flagged — honest: unknown provenance,
+  // not known-stale. Re-running a node re-records.
   recomputeStaleness: () => {
     const { nodes, edges } = get();
-    const stale: string[] = [];
+    const reasons: Record<string, StaleReason[]> = {};
+    for (const r of detectStale({ nodes, edges })) (reasons[r.nodeId] ??= []).push(r);
+    const stale = nodes.filter((n) => reasons[n.id]).map((n) => n.id);
     const fps: Record<string, string> = {};
-    for (const n of nodes) {
-      if (!n.data.lastContextHash || !n.data.response) continue;
-      if (['note', 'file', 'link', 'frame'].includes(n.data.stepKind ?? '')) continue;
-      const fp = upstreamFingerprint(n.id, nodes, edges);
-      if (fp !== n.data.lastContextHash) { stale.push(n.id); fps[n.id] = fp; }
-    }
+    for (const id of stale) fps[id] = staleKeyOf(nodes.find((n) => n.id === id)!, nodes, edges, reasons[id]);
     const prevFps = get().staleFps;
     const prev = get().staleIds;
     if (prev.length === stale.length && prev.every((id, i) => id === stale[i] && prevFps[id] === fps[id])) return;
-    set({ staleIds: stale, staleFps: fps });
+    set({ staleIds: stale, staleFps: fps, staleReasons: reasons });
     // with a judge, each newly stale node is asked about: does the change matter?
     if (stale.length) void import('../../lib/stale-judge').then((m) => m.judgeStaleness()).catch(() => undefined);
   },
@@ -461,6 +463,9 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
             reasonings: n.data.reasonings?.filter((_, i) => i !== versionIndex),
             generatedAts: n.data.generatedAts?.filter((_, i) => i !== versionIndex),
             editedAts: n.data.editedAts?.filter((_, i) => i !== versionIndex),
+            generatedEfforts: n.data.generatedEfforts?.filter((_, i) => i !== versionIndex),
+            gatewaySearches: n.data.gatewaySearches?.filter((_, i) => i !== versionIndex),
+            runs: n.data.runs?.filter((_, i) => i !== versionIndex),
             highlights: pruneHighlights(n.data.highlights, newResponses[newIndex]),
           },
         };

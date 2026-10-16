@@ -288,6 +288,13 @@ interface DesktopWorkspaceBridge {
   freezeFile(fileId: string): Promise<import('./lib/workspace/contracts').SourceRead & { snapshotId: string | null }>;
   /** What a snapshot of a workspace holds. */
   readSnapshot(workspaceId: string, snapshotId: string): Promise<import('./lib/workspace/contracts').SourceRead>;
+  /** a run's record, written in a workspace whose files it read (runtime/execution/run-records.cjs) */
+  recordRun(workspaceId: string, record: unknown): Promise<null>;
+  readRuns(workspaceId: string): Promise<{ runId: string; state: string }[]>;
+  /** the run records checked against the snapshots they name */
+  reconcileRuns(workspaceId: string): Promise<{ runs: { runId: string; state: string; recorded: string; missing: string[]; damaged: string[] }[]; unreadable: string[] }>;
+  /** snapshots no run record names, removed once old enough (an hour at least) */
+  collectSnapshots(workspaceId: string, options?: { graceMs?: number }): Promise<{ removed: string[]; refused: string | null }>;
   /** a file's content to be looked at (a PDF, an image): like readSource, with a larger limit */
   readView(fileId: string): Promise<import('./lib/workspace/contracts').SourceRead>;
   /** what the source of a workspace supports: what to offer is decided from this, never from the kind of source */

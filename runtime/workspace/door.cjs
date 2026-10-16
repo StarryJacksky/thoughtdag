@@ -136,6 +136,27 @@ function createWorkspaceDoor({ service, providers, canvasFolder, showInFileManag
       return extra(provider, 'readSnapshot')(scope, snapshotId);
     },
 
+    /** A run's record, written in a workspace whose files it read. What is not a run record is refused by the store. */
+    'workspace:record-run': async (_context, workspaceId, record) => {
+      const { scope, provider } = await ofWorkspace(workspaceId, 'update');
+      return extra(provider, 'recordRun')(scope, record);
+    },
+    'workspace:read-runs': async (_context, workspaceId) => {
+      const { scope, provider } = await ofWorkspace(workspaceId, 'read');
+      return extra(provider, 'readRuns')(scope);
+    },
+    /** The run records checked against the snapshots they name. */
+    'workspace:reconcile-runs': async (_context, workspaceId) => {
+      const { scope, provider } = await ofWorkspace(workspaceId, 'read');
+      return extra(provider, 'reconcileRuns')(scope);
+    },
+    /** Snapshots no run record names, removed once old enough: the page may ask for a longer grace, never a shorter one. */
+    'workspace:collect-snapshots': async (_context, workspaceId, options) => {
+      const { scope, provider } = await ofWorkspace(workspaceId, 'update');
+      const graceMs = Number(options && typeof options === 'object' ? options.graceMs : NaN);
+      return extra(provider, 'collectSnapshots')(scope, Number.isFinite(graceMs) ? { graceMs } : {});
+    },
+
     /** A file's text and the revision a later save must name. */
     'workspace:read-text': async (_context, fileId) => {
       const { scope, provider } = await ofFile(fileId, 'read');

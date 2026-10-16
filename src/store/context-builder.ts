@@ -5,6 +5,7 @@ import { attachmentFingerprint } from '../lib/attachments';
 import { countTokens } from '../utils';
 import { fuzzyHighlightRegex } from '../lib/highlight-match';
 import type { ContextMessage, ImageAttachment } from '../lib/api';
+import { isMindMap, meaningOf } from '../lib/context/meaning';
 
 // Build the prompt from the layered context partition (lib/graph.ts).
 // The order rule, in one sentence: materials → reference blocks → the live
@@ -113,7 +114,18 @@ export function upstreamFingerprint(nodeId: string, nodes: ThoughtNode[], edges:
   // collapse state and auto-generated summaries are normalized away, so a
   // background summary arriving (or a card being folded) never fakes an
   // "upstream changed" signal downstream.
-  const normalized = nodes.map((n) => ({
+  const { messages } = buildContext(nodeId, normalizedFor(nodeId, nodes), edges);
+  return hashContext(messages);
+}
+
+/**
+ * The canvas as a fingerprint sees it: content and structure, with the
+ * compression view (folds, summaries) and the node's own question and answer
+ * left out, and a mind map read for what it says, its layout left out
+ * (lib/context/meaning): moving a map's nodes about changes nothing it said.
+ */
+function normalizedFor(nodeId: string, nodes: ThoughtNode[]): ThoughtNode[] {
+  return nodes.map((n) => ({
     ...n,
     data: {
       ...n.data,
@@ -122,11 +134,10 @@ export function upstreamFingerprint(nodeId: string, nodes: ThoughtNode[], edges:
       summaries: undefined,
       summaryTypes: undefined,
       generatedBy: undefined,
+      ...(n.data.resourceRef && isMindMap(n.data.resourceHint?.name) ? { attachments: (n.data.attachments ?? []).map((a) => ({ ...a, content: meaningOf(a.content ?? '') })) } : {}),
       ...(n.id === nodeId ? { question: '', response: '', attachments: [] } : {}),
     },
   }));
-  const { messages } = buildContext(nodeId, normalized, edges);
-  return hashContext(messages);
 }
 
 export interface UpstreamPart { h: string; head: string; text: string }
@@ -135,11 +146,7 @@ const djb2 = (s: string): string => { let h = 5381; for (let i = 0; i < s.length
  *  an opening excerpt and the full text: recorded (without the text) at
  *  generation time, compared later so a judge can weigh the change. */
 export function upstreamParts(nodeId: string, nodes: ThoughtNode[], edges: ThoughtEdge[]): Record<string, UpstreamPart> {
-  const normalized = nodes.map((n) => ({
-    ...n,
-    data: { ...n.data, isCollapsed: false, summary: undefined, summaries: undefined, summaryTypes: undefined, generatedBy: undefined, ...(n.id === nodeId ? { question: '', response: '', attachments: [] } : {}) },
-  }));
-  const { messages, sources } = buildContext(nodeId, normalized, edges);
+  const { messages, sources } = buildContext(nodeId, normalizedFor(nodeId, nodes), edges);
   const byNode = new Map<string, string[]>();
   messages.forEach((m, i) => {
     const uid = sources?.[i]?.nodeId;

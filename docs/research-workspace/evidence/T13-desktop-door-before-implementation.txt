@@ -1,0 +1,44 @@
+# npx playwright test -c playwright.desktop.config.ts tests/e2e-desktop/workspace-door.spec.ts at ca81890, before T13: the spec copied in, the app built from that commit
+
+Running 12 tests using 1 worker
+
+  ✓   1 tests/e2e-desktop/workspace-door.spec.ts:93:3 › the workspace door in the desktop shell › a chosen folder opens as a workspace, lists without its own records, and names no path (20ms)
+  ✓   2 tests/e2e-desktop/workspace-door.spec.ts:108:3 › the workspace door in the desktop shell › a file gets its identity through the bridge, and the registry lands in the folder (10ms)
+  ✓   3 tests/e2e-desktop/workspace-door.spec.ts:119:3 › the workspace door in the desktop shell › [T12] an agent's inputs are written from the snapshot the run names, not from the file as it is now (20ms)
+  ✘   4 tests/e2e-desktop/workspace-door.spec.ts:150:3 › the workspace door in the desktop shell › [T13] a run's record is kept in the folder beside its snapshots, and checked against them (5ms)
+  -   5 tests/e2e-desktop/workspace-door.spec.ts:172:3 › the workspace door in the desktop shell › a path that climbs out is refused by the shell, with a code and no path in the message
+  -   6 tests/e2e-desktop/workspace-door.spec.ts:181:3 › the workspace door in the desktop shell › a frame inside the page is not given the bridge
+  -   7 tests/e2e-desktop/workspace-door.spec.ts:193:3 › the workspace door in the desktop shell › the older bridges answer the app itself
+  -   8 tests/e2e-desktop/workspace-door.spec.ts:200:3 › the workspace door in the desktop shell › the window does not leave the app for another local page
+  -   9 tests/e2e-desktop/workspace-door.spec.ts:220:3 › the workspace door in the desktop shell › the window still moves within the app
+  -  10 tests/e2e-desktop/workspace-door.spec.ts:231:3 › the workspace door in the desktop shell › a link that opens a new window reaches the system only as a web or mail link
+  -  11 tests/e2e-desktop/workspace-door.spec.ts:281:3 › the workspace door in the desktop shell › another page shown in the app window has the bridge and is refused at the door
+  -  12 tests/e2e-desktop/workspace-door.spec.ts:296:3 › the workspace door in the desktop shell › the older bridges refuse a page that is not the app
+
+
+  1) tests/e2e-desktop/workspace-door.spec.ts:150:3 › the workspace door in the desktop shell › [T13] a run's record is kept in the folder beside its snapshots, and checked against them 
+
+    Error: {"ok":false,"message":"window.desktopWorkspace.recordRun is not a function"}
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      161 |     };
+      162 |     const written = await settle(`window.desktopWorkspace.recordRun(${json(workspaceId)}, ${json(run)})`);
+    > 163 |     expect(written.ok, json(written)).toBe(true);
+          |                                       ^
+      164 |     expect(JSON.parse(fs.readFileSync(path.join(project, '.thoughtdag', 'runs', 'run_desktop_record', 'record.json'), 'utf8'))).toEqual(run);
+      165 |     const report = await settle(`window.desktopWorkspace.reconcileRuns(${json(workspaceId)})`) as { ok: true; value: { runs: { runId: string; state: string; missing: string[] }[] } };
+      166 |     expect(report.value.runs.find((r) => r.runId === 'run_desktop_record')).toMatchObject({ state: 'unknown', missing: [] });
+        at <repo>/tests/e2e-desktop/workspace-door.spec.ts:163:39
+
+    Error Context: test-results/workspace-door-the-workspa-0d61e-ts-and-checked-against-them/error-context.md
+
+    Error Context: test-results/workspace-door-the-workspa-0d61e-ts-and-checked-against-them/error-context.md
+
+  1 failed
+    tests/e2e-desktop/workspace-door.spec.ts:150:3 › the workspace door in the desktop shell › [T13] a run's record is kept in the folder beside its snapshots, and checked against them 
+  8 did not run
+  3 passed (1.0s)

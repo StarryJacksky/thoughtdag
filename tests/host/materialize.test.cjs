@@ -119,6 +119,16 @@ test('[T12] a name an input gives cannot place it outside the run directory', as
   }
 });
 
+test('[T13] a run directory that holds the run\'s own record is written into beside it', async () => {
+  const { readSnapshotOfFile } = await withSnapshots({});
+  const dir = runDir();
+  fs.writeFileSync(path.join(dir, 'record.json'), '{}');
+  const bytes = Buffer.from('X');
+  const receipt = await materialize({ runId: 'run_1', inputs: [nodeInput('in_1', 'a.txt', bytes)] }, dir, { readSnapshotOfFile, provided: { in_1: bytes.toString('base64') } });
+  assert.deepEqual(fs.readdirSync(dir).sort(), ['materials', 'record.json']);
+  assert.equal(receipt.entries.length, 1);
+});
+
 test('[T12] a run directory that already holds something is not written into', async () => {
   const { readSnapshotOfFile } = await withSnapshots({});
   const dir = runDir();
@@ -213,13 +223,18 @@ test('[T12] old run directories go beyond the newest ones kept, except one somet
   const bytes = Buffer.from('X');
   for (let i = 0; i < 5; i++) {
     await materialize({ runId: `run_${i}`, inputs: [nodeInput('in_1', 'a.txt', bytes)] }, path.join(runs, `run_${i}`), { provided: { in_1: bytes.toString('base64') } });
-    const at = new Date(Date.UTC(2026, 9, 16, 0, i));
-    fs.utimesSync(path.join(runs, `run_${i}`), at, at);
   }
   fs.chmodSync(path.join(runs, 'run_1', 'materials'), 0o755);
   fs.writeFileSync(path.join(runs, 'run_1', 'materials', 'agent-wrote-this.txt'), 'x');
   fs.mkdirSync(path.join(runs, 'not-a-run'));
+  // a run's record beside its materials stays when the materials go
+  fs.writeFileSync(path.join(runs, 'run_2', 'record.json'), '{}');
+  for (let i = 0; i < 5; i++) {
+    const at = new Date(Date.UTC(2026, 9, 16, 0, i));
+    fs.utimesSync(path.join(runs, `run_${i}`, 'materials'), at, at);
+  }
   const removed = await pruneRuns(runs, { keep: 2 });
   assert.deepEqual(removed.sort(), ['run_0', 'run_2']);
-  assert.deepEqual(fs.readdirSync(runs).sort(), ['not-a-run', 'run_1', 'run_3', 'run_4']);
+  assert.deepEqual(fs.readdirSync(runs).sort(), ['not-a-run', 'run_1', 'run_2', 'run_3', 'run_4']);
+  assert.deepEqual(fs.readdirSync(path.join(runs, 'run_2')), ['record.json']);
 });

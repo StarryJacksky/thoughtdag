@@ -49,8 +49,13 @@ export interface FakeWorkspace {
   /** the runs started, oldest first; and the ones stopped */
   runs: { runId: string; fileId: string }[];
   stopped: string[];
+  /** every run record written, oldest first, with the workspace it was written to */
+  runRecords: { workspaceId: string; record: RunRecordDTO }[];
   uninstall(): void;
 }
+
+/** A run record as the shell keeps it (runtime/execution/run-records.cjs). */
+type RunRecordDTO = { runId: string; state: string; inputs: { inputId: string; fileId?: string; snapshotId: string; contentHash: string }[]; output: { versionIndex: number; chars: number } | null; inputDigest: string; [key: string]: unknown };
 
 // The page listens to the door once for its whole life (src/lib/workspace/events.ts),
 // so the listener outlives any one install, as it does with the real shell.
@@ -78,6 +83,12 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
   const versions = new Map<string, string[]>();
   // what was frozen for runs, by snapshot id: the content as it was then
   const snapshots = new Map<string, { content: string; bytes: Uint8Array | null; contentHash: string }>();
+  const runRecords: { workspaceId: string; record: RunRecordDTO }[] = [];
+  const latestRecords = (workspace_: string) => {
+    const latest = new Map<string, RunRecordDTO>();
+    for (const r of runRecords) if (r.workspaceId === workspace_) latest.set(r.record.runId, r.record);
+    return [...latest.values()];
+  };
   const drafts = new Map<string, DocumentDraft>();
   const runs: { runId: string; fileId: string }[] = [];
   const stopped: string[] = [];
@@ -215,6 +226,17 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
         ? { fileId: '', snapshotId, sourceRevision: null, contentHash: kept.contentHash, representation: 'bytes' as const, payload: kept.bytes, fidelity: 'original' as const }
         : { fileId: '', snapshotId, sourceRevision: null, contentHash: kept.contentHash, representation: 'text' as const, payload: kept.content, fidelity: 'original' as const };
     }),
+    // a run's record, as the shell keeps it: the latest of each run is what is read back
+    recordRun: door('recordRun', null, (workspace_: string, record: RunRecordDTO) => {
+      runRecords.push({ workspaceId: workspace_, record: structuredClone(record) });
+      return null;
+    }),
+    readRuns: door('readRuns', null, (workspace_: string) => latestRecords(workspace_)),
+    reconcileRuns: door('reconcileRuns', null, (workspace_: string) => ({
+      runs: latestRecords(workspace_).map((r) => ({ runId: r.runId, recorded: r.state, state: ['completed', 'failed', 'cancelled'].includes(r.state) ? r.state : 'unknown', missing: r.inputs.filter((i) => i.snapshotId.startsWith('snap_') && !snapshots.has(i.snapshotId)).map((i) => i.snapshotId), damaged: [] })),
+      unreadable: [],
+    })),
+    collectSnapshots: door('collectSnapshots', null, () => ({ removed: [], refused: null })),
     readView: door('readView', null, (fileId: string) => {
       const f = files.get(fileId);
       if (!f || f.status === 'missing' || f.status === 'ambiguous') throw new Error('lost: the file is lost; it has to be found again first');
@@ -368,7 +390,7 @@ export function installFakeWorkspace(workspaceId = 'ws_1'): FakeWorkspace {
   return {
     get runAnswer() { return fake.runAnswer; },
     set runAnswer(answer) { fake.runAnswer = answer; },
-    runs, stopped,
+    runs, stopped, runRecords,
     workspace, capabilities, drafts, calls, files,
     seed: (relativePath, content, workspace_ = workspaceId) => { add(workspace_, relativePath, content, 'workspace'); return entryIdOf(relativePath); },
     entryId: entryIdOf,

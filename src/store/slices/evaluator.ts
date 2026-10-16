@@ -106,41 +106,42 @@ export const createEvaluatorSlice: StateCreator<StoreState, [], [], EvaluatorSli
 
   /**
    * Batch replay: re-run every node that was stale AT CONFIRMATION TIME,
-   * in dependency order (a node runs only after all its stale structural
-   * parents finished). The snapshot rule keeps the confirm-dialog count
-   * honest and stops the run from chasing reference-edge contagion — nodes
-   * that turn stale DURING the replay keep their badges for the human.
+   * in dependency order (a node runs only after all its stale parents
+   * finished; lib/context/replay-plan). The snapshot rule keeps the
+   * confirm-dialog count honest and stops the run from chasing
+   * reference-edge contagion — nodes that turn stale DURING the replay keep
+   * their badges for the human. An agent that may write files is not run:
+   * it waits for the person, and so does what reads it.
    */
   replayStale: async () => {
     replayAborted = false;
     get().recomputeStaleness();
-    // the same set the chip counts and the dialog prices: the fingerprint's stale nodes minus the judge's dismissals
+    // the same set the chip counts and the dialog prices: the stale nodes minus the judge's dismissals
     const snapshot = shownStaleIds(get());
     if (snapshot.length === 0) return;
     autoRunCounts.clear(); // one user action = one auto-rerun wave
-    const structural = () => get().edges.filter((e) => !e.data?.isCrossLink);
-    const remaining = new Set(snapshot);
-    let done = 0;
-    const progress = toast('info', fmt(t('replay.progress'), { done, total: snapshot.length }), 0, {
+    const { planReplay, runReplay } = await import('../../lib/context/replay-plan');
+    const plan = planReplay(snapshot, 'target-only');
+    const total = plan.steps.length;
+    const progress = toast('info', fmt(t('replay.progress'), { done: 0, total }), 0, {
       label: t('replay.stop'),
       run: () => { replayAborted = true; },
     });
+    let done = 0;
+    let waiting: string[] = [];
     try {
-      while (remaining.size > 0 && !replayAborted) {
-        const ready = [...remaining].filter((id) =>
-          !structural().some((e) => e.target === id && remaining.has(e.source)));
-        if (ready.length === 0) break; // safety: no cycle exists on solid edges
-        await Promise.all(ready.map((id) => get().rerunNode(id, { auto: true })));
-        for (const id of ready) remaining.delete(id);
-        done += ready.length;
-        updateToast(progress, fmt(t('replay.progress'), { done, total: snapshot.length }));
-      }
+      const outcome = await runReplay(plan, {
+        stopped: () => replayAborted,
+        onProgress: (ran) => { done = ran.length; updateToast(progress, fmt(t('replay.progress'), { done, total })); },
+      });
+      waiting = outcome.waiting;
     } finally {
       useUiStore.getState().dismissToast(progress);
       get().recomputeStaleness();
       toast('success', replayAborted
-        ? fmt(t('replay.stopped'), { done, total: snapshot.length })
+        ? fmt(t('replay.stopped'), { done, total })
         : fmt(t('replay.done'), { done }));
+      if (waiting.length > 0) toast('info', fmt(t('replay.waiting'), { n: waiting.length }), 9000);
     }
   },
 

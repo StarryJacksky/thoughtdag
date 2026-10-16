@@ -1,6 +1,12 @@
 import type { ThoughtNode, ThoughtEdge, Highlight, Attachment, CanvasEvent, CanvasOp, Ladder } from '../types';
 
-export interface StaleVerdict { fp: string; p: number; changed: string[] }
+export interface StaleVerdict {
+  fp: string;
+  p: number;
+  changed: string[];
+  /** the person chose to keep the answer as it is for this staleness (lib/context/replay-plan) */
+  kept?: boolean;
+}
 export interface Snapshot {
   nodes: ThoughtNode[];
   edges: ThoughtEdge[];
@@ -68,6 +74,8 @@ export interface NodeSlice {
   staleFps: Record<string, string>;
   /** the judge's verdict per stale node: does the upstream change bear on the answer (see lib/stale-judge) */
   staleVerdicts: Record<string, StaleVerdict>;
+  /** why each stale node is stale (lib/context/staleness): the file that changed or was lost, or the upstream that changed */
+  staleReasons: Record<string, import('../lib/context/staleness').StaleReason[]>;
   setStaleVerdicts: (verdicts: Record<string, StaleVerdict>) => void;
   /** Recompute staleness across the graph (debounce-subscribed to nodes/edges). */
   recomputeStaleness: () => void;

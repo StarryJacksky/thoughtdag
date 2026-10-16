@@ -126,6 +126,11 @@ function createLocalProvider(service, { pageSize = PAGE_SIZE } = {}) {
       if (!bytes) throw new WorkspaceAccessError('not-found', 'no such snapshot is kept here');
       return { snapshotId, ...answerOf(bytes, `sha256:${snapshotId.slice('snap_'.length)}`) };
     },
+    /** A run's record, kept beside the snapshots it names (runtime/execution/run-records.cjs). */
+    async recordRun(scope, record) { assertLocal(scope); await service.recordRun(scope.workspaceId, record); return null; },
+    async readRuns(scope) { assertLocal(scope); return service.readRuns(scope.workspaceId); },
+    async reconcileRuns(scope) { assertLocal(scope); return service.reconcileRuns(scope.workspaceId); },
+    async collectSnapshots(scope, options) { assertLocal(scope); return service.collectSnapshots(scope.workspaceId, options); },
     /** A document made from a file, put beside it as a new file (see the service's exportBeside). */
     async exportBeside(scope, fileId, extension, bytes, opId) { assertLocal(scope); return service.exportBeside(fileId, extension, bytes, opId); },
     async readVersion(scope, fileId, revision) { assertLocal(scope); return service.readVersion(fileId, revision); },

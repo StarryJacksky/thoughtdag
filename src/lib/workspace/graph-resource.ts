@@ -28,6 +28,8 @@
 // goes through the workspace door.
 
 import { useStore } from '../../store';
+import { hashText } from '../context/canonicalize';
+import { isMindMap, meaningOf } from '../context/meaning';
 import { useProjects } from '../../store/projects';
 import type { Attachment, ThoughtNode } from '../../types';
 import { buildContentNode } from '../content';
@@ -197,6 +199,8 @@ export async function refreshResourceNode(nodeId: string, knownRevision: string 
   const revision = read.contentHash;
   const bytes = typeof read.payload === 'string' ? new TextEncoder().encode(read.payload) : read.payload as Uint8Array;
   const name = nodeNow()?.data.resourceHint?.name ?? hint.name;
+  // a mind map's copy carries what it says, its layout left out, beside its revision (lib/context/meaning)
+  const meaning = isMindMap(name) && typeof read.payload === 'string' ? { revision, hash: await hashText(meaningOf(read.payload)) } : null;
   const type = copyableAs(name, bytes);
   let fresh: Attachment | null = null;
   if (type !== null) {
@@ -216,7 +220,7 @@ export async function refreshResourceNode(nodeId: string, knownRevision: string 
     nodes: st.nodes.map((n) => {
       if (n.id !== nodeId || !n.data.resourceHint) return n;
       copy = sameAttachment(identityOfCopy(n.data), made);
-      return { ...n, data: { ...n.data, attachments: [copy], resourceHint: { ...withCopy(n.data.resourceHint), revision } } };
+      return { ...n, data: { ...n.data, attachments: [copy], resourceHint: { ...withCopy(n.data.resourceHint), revision, ...(meaning ? { meaning } : {}) } } };
     }),
   }));
   Object.assign(liveOf(fileId), { revision, copy, uncopied: undefined });

@@ -1,5 +1,17 @@
 import type { Node, Edge } from '@xyflow/react';
 
+/** What a run was given and sent as, kept with the answer it wrote (lib/context/run-records). */
+export interface RunSummary {
+  runId: string;
+  inputDigest: string;
+  executionDigest: string;
+  graphRevision: string;
+  /** each input, frozen: the snapshot that holds it, the hash of its content, the file it is of, and for a mind map the hash of its content without its layout */
+  inputs: { inputId: string; snapshotId: string; contentHash: string; fileId?: string; workspaceId?: string; name?: string; semanticHash?: string }[];
+  /** its images were left out for a model that cannot see them (their text was in the messages) */
+  imagesDropped?: boolean;
+}
+
 export interface Attachment {
   id: string;
   name: string;
@@ -255,15 +267,9 @@ export interface ThoughtData extends Record<string, unknown> {
   /** per upstream node, at generation time: a hash of what it contributed and its opening text — so a later change can be judged, not only detected */
   lastContextParts?: Record<string, { h: string; head: string }>;
   /** the run the latest answer came from (lib/context/prepare-run): its digests, and what it was given, frozen */
-  lastRun?: {
-    runId: string;
-    inputDigest: string;
-    executionDigest: string;
-    graphRevision: string;
-    inputs: { inputId: string; snapshotId: string; contentHash: string }[];
-    /** its images were left out for a model that cannot see them (their text was in the messages) */
-    imagesDropped?: boolean;
-  };
+  lastRun?: RunSummary;
+  /** the run each answer version came from, parallel to `responses`; none for a version written before runs were recorded */
+  runs?: (RunSummary | undefined)[];
   /** the answer each feedback line into this node held when its latest answer was written (see lib/feedback): by edge id, the other node and which of its answers */
   lastFeedback?: Record<string, { source: string; version: number | null }>;
   lastGeneratedAt?: string;
@@ -399,6 +405,8 @@ export interface ThoughtData extends Record<string, unknown> {
     revision: string | null;
     /** the file came in as a copy of something elsewhere and is not kept in step with it */
     imported?: boolean;
+    /** for a mind map: what its content means, without its layout, as of a revision (lib/context/staleness) */
+    meaning?: { revision: string; hash: string };
     /** set when the node holds no copy of the content because the file is too large or is not a kind that can be read: it is a reference only */
     uncopied?: 'too-large' | 'unreadable';
     /** who the node's copy is, kept while the node holds none: the copy that comes back is the same attachment,

@@ -8,6 +8,7 @@ import { isTask, runModeOf, setRunMode, type RunMode } from '../../lib/agents/ta
 import { AGENT_RUNTIMES, runtimeOf } from '../../lib/agents/agent-runtime';
 import { previewRun } from '../../lib/context/prepare-run';
 import { capabilitiesOf, verifyPolicy } from '../../lib/context/policy';
+import StaleSection from './StaleSection';
 
 /**
  * What a run of a task is given, and what it runs under, before it is
@@ -16,7 +17,8 @@ import { capabilitiesOf, verifyPolicy } from '../../lib/context/policy';
  * and what is left out, read from the canvas as it is. A task at work on an
  * agent says that the agent's tools can read more than its inputs; a task
  * set to research on an agent that is not known to keep to its inputs says
- * that it will not be sent.
+ * that it will not be sent. Below: whether its answer is out of date, and
+ * the files the version shown read (StaleSection).
  */
 export default function RunPreview({ nodeId }: { nodeId: string }) {
   const t = useT();
@@ -75,6 +77,7 @@ export default function RunPreview({ nodeId }: { nodeId: string }) {
         </div>
       </div>
       {line && <p className={`text-xs leading-relaxed ${verdict.ok ? 'text-ink-muted' : 'text-red-600'}`} data-run-notice={verdict.ok ? (verdict.notice ?? mode) : 'blocked'}>{line}</p>}
+      <StaleSection nodeId={nodeId} />
       <button onClick={() => setOpen((o) => !o)} className="mt-1.5 flex items-center gap-1 text-2xs uppercase tracking-wide text-ink-faint hover:text-ink" data-run-preview-toggle aria-expanded={open}>
         <ChevronRight size={12} strokeWidth={1.75} className={`transition-transform ${open ? 'rotate-90' : ''}`} />
         {t('run.preview.title')}

@@ -25,6 +25,7 @@ const SNAPSHOT_ID = /^snap_[0-9a-f]{64}$/;
 const UNKEPT_ID = /^unkept:[0-9a-f]{64}$/;
 const HASH = /^sha256:[0-9a-f]{64}$/;
 const MANIFEST = 'materials/manifest.json';
+const RECORD = 'record.json';
 
 class MaterializeError extends Error {
   constructor(code, message, inputId = null) {
@@ -142,8 +143,9 @@ function partOf(input, bytes) {
 async function materialize(envelope, runDirectory, { readSnapshotOfFile = null, readCurrentOfFile = null, provided = {}, maxBytes = MAX_MATERIAL_BYTES } = {}) {
   checkEnvelope(envelope);
   if (typeof runDirectory !== 'string' || !path.isAbsolute(runDirectory)) throw new MaterializeError('invalid-request', 'the run directory must be an absolute path');
+  // the run's own record may be there already (run-records.cjs, in a workspace that is also the working directory)
   const present = await fsp.readdir(runDirectory).catch((e) => { if (e.code === 'ENOENT') return []; throw e; });
-  if (present.length > 0) throw new MaterializeError('not-empty', 'the run directory already holds something');
+  if (present.some((n) => n !== RECORD)) throw new MaterializeError('not-empty', 'the run directory already holds something');
 
   // everything read and checked first: nothing is written unless all of it can be
   const planned = [];
@@ -185,15 +187,15 @@ async function materialize(envelope, runDirectory, { readSnapshotOfFile = null, 
 }
 
 /**
- * Remove the oldest run directories under `runsRoot` beyond the newest `keep`. A directory
- * is removed only when it holds exactly what its manifest lists: one anything else wrote
- * into is left alone.
+ * Remove the materials of the oldest runs under `runsRoot` beyond the newest `keep`. Materials
+ * are removed only when they are exactly what their manifest lists: ones anything else wrote
+ * into are left alone. A run's record stays; a run directory left empty goes.
  */
 async function pruneRuns(runsRoot, { keep = 20 } = {}) {
   const names = (await fsp.readdir(runsRoot).catch(() => [])).filter((n) => RUN_ID.test(n));
   const dated = [];
   for (const name of names) {
-    const st = await fsp.stat(path.join(runsRoot, name)).catch(() => null);
+    const st = await fsp.stat(path.join(runsRoot, name, 'materials')).catch(() => null);
     if (st && st.isDirectory()) dated.push({ name, at: st.mtimeMs });
   }
   dated.sort((a, b) => b.at - a.at);
@@ -202,12 +204,13 @@ async function pruneRuns(runsRoot, { keep = 20 } = {}) {
     const dir = path.join(runsRoot, name);
     try {
       const top = await fsp.readdir(dir);
-      if (top.length !== 1 || top[0] !== 'materials') continue;
+      if (top.some((n) => n !== 'materials' && n !== RECORD)) continue;
       const manifest = JSON.parse(await fsp.readFile(path.join(dir, MANIFEST), 'utf8'));
       const listed = new Set(['manifest.json', ...manifest.inputs.map((i) => String(i.path).replace(/^materials\//, ''))]);
       const held = await fsp.readdir(path.join(dir, 'materials'));
       if (held.length !== listed.size || held.some((n) => !listed.has(n))) continue;
-      await fsp.rm(dir, { recursive: true, force: true });
+      await fsp.rm(path.join(dir, 'materials'), { recursive: true, force: true });
+      if ((await fsp.readdir(dir)).length === 0) await fsp.rmdir(dir);
       removed.push(name);
     } catch { /* not a run directory as this module writes them: left alone */ }
   }

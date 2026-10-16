@@ -1,0 +1,101 @@
+# node --test tests/host/run-records.test.cjs at ca81890, before T13: the test copied in; the workspace service has no run records yet
+TAP version 13
+# Subtest: [T13] a run's record is written whole into the workspace whose files it read, and read back as written
+not ok 1 - [T13] a run's record is written whole into the workspace whose files it read, and read back as written
+  ---
+  duration_ms: 29.862833
+  type: 'test'
+  location: '<repo>/tests/host/run-records.test.cjs:41:1'
+  failureType: 'testCodeFailure'
+  error: 'service.recordRun is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/run-records.test.cjs:44:17)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: [T13] what is not a run record is refused, and nothing is written
+not ok 2 - [T13] what is not a run record is refused, and nothing is written
+  ---
+  duration_ms: 20.761125
+  type: 'test'
+  location: '<repo>/tests/host/run-records.test.cjs:54:1'
+  failureType: 'testCodeFailure'
+  error: 'service.recordRun is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/run-records.test.cjs:65:34)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T13] after a crash, the records and the snapshots are checked against each other, and a run that never said how it ended is unknown
+not ok 3 - [T13] after a crash, the records and the snapshots are checked against each other, and a run that never said how it ended is unknown
+  ---
+  duration_ms: 45.976167
+  type: 'test'
+  location: '<repo>/tests/host/run-records.test.cjs:70:1'
+  failureType: 'testCodeFailure'
+  error: 'service.recordRun is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/run-records.test.cjs:73:17)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T13] cleaning up keeps every snapshot a record holds, however old, and what is too new to be sure of
+not ok 4 - [T13] cleaning up keeps every snapshot a record holds, however old, and what is too new to be sure of
+  ---
+  duration_ms: 47.032041
+  type: 'test'
+  location: '<repo>/tests/host/run-records.test.cjs:89:1'
+  failureType: 'testCodeFailure'
+  error: 'service.recordRun is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/run-records.test.cjs:91:17)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T13] a snapshot frozen again is new again: a run on its way to recording it does not lose it
+not ok 5 - [T13] a snapshot frozen again is new again: a run on its way to recording it does not lose it
+  ---
+  duration_ms: 22.577666
+  type: 'test'
+  location: '<repo>/tests/host/run-records.test.cjs:101:1'
+  failureType: 'testCodeFailure'
+  error: 'service.collectSnapshots is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/run-records.test.cjs:106:34)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T13] when a record cannot be read, nothing is cleaned up: what it holds cannot be known
+not ok 6 - [T13] when a record cannot be read, nothing is cleaned up: what it holds cannot be known
+  ---
+  duration_ms: 21.544375
+  type: 'test'
+  location: '<repo>/tests/host/run-records.test.cjs:110:1'
+  failureType: 'testCodeFailure'
+  error: 'service.collectSnapshots is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/run-records.test.cjs:115:34)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 0
+# fail 6
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 251.151542

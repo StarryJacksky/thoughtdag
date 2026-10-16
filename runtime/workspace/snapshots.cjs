@@ -5,7 +5,7 @@
 // never changed or replaced: the same content frozen again is the same
 // snapshot. Reading one checks its bytes against its name. Nothing here
 // removes a snapshot; which ones a run still needs is for the run records
-// to say (T13).
+// to say (runtime/execution/run-records.cjs).
 'use strict';
 
 const fs = require('node:fs');
@@ -37,7 +37,11 @@ async function keepSnapshot(rootPath, bytes, io = fs.promises) {
   const target = path.join(dir, hex);
   await io.mkdir(dir, { recursive: true });
   const existing = await io.readFile(target).catch((e) => { if (e.code === 'ENOENT') return null; throw e; });
-  if (!existing || hexOf(existing) !== hex) {
+  if (existing && hexOf(existing) === hex) {
+    // kept again: new again, so that cleaning up (run-records.cjs) gives the run that froze it time to record it
+    const now = new Date();
+    if (typeof io.utimes === 'function') await io.utimes(target, now, now).catch(() => {});
+  } else {
     const temp = path.join(dir, `.${hex}.tdag-snap-${randomUUID().slice(0, 8)}`);
     try {
       const handle = await io.open(temp, 'wx');

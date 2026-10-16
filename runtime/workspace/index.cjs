@@ -492,6 +492,22 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
       return (await operationsOf(await grantOf(workspaceId))).readSnapshot(snapshotId);
     },
 
+    /** A run's record, written in a workspace whose files it read (runtime/execution/run-records.cjs). */
+    async recordRun(workspaceId, record) {
+      return (await operationsOf(await grantOf(workspaceId))).recordRun(record);
+    },
+    async readRuns(workspaceId) {
+      return (await operationsOf(await grantOf(workspaceId))).readRuns();
+    },
+    /** The run records of a workspace checked against its snapshots. */
+    async reconcileRuns(workspaceId) {
+      return (await operationsOf(await grantOf(workspaceId))).reconcileRuns();
+    },
+    /** Remove the snapshots of a workspace no run record names, once old enough. */
+    async collectSnapshots(workspaceId, options) {
+      return (await operationsOf(await grantOf(workspaceId))).collectSnapshots(options);
+    },
+
     /** Whether a subscribed workspace's folder is being watched. A volume that cannot be watched still answers explicit rescans. */
     watching(workspaceId) {
       return watchers.get(workspaceId)?.watching() ?? false;

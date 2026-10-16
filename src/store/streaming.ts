@@ -10,7 +10,7 @@ import { agentOutbound, adoptAgentTurn, claimAgentTurn, isAgentModel } from '../
 import { countTokens, activeSummary } from '../utils';
 import { toast, useUiStore } from '../lib/ui-store';
 import { getModelsOnce, reconcileModelId } from '../lib/use-models';
-import { checkSend, createTarget, describeTarget, RESEARCH_POLICY, templateFor } from '../lib/agents/target-model';
+import { checkSend, createTarget, describeTarget, RESEARCH_POLICY, templateFor, writesFiles } from '../lib/agents/target-model';
 import { contextLengthFor } from '../lib/runtime-providers';
 import { memoryContextBlock, judgeMemory } from '../lib/memory';
 import { fetchRecallItems, recallContextBlock } from '../lib/recall';
@@ -216,6 +216,17 @@ export async function runNodeGeneration(
   // the run as prepared (below), and whether its images were left out for a model that cannot see them
   let envelope: RunEnvelope | null = null;
   let imagesDropped = false;
+  // its record (lib/context/run-records): written once it is prepared, and again once it has ended
+  let runRecords: typeof import('../lib/context/run-records') | null = null;
+  let preparedAt = '';
+  const endRecord = (state: 'completed' | 'failed' | 'cancelled', output: { versionIndex: number; chars: number } | null = null) => {
+    if (!envelope || !runRecords) return;
+    const session = get().nodes.find((n) => n.id === nodeId)?.data.agentSession;
+    void runRecords.persistRun(envelope, runRecords.recordRun(envelope, {
+      state, output, preparedAt, endedAt: new Date().toISOString(),
+      nativeBinding: session ? { runtime: session.runtime, sessionId: session.sessionId ?? null } : null,
+    }));
+  };
   if (!opts.autoChain) autoRunCounts.clear(); // a fresh user action starts a new wave
   // Supersede: abort any generation already running on this node; its late
   // callbacks are dropped via the sequence check below.
@@ -323,9 +334,10 @@ export async function runNodeGeneration(
   // live sweep firing while the agent works does not append it a second time
   let harnessClaim: Promise<boolean> | null = null;
 
-  const writeFinal = (response: string, failed = false) => {
+  const writeFinal = (response: string, failed = false, ended: 'completed' | 'failed' | 'cancelled' = failed ? 'failed' : 'completed') => {
     if (!isCurrent()) return; // superseded: a newer generation owns this node
     const tokenCount = countTokens(question + response);
+    let versionWritten: number | null = null;
     const modelUsed = actualModel ?? requestedModel;
     get().logEvent('generate', nodeId, { chars: response.length, ...(modelUsed ? { model: modelUsed } : {}), ...(failed ? { failed: true } : {}) });
     // Provenance: fingerprint what this answer depended on, AT completion —
@@ -342,7 +354,7 @@ export async function runNodeGeneration(
         // so repeated retries don't stack failure entries.
         const failText = new Set([t('node.failedPlaceholder'), t('node.emptyResponse')]);
         const kept = versionMode === 'append' || failed
-          ? n.data.responses.map((r, i) => ({ r, q: n.data.questions?.[i], by: n.data.generatedBy?.[i], rs: n.data.reasonings?.[i], at: n.data.generatedAts?.[i], ed: n.data.editedAts?.[i], gw: n.data.gatewaySearches?.[i], ef: n.data.generatedEfforts?.[i] })).filter(({ r }) => r && !(failed && failText.has(r)))
+          ? n.data.responses.map((r, i) => ({ r, q: n.data.questions?.[i], by: n.data.generatedBy?.[i], rs: n.data.reasonings?.[i], at: n.data.generatedAts?.[i], ed: n.data.editedAts?.[i], gw: n.data.gatewaySearches?.[i], ef: n.data.generatedEfforts?.[i], rn: n.data.runs?.[i] })).filter(({ r }) => r && !(failed && failText.has(r)))
           : [];
         const now = new Date().toISOString();
         const responses = [...kept.map(({ r }) => r), response];
@@ -356,11 +368,17 @@ export async function runNodeGeneration(
         const reasonings = [...kept.map(({ rs }) => rs), n.data.reasoning || undefined];
         const generatedAts = [...kept.map(({ at }) => at), now];
         const editedAts = [...kept.map(({ ed }) => ed), undefined];
-        return { ...n, data: { ...n.data, response, responses, questions, generatedBy, gatewaySearches, generatedEfforts, reasonings, generatedAts, editedAts, reasoning: undefined, restreaming: undefined, pendingApprovals: undefined, agentTrace: undefined, responseIndex: responses.length - 1, isLoading: false, tokenCount, generationFailed: failed || undefined, references, highlights: pruneHighlights(n.data.highlights, response), lastContextHash: contextHash, lastContextParts: contextParts, lastFeedback: Object.keys(feedbackRead).length > 0 ? feedbackRead : undefined, lastGeneratedAt: now,
+        // the run each version came from: an earlier answer still finds what it was given (lib/context/run-records)
+        const summary = envelope && runRecords ? runRecords.summaryOf(envelope, imagesDropped) : undefined;
+        const runs = [...kept.map(({ rn }) => rn), summary];
+        versionWritten = responses.length - 1;
+        return { ...n, data: { ...n.data, response, responses, questions, generatedBy, gatewaySearches, generatedEfforts, reasonings, generatedAts, editedAts, runs: runs.some(Boolean) ? runs : undefined, reasoning: undefined, restreaming: undefined, pendingApprovals: undefined, agentTrace: undefined, responseIndex: responses.length - 1, isLoading: false, tokenCount, generationFailed: failed || undefined, references, highlights: pruneHighlights(n.data.highlights, response), lastContextHash: contextHash, lastContextParts: contextParts, lastFeedback: Object.keys(feedbackRead).length > 0 ? feedbackRead : undefined, lastGeneratedAt: now,
           // the run this answer came from: its digests and what it was given, frozen
-          ...(envelope ? { lastRun: { runId: envelope.runId, inputDigest: envelope.inputDigest, executionDigest: envelope.executionDigest, graphRevision: envelope.graphRevision, inputs: envelope.inputs.map((i) => ({ inputId: i.inputId, snapshotId: i.snapshotId, contentHash: i.contentHash })), ...(imagesDropped ? { imagesDropped: true } : {}) } } : {}) } };
+          ...(summary ? { lastRun: summary } : {}) } };
       }),
     }));
+    // a failure's placeholder is no answer: a failed run wrote none
+    endRecord(ended, versionWritten === null || ended === 'failed' ? null : { versionIndex: versionWritten, chars: response.length });
   };
 
   // Ambient memory rides the system layer of ordinary generations only —
@@ -467,6 +485,11 @@ export async function runNodeGeneration(
     return;
   }
   const { materialsFor } = await import('../lib/context/materials');
+  if (!isCurrent()) return;
+  // recorded before anything is sent: the snapshots it was given are held from now on
+  runRecords = await import('../lib/context/run-records');
+  preparedAt = new Date().toISOString();
+  await runRecords.persistRun(envelope, runRecords.recordRun(envelope, { state: 'prepared', preparedAt }));
   if (!isCurrent()) return;
 
   try {
@@ -713,11 +736,13 @@ export async function runNodeGeneration(
     if (err instanceof DispatchRefused) {
       // stopped before it left: nothing was asked, nothing is recorded as answered
       markNotSent(set, get, nodeId, fmt(t('run.dispatchRefused'), { what: t(`run.dispatchPart.${err.part}`) }));
+      endRecord('failed');
       return;
     }
     if (err instanceof prep.RunBlocked) {
       // its inputs could not be written as they were frozen: nothing was written, nothing was sent
       markNotSent(set, get, nodeId, blockedText(get, err));
+      endRecord('failed');
       return;
     }
     activeAbortControllers.delete(nodeId);
@@ -725,7 +750,7 @@ export async function runNodeGeneration(
     const isAbort = err instanceof DOMException && err.name === 'AbortError';
     if (isAbort) {
       // User pressed Stop — keep whatever streamed, no error surfacing
-      writeFinal(partial || t('node.stoppedPlaceholder'));
+      writeFinal(partial || t('node.stoppedPlaceholder'), false, 'cancelled');
     } else {
       // Real failure: details go to a toast, the node gets a Retry affordance
       const message = err instanceof Error ? err.message : t('toast.unknownError');
@@ -840,6 +865,11 @@ function triggerAutoReruns(set: Set, get: Get, completedNodeId: string): void {
     if (spent >= (n.data.autoRerunRounds ?? 1)) continue; // budget exhausted this wave
     const { ordered } = walkUpAncestors(n.id, nodes, edges);
     if (ordered.some((a) => a.id === completedNodeId)) {
+      // an agent that may write files is not set off by a change upstream: the person runs it (lib/context/replay-plan)
+      if (writesFiles(n.data)) {
+        toast('info', fmt(t('replay.agentWaits'), { name: (n.data.question || '').slice(0, 40) }), 9000);
+        continue;
+      }
       autoRunCounts.set(n.id, spent + 1);
       void get().rerunNode(n.id, { auto: true });
     }

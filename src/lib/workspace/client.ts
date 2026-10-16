@@ -196,6 +196,21 @@ export async function readSnapshot(workspaceId: string, snapshotId: string): Pro
   return checkedSource(await call((b) => b.readSnapshot(workspaceId, snapshotId)));
 }
 
+/** Write a run's record in a workspace whose files it read; what is not a run record is refused by the shell. */
+export async function recordRun(workspaceId: string, record: unknown): Promise<void> {
+  await call((b) => b.recordRun(workspaceId, record));
+}
+
+/** The run records of a workspace checked against the snapshots they name: what a crash may have left. */
+export async function reconcileRuns(workspaceId: string): Promise<Awaited<ReturnType<DesktopWorkspaceBridge['reconcileRuns']>>> {
+  return call((b) => b.reconcileRuns(workspaceId));
+}
+
+/** Remove the snapshots of a workspace no run record names, once old enough. */
+export async function collectSnapshots(workspaceId: string, options: { graceMs?: number } = {}): Promise<{ removed: string[]; refused: string | null }> {
+  return call((b) => b.collectSnapshots(workspaceId, options));
+}
+
 function checkedSource(result: SourceRead): SourceRead {
   // the bytes cross a context boundary, so they are recognised by what they are, not by whose constructor made them
   const text = result?.representation === 'text' && typeof result.payload === 'string';

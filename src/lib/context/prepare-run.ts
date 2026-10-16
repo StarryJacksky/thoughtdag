@@ -63,6 +63,10 @@ export interface FrozenInputs {
 const imagesOf = new WeakMap<RunEnvelope, ImageAttachment[]>();
 export const envelopeImages = (envelope: RunEnvelope): ImageAttachment[] => imagesOf.get(envelope) ?? [];
 
+/** Where each of an envelope's file inputs is, by input id: the workspace that holds its snapshot, and for a mind map what it says (its hash). */
+const placesOf = new WeakMap<RunEnvelope, Record<string, { workspaceId: string; semanticHash?: string }>>();
+export const envelopePlaces = (envelope: RunEnvelope): Record<string, { workspaceId: string; semanticHash?: string }> => placesOf.get(envelope) ?? {};
+
 /** What the canvas itself holds of an envelope's inputs, by input id, in base64: the bytes their hashes are over, for the shell to write. */
 const heldOf = new WeakMap<RunEnvelope, Record<string, string>>();
 export const envelopeHeld = (envelope: RunEnvelope): Record<string, string> => heldOf.get(envelope) ?? {};
@@ -317,6 +321,7 @@ export async function prepareRun(request: PrepareRunRequest): Promise<RunEnvelop
   };
   imagesOf.set(envelope, context.images);
   heldOf.set(envelope, Object.fromEntries([...held].map(([key, base64]) => [byKey.get(key)!.inputId, base64])));
+  placesOf.set(envelope, Object.fromEntries([...frozen.byNode.values()].map((r) => [r.input.inputId, { workspaceId: r.workspaceId, ...(r.semanticHash ? { semanticHash: r.semanticHash } : {}) }])));
   return envelope;
 }
 

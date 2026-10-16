@@ -1,0 +1,71 @@
+# npx vitest run tests/unit/stale-section.test.tsx at ca81890, before T13: the test and the stand-in workspace copied in; StaleSection is a placeholder that renders nothing
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/stale-section.test.tsx (4 tests | 4 failed) 259ms
+   ❯ an answer out of date, on its panel (4)
+     × [T13] says which file changed, runs it again on request beside the old answer, and is no longer out of date 84ms
+     × [T13] keeps the old answer when asked to, and says nothing more about it 57ms
+     × [T13] offers nothing to run for an agent that may write files: it says the person runs it 58ms
+     × [T13] names the files the version shown read, as they were frozen then 57ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/stale-section.test.tsx > an answer out of date, on its panel > [T13] says which file changed, runs it again on request beside the old answer, and is no longer out of date
+TypeError: Cannot read properties of null (reading 'textContent')
+ ❯ tests/unit/stale-section.test.tsx:87:51
+     85|     const t = await outOfDate(API_MODEL);
+     86|     view = await mount(<StaleSection nodeId={t} />);
+     87|     expect(q('[data-stale-reason="input-changed"]')!.textContent).toCo…
+       |                                                   ^
+     88|     expect(q('[data-replay="keep"]')).not.toBeNull();
+     89|     await during(async () => { q('[data-replay="target-only"]')!.click…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  tests/unit/stale-section.test.tsx > an answer out of date, on its panel > [T13] keeps the old answer when asked to, and says nothing more about it
+TypeError: Cannot read properties of null (reading 'click')
+ ❯ tests/unit/stale-section.test.tsx:98:56
+     96|     const t = await outOfDate(API_MODEL);
+     97|     view = await mount(<StaleSection nodeId={t} />);
+     98|     await during(async () => { q('[data-replay="keep"]')!.click(); awa…
+       |                                                        ^
+     99|     expect(q('[data-stale-reasons]')).toBeNull();
+    100|     expect(node(t).data.responses).toEqual(['ANSWER_1']);
+ ❯ tests/helpers/render.tsx:30:100
+ ❯ process.env.NODE_ENV.exports.act ../../../../../../..<repo>/node_modules/react/cjs/react.development.js:814:22
+ ❯ during tests/helpers/render.tsx:30:76
+ ❯ tests/unit/stale-section.test.tsx:98:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  tests/unit/stale-section.test.tsx > an answer out of date, on its panel > [T13] offers nothing to run for an agent that may write files: it says the person runs it
+AssertionError: expected null not to be null
+ ❯ tests/unit/stale-section.test.tsx:106:43
+    104|     const t = await outOfDate(CODEX);
+    105|     view = await mount(<StaleSection nodeId={t} />);
+    106|     expect(q('[data-stale-reasons]')).not.toBeNull();
+       |                                           ^
+    107|     expect(q('[data-stale-waits]')).not.toBeNull();
+    108|     expect(q('[data-replay]')).toBeNull();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  tests/unit/stale-section.test.tsx > an answer out of date, on its panel > [T13] names the files the version shown read, as they were frozen then
+TypeError: Cannot read properties of null (reading 'textContent')
+ ❯ tests/unit/stale-section.test.tsx:114:37
+    112|     const t = await outOfDate(API_MODEL);
+    113|     view = await mount(<StaleSection nodeId={t} />);
+    114|     expect(q('[data-version-inputs]')!.textContent).toContain('a.md');
+       |                                     ^
+    115|   });
+    116| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed (4)
+   Start at  01:51:17
+   Duration  918ms (transform 35%, tests 31%, environment 25%, import 8%, setup 1%)
+

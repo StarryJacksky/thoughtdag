@@ -1,0 +1,169 @@
+# npx vitest run tests/unit/provenance.test.ts at ca81890, before T13: the test and the stand-in workspace copied in; run-records.ts, staleness.ts and replay-plan.ts are placeholders that throw
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/provenance.test.ts (10 tests | 10 failed) 1318ms
+   ❯ what an answer was given (2)
+     × [T13] a run is recorded in the workspace it read from: prepared before it is sent, and how it ended after 19ms
+     × [T13] an earlier answer finds the snapshots it was given, after the file has changed and the task has run again 55ms
+   ❯ what has changed since (4)
+     × [T13] a file that changes marks the answers whose runs read it, and only those 55ms
+     × [T13] a file that is lost is said to be lost, for the answers that read it 2ms
+     × [T13] renaming a file, and moving or folding cards, mark nothing 2ms
+     × [T13] a mind map whose nodes are only moved about marks nothing; one whose words change marks what read it 1058ms
+   ❯ replaying (4)
+     × [T13] a mistake taken out upstream shows what read it below, and in which order to replay it 22ms
+     × [T13] a replay makes new versions and keeps the old ones as they were 25ms
+     × [T13] keeping the old result is said and kept, until something changes again 14ms
+     × [T13] an agent that can write files is not run again on its own: a replay and an automatic rerun wait for the person 63ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 10 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/provenance.test.ts > what an answer was given > [T13] a run is recorded in the workspace it read from: prepared before it is sent, and how it ended after
+AssertionError: expected [] to deeply equal [ 'prepared', 'completed' ]
+
+- Expected
++ Received
+
+- [
+-   "prepared",
+-   "completed",
+- ]
++ []
+
+ ❯ tests/unit/provenance.test.ts:91:48
+     89|     const runId = node(t).data.lastRun!.runId;
+     90|     const history = shell.runRecords.filter((r) => r.workspaceId === '…
+     91|     expect(history.map((r) => r.record.state)).toEqual(['prepared', 'c…
+       |                                                ^
+     92|     const ended = history.at(-1)!.record;
+     93|     expect(ended.output).toEqual({ versionIndex: 0, chars: 'ANSWER_1'.…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/10]⎯
+
+ FAIL  tests/unit/provenance.test.ts > what an answer was given > [T13] an earlier answer finds the snapshots it was given, after the file has changed and the task has run again
+Error: not implemented
+ ❯ snapshotsOfVersion src/lib/context/run-records.ts:2:72
+      1| // placeholder: runs are not recorded yet
+      2| export function snapshotsOfVersion(..._args: unknown[]): never { throw…
+       |                                                                        ^
+      3|
+ ❯ tests/unit/provenance.test.ts:106:21
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/10]⎯
+
+ FAIL  tests/unit/provenance.test.ts > what has changed since > [T13] a file that changes marks the answers whose runs read it, and only those
+Error: not implemented
+ ❯ detectStale src/lib/context/staleness.ts:2:65
+      1| // placeholder: staleness is not read from run records yet
+      2| export function detectStale(..._args: unknown[]): never { throw new Er…
+       |                                                                 ^
+      3|
+ ❯ reasonsOf tests/unit/provenance.test.ts:39:35
+ ❯ tests/unit/provenance.test.ts:126:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/10]⎯
+
+ FAIL  tests/unit/provenance.test.ts > what has changed since > [T13] a file that is lost is said to be lost, for the answers that read it
+Error: not implemented
+ ❯ detectStale src/lib/context/staleness.ts:2:65
+      1| // placeholder: staleness is not read from run records yet
+      2| export function detectStale(..._args: unknown[]): never { throw new Er…
+       |                                                                 ^
+      3|
+ ❯ reasonsOf tests/unit/provenance.test.ts:39:35
+ ❯ tests/unit/provenance.test.ts:136:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/10]⎯
+
+ FAIL  tests/unit/provenance.test.ts > what has changed since > [T13] renaming a file, and moving or folding cards, mark nothing
+Error: not implemented
+ ❯ detectStale src/lib/context/staleness.ts:2:65
+      1| // placeholder: staleness is not read from run records yet
+      2| export function detectStale(..._args: unknown[]): never { throw new Er…
+       |                                                                 ^
+      3|
+ ❯ tests/unit/provenance.test.ts:148:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/10]⎯
+
+ FAIL  tests/unit/provenance.test.ts > what has changed since > [T13] a mind map whose nodes are only moved about marks nothing; one whose words change marks what read it
+AssertionError: expected undefined to be 'sha256:92c12cd40000019400000000000000…' // Object.is equality
+
+- Expected:
+"sha256:92c12cd400000194000000000000000000000000000000000000000000000000"
+
++ Received:
+undefined
+
+ ❯ tests/unit/provenance.test.ts:158:81
+    156|     shell.editExternally(fileIdOf('maps/plan.tdmap'), map('ROOT_IDEA',…
+    157|     await vi.waitFor(() => expect(copyOf(m)).toContain('240'));
+    158|     await vi.waitFor(() => expect(node(m).data.resourceHint!.meaning?.…
+       |                                                                                 ^
+    159|     expect(recompute()).toEqual([]);
+    160|     expect(reasonsOf(t)).toEqual([]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/10]⎯
+
+ FAIL  tests/unit/provenance.test.ts > replaying > [T13] a mistake taken out upstream shows what read it below, and in which order to replay it
+Error: not implemented
+ ❯ detectStale src/lib/context/staleness.ts:2:65
+      1| // placeholder: staleness is not read from run records yet
+      2| export function detectStale(..._args: unknown[]): never { throw new Er…
+       |                                                                 ^
+      3|
+ ❯ reasonsOf tests/unit/provenance.test.ts:39:35
+ ❯ tests/unit/provenance.test.ts:190:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/10]⎯
+
+ FAIL  tests/unit/provenance.test.ts > replaying > [T13] a replay makes new versions and keeps the old ones as they were
+Error: not implemented
+ ❯ planReplay src/lib/context/replay-plan.ts:2:64
+      1| // placeholder: there is no replay plan yet
+      2| export function planReplay(..._args: unknown[]): never { throw new Err…
+       |                                                                ^
+      3| export async function runReplay(..._args: unknown[]): Promise<never> {…
+      4|
+ ❯ tests/unit/provenance.test.ts:207:37
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/10]⎯
+
+ FAIL  tests/unit/provenance.test.ts > replaying > [T13] keeping the old result is said and kept, until something changes again
+Error: not implemented
+ ❯ planReplay src/lib/context/replay-plan.ts:2:64
+      1| // placeholder: there is no replay plan yet
+      2| export function planReplay(..._args: unknown[]): never { throw new Err…
+       |                                                                ^
+      3| export async function runReplay(..._args: unknown[]): Promise<never> {…
+      4|
+ ❯ tests/unit/provenance.test.ts:220:21
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/10]⎯
+
+ FAIL  tests/unit/provenance.test.ts > replaying > [T13] an agent that can write files is not run again on its own: a replay and an automatic rerun wait for the person
+AssertionError: expected 2 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 2
+
+ ❯ tests/unit/provenance.test.ts:244:33
+    242|     await run(upper);
+    243|     for (let i = 0; i < 5; i++) await settled();
+    244|     expect(desktop.runs.length).toBe(1);
+       |                                 ^
+    245|     expect(recompute()).toEqual([agent]);
+    246|     const plan = planReplay([agent], 'target-only');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/10]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  10 failed (10)
+   Start at  01:41:07
+   Duration  2.19s (tests 62%, environment 19%, transform 15%, import 2%, setup 1%)
+

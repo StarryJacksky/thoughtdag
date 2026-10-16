@@ -36,6 +36,7 @@ const { createHash, randomUUID } = require('node:crypto');
 const { assertAllowedPath, assertPortableName, WorkspaceAccessError } = require('./path-policy.cjs');
 const { mediaTypeOf } = require('./media-types.cjs');
 const { keepSnapshot, readSnapshot } = require('./snapshots.cjs');
+const runRecords = require('../execution/run-records.cjs');
 const { readBounded, keepPreviousVersion, readPreviousVersion, listPreviousVersions, moveToRecoveryTrash, listRecoveryTrash, readRecoveryNote, clearRecoveryReceipt } = require('./recovery.cjs');
 
 /** What the disk says when it fails for a moment: an operation that meets one is tried again later, not given up. */
@@ -586,6 +587,21 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
 
     /** What a snapshot of this workspace holds, or null. */
     readSnapshot: (snapshotId) => readSnapshot(grant.rootPath, snapshotId, io),
+
+    /** Write a run's record here, in place of any earlier record of the run (run-records.cjs). A read-only folder keeps none. */
+    async recordRun(record) {
+      await refuseReadOnly();
+      await runRecords.writeRecord(grant.rootPath, record, io);
+    },
+    /** Every run record of this workspace that can be read. */
+    readRuns: async () => (await runRecords.readRecords(grant.rootPath, io)).records,
+    /** The run records checked against the snapshots, as after a crash. */
+    reconcileRuns: () => runRecords.reconcileRuns(grant.rootPath, io),
+    /** Remove the snapshots no run record names, once they are old enough. */
+    async collectSnapshots(options) {
+      await refuseReadOnly();
+      return runRecords.collectSnapshots(grant.rootPath, options, io);
+    },
 
     /**
      * One part of a text file, to be looked at: what a file too large to

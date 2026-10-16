@@ -19,9 +19,9 @@ import { generateId } from '../../utils';
 import { useStore } from '../../store';
 import { useProjects } from '../../store/projects';
 import type { ThoughtNode } from '../../types';
-import { checkSend, createTarget as newTarget, templateFor, type KnownModels, type SendCheck } from './target-model';
+import { checkSend, createTarget as newTarget, RESEARCH_POLICY, templateFor, type KnownModels, type RunMode, type SendCheck } from './target-model';
 
-export { describeTarget, templateFor, type SendCheck, type TargetDescription } from './target-model';
+export { describeTarget, runModeOf, templateFor, type RunMode, type SendCheck, type TargetDescription } from './target-model';
 
 type Point = { x: number; y: number };
 export type ConnectResult = { ok: true; edgeId: string; feedback?: true } | { ok: false; reason: 'loop' | 'not-a-task' | 'unknown' | 'left' };
@@ -124,6 +124,24 @@ export function retarget(nodeId: string, to: { model: string; effort?: string | 
     ...(to.effort === undefined && sameRuntime ? { effort: was!.effort } : {}),
     ...(was ? { roleRef: was.roleRef, memoryPolicyId: was.memoryPolicyId, policyId: was.policyId, workspaceId: was.workspaceId, budgetId: was.budgetId } : {}),
   });
+  useStore.getState().pushHistory();
+  withTarget(nodeId, target);
+  useStore.getState().pushHistory();
+  return target;
+}
+
+/**
+ * Set how a task runs: at work (its AI as it is) or in research (its inputs and its question, nothing
+ * else). It gets a target of its own with that policy, made now, so the tasks it shared a target with
+ * keep theirs; a task not bound yet is bound to the AI it would run on.
+ */
+export function setRunMode(nodeId: string, mode: RunMode): ExecutionTarget {
+  const node = useStore.getState().nodes.find((n) => n.id === nodeId);
+  if (!isTask(node)) throw new Error('that node is not a task: only a question for an AI is bound to one');
+  const policyId = mode === 'research' ? RESEARCH_POLICY : 'default';
+  const was = node.data.target;
+  if (was && (was.policyId === RESEARCH_POLICY) === (mode === 'research')) return was;
+  const target = createTarget({ ...(was ?? templateFor(node.data.model)), policyId });
   useStore.getState().pushHistory();
   withTarget(nodeId, target);
   useStore.getState().pushHistory();

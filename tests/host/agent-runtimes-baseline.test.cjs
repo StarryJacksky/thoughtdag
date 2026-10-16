@@ -75,7 +75,7 @@ test('codex: the agent can read exactly the materials written under the working 
   fake.writeMaterial('sampling-plan.md', 'KEEP_VISIBLE_P2: sample 40 sites.');
   await runToEnd(codex, { runtime: 'codex', cwd: fake.project, prompt: 'read the plan', model: { provider: 'codex', id: 'gpt-synthetic' } });
   const readable = fake.read('codex').find((r) => r.kind === 'readable');
-  assert.deepEqual(readable.files, [{ path: 'sampling-plan.md', content: 'KEEP_VISIBLE_P2: sample 40 sites.' }]);
+  assert.deepEqual(readable.files, [{ path: path.join('run_fixture', 'materials', 'sampling-plan.md'), content: 'KEEP_VISIBLE_P2: sample 40 sites.' }]);
 });
 
 test('codex: a thread busy elsewhere ends the run with the server\'s reason, not a silent retry', async (t) => {
@@ -132,5 +132,5 @@ test('claude: the agent can read exactly the materials written under the working
   fake.clear();
   await runToEnd(claude, { runtime: 'claude-code', cwd: fake.project, prompt: 'read the plan', model: { provider: 'claude-code', id: 'sonnet' } });
   const readable = fake.read('claude').find((r) => r.kind === 'readable');
-  assert.deepEqual(readable.files, [{ path: 'sampling-plan.md', content: 'KEEP_VISIBLE_P2: sample 40 sites.' }]);
+  assert.deepEqual(readable.files, [{ path: path.join('run_fixture', 'materials', 'sampling-plan.md'), content: 'KEEP_VISIBLE_P2: sample 40 sites.' }]);
 });

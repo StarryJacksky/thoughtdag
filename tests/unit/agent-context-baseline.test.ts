@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { useStore } from '../../src/store';
 import { useProjects } from '../../src/store/projects';
-import { agentCallStream, agentOutbound, type AgentRoute } from '../../src/lib/agents/agent-runtime';
+import { agentCallStream, agentOutbound, agentTarget, type AgentRoute } from '../../src/lib/agents/agent-runtime';
+import { prepareRun } from '../../src/lib/context/prepare-run';
+import { materialsFor } from '../../src/lib/context/materials';
 import { fixture, type FixtureGraph, type ResearchFixture } from '../fixtures/research';
 import { composeRequest } from '../helpers/compose-request';
 import { installFakeDesktop, type FakeDesktop } from '../helpers/fake-desktop';
@@ -44,7 +46,10 @@ async function generate(f: ResearchFixture, graph: FixtureGraph = f.graph): Prom
   const target = f.expected.targetNodeId;
   const route = await agentOutbound(f.policy.model, target);
   const { messages, images } = composeRequest(target, graph.nodes, graph.edges);
-  await agentCallStream(messages, () => {}, undefined, images, undefined, f.policy.model, route, target);
+  // what is written for the agent comes from the run's envelope, prepared as a run in place prepares it
+  const question = graph.nodes.find((n) => n.id === target)!.data.question;
+  const envelope = await prepareRun({ graphId: 'fixture-canvas', targetNodeId: target, question, mode: 'workspace', runtimeSelection: { kind: 'agent', runtime: agentTarget(f.policy.model)!.runtime, connectionRef: 'fixture', model: f.policy.model, effort: null, capabilityVersion: null } });
+  await agentCallStream(messages, () => {}, undefined, images, { materials: materialsFor(envelope) }, f.policy.model, route, target);
   const run = desktop.runs.at(-1);
   if (!run) throw new Error('the fake bridge saw no run');
   return { route, prompt: run.prompt, readable: desktop.readableFileContents().join('\n') };
@@ -99,7 +104,7 @@ describe('an attachment excluded on the asking node', () => {
     for (const marker of f.expected.readableContains ?? []) expect(handed.readable).toContain(marker);
   });
 
-  gap('[T12] stays out of the files written for the agent to read', async () => {
+  it('[T12] stays out of the files written for the agent to read', async () => {
     const handed = await generate(f);
     for (const marker of f.expected.readableExcludes ?? []) expect(handed.readable).not.toContain(marker);
   });
@@ -112,7 +117,7 @@ describe('two different files with one name', () => {
     for (const marker of f.expected.promptContains ?? []) expect(handed.prompt).toContain(marker);
   });
 
-  gap('[T12] both are written for the agent to read', async () => {
+  it('[T12] both are written for the agent to read', async () => {
     const f = fixture('same-name-different-dirs');
     const handed = await generate(f);
     for (const marker of f.expected.readableContains ?? []) expect(handed.readable).toContain(marker);

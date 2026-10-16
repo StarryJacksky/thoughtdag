@@ -219,50 +219,6 @@ export async function claimAgentTurn(runtime: AgentRuntime, nodeId: string, sess
   } catch { /* the completion stamp still lands */ }
 }
 
-/** The materials wired into a node's context — its own and its ancestors'
- *  document attachments — written where the agent can read them. Returns
- *  the note to append to the prompt, or '' when nothing was written. */
-async function materialsToDisk(nodeId: string | undefined, cwd: string): Promise<string> {
-  if (!nodeId || !window.desktopAgents) return '';
-  try {
-    const { useStore } = await import('../../store');
-    const { loadAttachmentContent } = await import('../attachment-vault');
-    const { nodes, edges } = useStore.getState();
-    const seen = new Set<string>();
-    const queue = [nodeId];
-    while (queue.length) {
-      const id = queue.shift()!;
-      if (seen.has(id)) continue;
-      seen.add(id);
-      for (const e of edges) if (e.target === id && !seen.has(e.source)) queue.push(e.source);
-    }
-    const files: { name: string; content: string; encoding?: 'utf8' | 'base64' }[] = [];
-    const names = new Set<string>();
-    for (const n of nodes) {
-      if (!seen.has(n.id)) continue;
-      for (const att of n.data.attachments ?? []) {
-        if (att.op || /^(tool|🔧|⌨️)/.test(att.name)) continue; // tool footprints are not materials
-        if (names.has(att.name) || files.length >= 40) continue;
-        const isPdf = /^application\/pdf/.test(att.type);
-        const isImage = att.type.startsWith('image/');
-        if (isImage) continue;
-        let content = '';
-        try { content = await loadAttachmentContent(att); } catch { content = att.content; }
-        if (!content) continue;
-        names.add(att.name);
-        if (isPdf) files.push({ name: att.name, content, encoding: 'base64' });
-        else files.push({ name: att.name, content });
-      }
-    }
-    if (files.length === 0) return '';
-    const r = await window.desktopAgents.writeMaterials(cwd, files);
-    if (!r.dir || r.written.length === 0) return '';
-    return `The canvas's materials are also on disk, readable with your tools, under ${r.dir}:\n` + r.written.map((f) => '- ' + f).join('\n');
-  } catch {
-    return '';
-  }
-}
-
 /** The canvas's compiled messages, split for an agent that keeps its own
  *  history: the last user message is the question; everything before it is
  *  the context the canvas wired in, sent ahead of the question as one block. */
@@ -317,6 +273,8 @@ export async function agentCallStream(
   modelId: string,
   route: AgentRoute | undefined,
   nodeId?: string,
+  /** the request is leaving: called once its materials are written, before the runtime is started */
+  dispatch?: () => void,
 ): Promise<string> {
   const bridge = window.desktopAgents;
   if (!bridge) throw new Error('agent runtimes need the desktop app');
@@ -327,7 +285,9 @@ export async function agentCallStream(
   const { question, context } = compileForAgent(messages);
   await writeGuard(cwd);
   const continuing = !!route?.continue && !!route?.sessionPath;
-  const materials = continuing ? '' : await materialsToDisk(nodeId, cwd);
+  // the run's inputs on disk, written from its envelope (lib/context/materials); a continued session has them already
+  const materials = continuing || !callbacks?.materials ? '' : await callbacks.materials(cwd);
+  dispatch?.();
   const ahead = continuing ? '' : [context, materials].filter(Boolean).join('\n\n');
   const prompt = ahead ? `${ahead}\n\n---\n\n${question}` : question;
   // the effort is the one the run was decided with, beside its model; without one, the task's own once the task is

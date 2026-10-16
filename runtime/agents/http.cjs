@@ -79,7 +79,8 @@ function createAgentsHttp({ workspaceRoot = path.join(os.homedir(), '.thoughtdag
       }
       if (p === '/agents/workspace' && method === 'POST') return json(res, 200, { dir: await ops.workspaceFor(workspaceRoot, String(body?.canvasId ?? 'default')) }), true;
       if (p === '/agents/guard' && method === 'POST') return json(res, 200, { ok: await ops.writeGuard(String(body?.cwd ?? ''), body?.config) }), true;
-      if (p === '/agents/materials' && method === 'POST') return json(res, 200, await ops.writeMaterials(String(body?.cwd ?? ''), body?.files)), true;
+      // no workspace is open here: a run's inputs are what the canvas holds, checked against their hashes
+      if (p === '/agents/materials' && method === 'POST') return json(res, 200, await ops.materializeRun(String(body?.cwd ?? ''), body?.envelope, body?.provided)), true;
       if (p === '/agents/open-in-cli' && method === 'POST') return json(res, 200, await terminal.openInTerminal(String(body?.runner ?? ''), body?.cwd ?? null, String(body?.sessionId ?? ''))), true;
       return false;
     } catch (e) {

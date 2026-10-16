@@ -1,0 +1,181 @@
+# npx vitest run tests/unit/run-policy-wiring.test.ts tests/unit/policy-parity.test.ts tests/unit/agent-context-baseline.test.ts at 827c451, before T12: the new tests and the stand-in desktop bridge copied in; policy.ts, policy.cjs, materials.ts and setRunMode are placeholders that throw
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/policy-parity.test.ts (2 tests | 2 failed) 3ms
+   ❯ the policy rule, on the page and in the shell (2)
+     × [T12] gives the same answer for each of 240 cases 2ms
+     × [T12] refuses research by an agent of whose capabilities nothing is known, and lets the same agent work 0ms
+ ❯ tests/unit/agent-context-baseline.test.ts (10 tests | 2 failed) 26ms
+   ❯ an attachment excluded on the asking node (3)
+     × leaves the kept attachment readable on disk 2ms
+   ❯ two different files with one name (3)
+     × [T12] both are written for the agent to read 2ms
+ ❯ tests/unit/run-policy-wiring.test.ts (6 tests | 5 failed) 90ms
+   ❯ a task set to research (4)
+     × [T12] through an API is sent its inputs and its question only: nothing left out, nothing unwired, no memory, no web search 6ms
+     × [T12] on an agent is not sent while the agent is not known to keep to its inputs, offline and without its own memory 1ms
+     × [T12] is a target of its own: the task it shared a target with stays at work, and a question asked below it is researched too 0ms
+   ❯ an agent at work (2)
+     × [T12] is given its inputs on disk from the run's envelope: a passage as the passage, two files of one name as two, nothing left out, and the prompt says where 11ms
+     × [T12] is not sent when the shell will not write its inputs as they were frozen, and says why 64ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 9 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/agent-context-baseline.test.ts > an attachment excluded on the asking node > leaves the kept attachment readable on disk
+AssertionError: expected '' to contain 'KEEP_VISIBLE_P2'
+
+- Expected
++ Received
+
+- KEEP_VISIBLE_P2
+
+ ❯ tests/unit/agent-context-baseline.test.ts:104:85
+    102|   it('leaves the kept attachment readable on disk', async () => {
+    103|     const handed = await generate(f);
+    104|     for (const marker of f.expected.readableContains ?? []) expect(han…
+       |                                                                                     ^
+    105|   });
+    106|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/9]⎯
+
+ FAIL  tests/unit/agent-context-baseline.test.ts > two different files with one name > [T12] both are written for the agent to read
+AssertionError: expected '' to contain 'DIR_A_NOTES_R4'
+
+- Expected
++ Received
+
+- DIR_A_NOTES_R4
+
+ ❯ tests/unit/agent-context-baseline.test.ts:123:85
+    121|     const f = fixture('same-name-different-dirs');
+    122|     const handed = await generate(f);
+    123|     for (const marker of f.expected.readableContains ?? []) expect(han…
+       |                                                                                     ^
+    124|   });
+    125|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/9]⎯
+
+ FAIL  tests/unit/policy-parity.test.ts > the policy rule, on the page and in the shell > [T12] gives the same answer for each of 240 cases
+Error: not implemented
+ ❯ verifyPolicy src/lib/context/policy.ts:2:66
+      1| // placeholder: the policy check does not exist yet
+      2| export function verifyPolicy(..._args: unknown[]): never { throw new E…
+       |                                                                  ^
+      3|
+ ❯ tests/unit/policy-parity.test.ts:41:56
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/9]⎯
+
+ FAIL  tests/unit/policy-parity.test.ts > the policy rule, on the page and in the shell > [T12] refuses research by an agent of whose capabilities nothing is known, and lets the same agent work
+Error: not implemented
+ ❯ verifyPolicy src/lib/context/policy.ts:2:66
+      1| // placeholder: the policy check does not exist yet
+      2| export function verifyPolicy(..._args: unknown[]): never { throw new E…
+       |                                                                  ^
+      3|
+ ❯ tests/unit/policy-parity.test.ts:44:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/9]⎯
+
+ FAIL  tests/unit/run-policy-wiring.test.ts > a task set to research > [T12] through an API is sent its inputs and its question only: nothing left out, nothing unwired, no memory, no web search
+Error: not implemented
+ ❯ setRunMode src/lib/agents/targets.ts:224:64
+    222|
+    223| // placeholder: a task's run mode cannot be set yet
+    224| export function setRunMode(..._args: unknown[]): never { throw new Err…
+       |                                                                ^
+    225|
+ ❯ tests/unit/run-policy-wiring.test.ts:93:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/9]⎯
+
+ FAIL  tests/unit/run-policy-wiring.test.ts > a task set to research > [T12] on an agent is not sent while the agent is not known to keep to its inputs, offline and without its own memory
+Error: not implemented
+ ❯ setRunMode src/lib/agents/targets.ts:224:64
+    222|
+    223| // placeholder: a task's run mode cannot be set yet
+    224| export function setRunMode(..._args: unknown[]): never { throw new Err…
+       |                                                                ^
+    225|
+ ❯ tests/unit/run-policy-wiring.test.ts:117:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/9]⎯
+
+ FAIL  tests/unit/run-policy-wiring.test.ts > a task set to research > [T12] is a target of its own: the task it shared a target with stays at work, and a question asked below it is researched too
+Error: not implemented
+ ❯ setRunMode src/lib/agents/targets.ts:224:64
+    222|
+    223| // placeholder: a task's run mode cannot be set yet
+    224| export function setRunMode(..._args: unknown[]): never { throw new Err…
+       |                                                                ^
+    225|
+ ❯ tests/unit/run-policy-wiring.test.ts:132:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/9]⎯
+
+ FAIL  tests/unit/run-policy-wiring.test.ts > an agent at work > [T12] is given its inputs on disk from the run's envelope: a passage as the passage, two files of one name as two, nothing left out, and the prompt says where
+TypeError: Cannot read properties of undefined (reading 'runId')
+ ❯ tests/unit/run-policy-wiring.test.ts:160:20
+    158|     const written = desktop.materials.at(-1)!;
+    159|     const run = node(t).data.lastRun!;
+    160|     expect(written.runId).toBe(run.runId);
+       |                    ^
+    161|     const contents = written.files.map((f) => f.content);
+    162|     expect(contents).toEqual(expect.arrayContaining(['FROM_A\n', 'FROM…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/9]⎯
+
+ FAIL  tests/unit/run-policy-wiring.test.ts > an agent at work > [T12] is not sent when the shell will not write its inputs as they were frozen, and says why
+AssertionError: expected [ { runtime: 'codex', …(4) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "cwd": "/synthetic/project",
++     "images": [],
++     "model": {
++       "id": "gpt-synthetic",
++       "provider": "codex",
++     },
++     "prompt": "[ThoughtDAG canvas context] The question that follows was asked from a ThoughtDAG canvas. Treat the material below as the conversation so far; answer the question at the end.
++
++ The conversation the canvas wired into this question, oldest first:
++
++ [user]
++ [File: a.md]
++ A
++
++ [user]
++ [Memory] Durable notes about this user, kept across sessions. Use them ONLY where relevant; never recite them, never treat them as part of the current question:
++ Who they are:
++ - MEMORY_MARKER_M3
++
++ ---
++
++ What does it say?",
++     "runtime": "codex",
++   },
++ ]
+
+ ❯ tests/unit/run-policy-wiring.test.ts:182:26
+    180|     await useStore.getState().rerunNode(t);
+    181|     for (let i = 0; i < 5; i++) await settled();
+    182|     expect(desktop.runs).toEqual([]);
+       |                          ^
+    183|     expect(node(t).data.responses).toEqual(['an earlier answer']);
+    184|     expect(node(t).data.lastRun).toBeUndefined();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/9]⎯
+
+
+ Test Files  3 failed (3)
+      Tests  9 failed | 6 passed | 3 expected fail (18)
+   Start at  01:19:33
+   Duration  865ms (environment 54%, transform 31%, tests 6%, import 5%, setup 3%)
+

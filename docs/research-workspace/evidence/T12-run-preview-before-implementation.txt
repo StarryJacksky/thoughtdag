@@ -1,0 +1,79 @@
+# npx vitest run tests/unit/run-preview.test.tsx at 827c451, before T12: the test copied in; RunPreview is a placeholder that renders nothing, setRunMode a placeholder that throws
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/run-preview.test.tsx (4 tests | 4 failed) 17ms
+   ❯ the run preview (4)
+     × [T12] says, for an agent at work, that its tools can read more than its inputs 9ms
+     × [T12] says, for an agent set to research, that it will not be sent, and sets it back to work 2ms
+     × [T12] says, for an API model set to research, that only its inputs and question are sent 2ms
+     × [T12] lists what the task is given and what the person left out 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/run-preview.test.tsx > the run preview > [T12] says, for an agent at work, that its tools can read more than its inputs
+TypeError: Cannot read properties of null (reading 'getAttribute')
+ ❯ tests/unit/run-preview.test.tsx:55:43
+     53|     const t = newTask(createTarget(templateFor(CODEX)), { x: 0, y: 0 }…
+     54|     view = await mount(<RunPreview nodeId={t} />);
+     55|     expect(q('[data-run-mode="workspace"]')!.getAttribute('aria-presse…
+       |                                           ^
+     56|     expect(q('[data-run-notice="workspace-readable"]')).not.toBeNull();
+     57|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  tests/unit/run-preview.test.tsx > the run preview > [T12] says, for an agent set to research, that it will not be sent, and sets it back to work
+TypeError: Cannot read properties of null (reading 'click')
+ ❯ tests/unit/run-preview.test.tsx:62:54
+     60|     const t = newTask(createTarget(templateFor(CODEX)), { x: 0, y: 0 }…
+     61|     view = await mount(<RunPreview nodeId={t} />);
+     62|     await during(() => q('[data-run-mode="research"]')!.click());
+       |                                                      ^
+     63|     expect(node(t).data.target!.policyId).toBe('research');
+     64|     expect(q('[data-run-mode="research"]')!.getAttribute('aria-pressed…
+ ❯ tests/helpers/render.tsx:30:100
+ ❯ process.env.NODE_ENV.exports.act ../../../../../../..<repo>/node_modules/react/cjs/react.development.js:814:22
+ ❯ during tests/helpers/render.tsx:30:76
+ ❯ tests/unit/run-preview.test.tsx:62:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  tests/unit/run-preview.test.tsx > the run preview > [T12] says, for an API model set to research, that only its inputs and question are sent
+TypeError: Cannot read properties of null (reading 'click')
+ ❯ tests/unit/run-preview.test.tsx:75:54
+     73|     view = await mount(<RunPreview nodeId={t} />);
+     74|     expect(q('[data-run-notice]')).toBeNull();
+     75|     await during(() => q('[data-run-mode="research"]')!.click());
+       |                                                      ^
+     76|     expect(q('[data-run-notice="research"]')).not.toBeNull();
+     77|   });
+ ❯ tests/helpers/render.tsx:30:100
+ ❯ process.env.NODE_ENV.exports.act ../../../../../../..<repo>/node_modules/react/cjs/react.development.js:814:22
+ ❯ during tests/helpers/render.tsx:30:76
+ ❯ tests/unit/run-preview.test.tsx:75:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  tests/unit/run-preview.test.tsx > the run preview > [T12] lists what the task is given and what the person left out
+TypeError: Cannot read properties of null (reading 'click')
+ ❯ tests/unit/run-preview.test.tsx:90:53
+     88|     view = await mount(<RunPreview nodeId={t} />);
+     89|     expect(q('[data-run-inputs]')).toBeNull();
+     90|     await during(() => q('[data-run-preview-toggle]')!.click());
+       |                                                     ^
+     91|     expect(q(`[data-run-input="${keep}"]`)!.textContent).toContain('ke…
+     92|     expect(q(`[data-run-input="${secret}"]`)).toBeNull();
+ ❯ tests/helpers/render.tsx:30:100
+ ❯ process.env.NODE_ENV.exports.act ../../../../../../..<repo>/node_modules/react/cjs/react.development.js:814:22
+ ❯ during tests/helpers/render.tsx:30:76
+ ❯ tests/unit/run-preview.test.tsx:90:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed (4)
+   Start at  01:22:26
+   Duration  667ms (transform 49%, environment 36%, import 11%, tests 3%, setup 1%)
+

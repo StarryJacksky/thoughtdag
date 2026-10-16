@@ -1,14 +1,15 @@
-// What a fake agent could read of the canvas's materials: every file under
-// <cwd>/.thoughtdag/materials, by relative path, with its text. The fakes
-// record this when a turn starts, so a test can assert on the files an
-// agent was given and not only on its prompt.
+// What a fake agent could read of the materials written for runs: every
+// file under <cwd>/.thoughtdag/runs (one directory per run), by path
+// relative to it, with its text. The fakes record this when a turn starts,
+// so a test can assert on the files an agent was given and not only on its
+// prompt.
 'use strict';
 
 const fs = require('node:fs');
 const path = require('node:path');
 
 function readableMaterials(cwd) {
-  const root = path.join(String(cwd || ''), '.thoughtdag', 'materials');
+  const root = path.join(String(cwd || ''), '.thoughtdag', 'runs');
   const files = [];
   const walk = (dir) => {
     let entries;

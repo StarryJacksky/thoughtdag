@@ -26,6 +26,9 @@ let otherUrl: string;
 const settle = (expression: string) => page.evaluate(`(async () => { try { return { ok: true, value: await (${expression}) }; } catch (e) { return { ok: false, message: String(e && e.message) }; } })()`) as Promise<{ ok: true; value: unknown } | { ok: false; message: string }>;
 const json = (value: unknown) => JSON.stringify(value);
 
+/** What the shell answers when an agent's inputs are written (src/desktop-bridge.d.ts). */
+type Materialized = { ok: true; dir: string; receipt: { entries: { path: string }[] } } | { ok: false; code: string };
+
 /** What the shell did with each attempt to take the window out of the app. */
 type Leaving = { attempts: { url: string; prevented: boolean }[]; external: string[] };
 const leaving = () => app.evaluate(() => (globalThis as unknown as { tdagLeaving: Leaving }).tdagLeaving);
@@ -111,6 +114,37 @@ test.describe.serial('the workspace door in the desktop shell', () => {
     expect(record).toMatchObject({ relativePath: 'readme.md', revision: null });
     const stored = JSON.parse(fs.readFileSync(path.join(project, '.thoughtdag', 'resources.json'), 'utf8')) as { resources: { record: { fileId: string } }[] };
     expect(stored.resources.map((r) => r.record.fileId)).toEqual([record.fileId]);
+  });
+
+  test('[T12] an agent\'s inputs are written from the snapshot the run names, not from the file as it is now', async () => {
+    const listed = await settle(`window.desktopWorkspace.listChildren(${json(workspaceId)})`) as { value: { name: string; entryId: string }[] };
+    const readme = listed.value.find((e) => e.name === 'readme.md')!;
+    const { value: record } = await settle(`window.desktopWorkspace.registerEntry(${json(workspaceId)}, ${json(readme.entryId)})`) as { value: { fileId: string } };
+    const frozen = await settle(`window.desktopWorkspace.freezeFile(${json(record.fileId)})`) as { ok: true; value: { snapshotId: string; contentHash: string } };
+    expect(frozen.ok, json(frozen)).toBe(true);
+    fs.writeFileSync(path.join(project, 'readme.md'), 'CHANGED_AFTER_THE_FREEZE');
+    const input = (contentHash: string) => ({
+      inputId: 'in_readme', displayName: 'readme.md', contentHash, snapshotId: frozen.value.snapshotId, payload: 'text', reason: 'wired', size: { bytes: 11 },
+      source: { kind: 'resource', ref: { fileId: record.fileId, selector: { kind: 'document' }, version: { kind: 'snapshot', snapshotId: frozen.value.snapshotId }, payload: 'text' } },
+    });
+    const policy = { read: { scope: 'workspace', inputIds: ['in_readme'] }, write: { scope: 'workspace' }, tools: { allow: [], mcpServers: [] }, network: 'on', recall: 'off', budget: { maxInputTokens: 1, reservedOutputTokens: 1, maxToolCalls: 1, maxWallTimeSeconds: 1 } };
+    const runtime = { kind: 'agent', runtime: 'codex', connectionRef: 'runtime:codex', model: 'codex/x', effort: null, capabilityVersion: null };
+    const run = (runId: string, mode: string, contentHash: string) => settle(`window.desktopAgents.materialize(${json(project)}, ${json({ runId, mode, runtime, policy: mode === 'research' ? { ...policy, read: { scope: 'inputs-only', inputIds: [] }, write: { scope: 'none' }, network: 'off' } : policy, inputs: [input(contentHash)] })}, {})`) as Promise<{ ok: true; value: Materialized }>;
+
+    const written = await run('run_desktop', 'workspace', frozen.value.contentHash);
+    expect(written.ok && written.value.ok, json(written)).toBe(true);
+    const answer = written.value as Extract<Materialized, { ok: true }>;
+    expect(answer.dir).toBe('.thoughtdag/runs/run_desktop');
+    expect(fs.readFileSync(path.join(project, answer.dir, answer.receipt.entries[0].path), 'utf8')).toBe('TOP_NOTE_J6');
+    expect(json(answer)).not.toContain(base);
+
+    // a hash the snapshot does not have, and research by an agent of unknown capabilities: refused, nothing written
+    const forged = await run('run_forged', 'workspace', 'sha256:' + '0'.repeat(64));
+    expect(forged.value).toMatchObject({ ok: false, code: 'hash-mismatch' });
+    const research = await run('run_research', 'research', frozen.value.contentHash);
+    expect(research.value).toMatchObject({ ok: false, code: 'policy' });
+    expect(fs.readdirSync(path.join(project, '.thoughtdag', 'runs'))).toEqual(['run_desktop']);
+    fs.writeFileSync(path.join(project, 'readme.md'), 'TOP_NOTE_J6');
   });
 
   test('a path that climbs out is refused by the shell, with a code and no path in the message', async () => {

@@ -8,7 +8,7 @@
 
 `tests/unit/multi-ai-baseline.test.ts` 通过 store 自己的 `addQuestion` 和 `regenerate` 发起提问，走的是应用真实的提问路径，然后在桌面桥接处记录每次运行实际收到的运行时、模型、effort、工作目录、审批规则、提示词和材料文件。
 
-`tests/host/multi-ai-baseline.test.cjs` 用主进程真实的材料写入函数（`runtime/agents/ops.cjs` 的 `writeMaterials`）和假运行时，记录每一轮开始时 Agent 在磁盘上能读到什么。
+`tests/host/multi-ai-baseline.test.cjs` 用主进程真实的材料写入函数（`runtime/agents/ops.cjs` 的 `writeMaterials`）和假运行时，记录每一轮开始时 Agent 在磁盘上能读到什么。（T12 之后，写入函数换成按运行信封写的 `materializeRun`，每次运行一个目录，见 `materials-and-policy.md`。）
 
 三个夹具在 `tests/fixtures/research/`：`two-targets`、`same-runtime-two-targets`、`global-default-changed`。
 

@@ -1,8 +1,15 @@
 // A capturing stand-in for the desktop shell's agent bridge
 // (window.desktopAgents). It runs nothing: it records what the canvas hands
 // to a runtime — the run request with its prompt, and every material file
-// written for the agent to read. By default a run ends at once; with `hold`
-// it stays open and the test sends its events by hand.
+// written for the agent to read. Materials are written as the shell writes
+// them (runtime/execution/materialize.cjs), from the run's envelope: a
+// workspace file from its snapshot, a passage as the passage, what the
+// canvas holds as it was handed over; the hashes are not checked here (the
+// stand-in workspace's are not SHA-256), the shell's own tests do that. By
+// default a run ends at once; with `hold` it stays open and the test sends
+// its events by hand.
+import { locatePassage } from '../../src/lib/context/resource-resolver';
+import type { ResolvedInput } from '../../src/lib/context/contracts';
 
 type MaterialFile = { name: string; content: string; encoding?: 'utf8' | 'base64' };
 type AgentEvent = Record<string, unknown> & { type: string };
@@ -13,8 +20,8 @@ export interface FakeDesktop {
   runs: DesktopAgentRunRequest[];
   /** the id each run was given, parallel to `runs` */
   runIds: string[];
-  /** every writeMaterials call, oldest first */
-  materials: { cwd: string; files: MaterialFile[] }[];
+  /** every run's materials as written, oldest first */
+  materials: { cwd: string; runId: string; files: MaterialFile[] }[];
   /** the text of every file the canvas wrote for the agent to read */
   readableFileContents(): string[];
   /** send one event as the shell would, to whoever is listening */
@@ -36,7 +43,7 @@ export function installFakeDesktop(options: { workspace?: string; reply?: string
   const reply = options.reply ?? 'synthetic answer';
   const runs: DesktopAgentRunRequest[] = [];
   const runIds: string[] = [];
-  const materials: { cwd: string; files: MaterialFile[] }[] = [];
+  const materials: { cwd: string; runId: string; files: MaterialFile[] }[] = [];
   const emit = (runId: string, event: AgentEvent) => listener?.({ runId, event });
 
   const bridge: DesktopAgentsBridge = {
@@ -55,9 +62,36 @@ export function installFakeDesktop(options: { workspace?: string; reply?: string
     answer: async () => true,
     pickCwd: async () => null,
     guardWrite: async () => true,
-    writeMaterials: async (cwd, files) => {
-      materials.push({ cwd, files });
-      return { dir: `${cwd}/.thoughtdag/materials`, written: files.map((f) => f.name) };
+    materialize: async (cwd, envelope, provided) => {
+      const files: MaterialFile[] = [];
+      const entries: MaterialsReceiptEntry[] = [];
+      for (const input of envelope.inputs as ResolvedInput[]) {
+        let text: string | null = null;
+        let base64: string | null = null;
+        if (input.source.kind === 'attachment') {
+          base64 = provided[input.inputId] ?? null;
+          if (base64 === null) return { ok: false, code: 'unavailable', message: 'what the canvas holds of this input was not given', inputId: input.inputId };
+          if (input.payload !== 'image') { text = new TextDecoder().decode(Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))); base64 = null; }
+        } else if (input.source.kind === 'resource') {
+          const kept = await window.desktopWorkspace!.readSnapshot('', input.snapshotId).catch(() => null);
+          if (!kept) return { ok: false, code: 'lost', message: 'the snapshot the run names is not kept', inputId: input.inputId };
+          if (kept.representation === 'text') text = kept.payload as string;
+          else base64 = btoa(String.fromCharCode(...(kept.payload as Uint8Array)));
+        }
+        const selector = input.source.kind === 'resource' ? input.source.ref.selector : null;
+        let part: 'whole' | 'passage' = 'whole';
+        if (selector?.kind === 'text' && text !== null) {
+          const at = locatePassage(text, selector);
+          if (typeof at === 'string') return { ok: false, code: at === 'ambiguous' ? 'selection-ambiguous' : 'selection-lost', message: 'the passage', inputId: input.inputId };
+          text = text.slice(at.from, at.to);
+          part = 'passage';
+        }
+        const path = `materials/${input.inputId}-${input.displayName.split(/[\\/]/).pop() || 'input'}`;
+        files.push(text !== null ? { name: path, content: text } : { name: path, content: base64 ?? '', encoding: 'base64' });
+        entries.push({ inputId: input.inputId, path, displayName: input.displayName, part, bytes: 0, sourceHash: input.contentHash, writtenHash: '', permission: 'read' });
+      }
+      materials.push({ cwd, runId: envelope.runId, files });
+      return { ok: true, dir: `.thoughtdag/runs/${envelope.runId}`, receipt: { runId: envelope.runId, manifest: 'materials/manifest.json', entries, totalBytes: 0 } };
     },
     onEvent: (cb) => { listener = cb; },
   };

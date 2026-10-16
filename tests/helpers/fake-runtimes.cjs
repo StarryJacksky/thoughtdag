@@ -56,9 +56,9 @@ function installFakeRuntimes() {
       fs.writeFileSync(scriptFile, JSON.stringify(behavior));
       process.env.TD_FAKE_SCRIPT = scriptFile;
     },
-    /** a material file as the canvas writes it for agents to read */
+    /** a material file where a run's materials are written for agents to read (one run, run_fixture) */
     writeMaterial(name, content) {
-      const dir = path.join(project, '.thoughtdag', 'materials');
+      const dir = path.join(project, '.thoughtdag', 'runs', 'run_fixture', 'materials');
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(path.join(dir, name), content);
     },

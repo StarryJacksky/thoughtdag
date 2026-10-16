@@ -1,0 +1,322 @@
+# node --test tests/host/materialize.test.cjs at 827c451, before T12: the test copied in; materialize.cjs, policy.cjs and ops.materializeRun are placeholders that throw
+TAP version 13
+# Subtest: [T12] each input is written under a name of its own, from its snapshot, and the map says where
+not ok 1 - [T12] each input is written under a name of its own, from its snapshot, and the map says where
+  ---
+  duration_ms: 42.518375
+  type: 'test'
+  location: '<repo>/tests/host/materialize.test.cjs:46:1'
+  failureType: 'testCodeFailure'
+  error: 'not implemented'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    fail (<repo>/runtime/execution/materialize.cjs:3:34)
+    TestContext.<anonymous> (<repo>/tests/host/materialize.test.cjs:49:25)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: [T12] a passage selected is written as the passage, never the whole file
+not ok 2 - [T12] a passage selected is written as the passage, never the whole file
+  ---
+  duration_ms: 21.634292
+  type: 'test'
+  location: '<repo>/tests/host/materialize.test.cjs:66:1'
+  failureType: 'testCodeFailure'
+  error: 'not implemented'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    fail (<repo>/runtime/execution/materialize.cjs:3:34)
+    TestContext.<anonymous> (<repo>/tests/host/materialize.test.cjs:70:25)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T12] what the person left out is not written: only the envelope's inputs are
+not ok 3 - [T12] what the person left out is not written: only the envelope's inputs are
+  ---
+  duration_ms: 32.805542
+  type: 'test'
+  location: '<repo>/tests/host/materialize.test.cjs:79:1'
+  failureType: 'testCodeFailure'
+  error: 'not implemented'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    fail (<repo>/runtime/execution/materialize.cjs:3:34)
+    TestContext.<anonymous> (<repo>/tests/host/materialize.test.cjs:83:9)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T12] bytes that do not hash to what was frozen are not written, and nothing of the run is
+not ok 4 - [T12] bytes that do not hash to what was frozen are not written, and nothing of the run is
+  ---
+  duration_ms: 22.564708
+  type: 'test'
+  location: '<repo>/tests/host/materialize.test.cjs:90:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + Comparison {}
+    - Comparison {
+    -   code: 'hash-mismatch'
+    - }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    code: 'hash-mismatch'
+  actual:
+  error: 'not implemented'
+  stack: |-
+    fail (<repo>/runtime/execution/materialize.cjs:3:34)
+    TestContext.<anonymous> (<repo>/tests/host/materialize.test.cjs:94:24)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (<repo>/tests/host/materialize.test.cjs:94:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T12] inputs too large in all are refused before anything is written
+not ok 5 - [T12] inputs too large in all are refused before anything is written
+  ---
+  duration_ms: 9.619
+  type: 'test'
+  location: '<repo>/tests/host/materialize.test.cjs:101:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + Comparison {}
+    - Comparison {
+    -   code: 'too-large'
+    - }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    code: 'too-large'
+  actual:
+  error: 'not implemented'
+  stack: |-
+    fail (<repo>/runtime/execution/materialize.cjs:3:34)
+    TestContext.<anonymous> (<repo>/tests/host/materialize.test.cjs:105:24)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (<repo>/tests/host/materialize.test.cjs:105:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T12] a name an input gives cannot place it outside the run directory
+not ok 6 - [T12] a name an input gives cannot place it outside the run directory
+  ---
+  duration_ms: 8.669
+  type: 'test'
+  location: '<repo>/tests/host/materialize.test.cjs:110:1'
+  failureType: 'testCodeFailure'
+  error: 'not implemented'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    fail (<repo>/runtime/execution/materialize.cjs:3:34)
+    TestContext.<anonymous> (<repo>/tests/host/materialize.test.cjs:114:25)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T12] a run directory that already holds something is not written into
+not ok 7 - [T12] a run directory that already holds something is not written into
+  ---
+  duration_ms: 9.184167
+  type: 'test'
+  location: '<repo>/tests/host/materialize.test.cjs:122:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + Comparison {}
+    - Comparison {
+    -   code: 'not-empty'
+    - }
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    code: 'not-empty'
+  actual:
+  error: 'not implemented'
+  stack: |-
+    fail (<repo>/runtime/execution/materialize.cjs:3:34)
+    TestContext.<anonymous> (<repo>/tests/host/materialize.test.cjs:127:24)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (<repo>/tests/host/materialize.test.cjs:127:3)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T12] research by an agent is refused while the runtime is not known to keep it to its inputs, offline and without its own memory
+not ok 8 - [T12] research by an agent is refused while the runtime is not known to keep it to its inputs, offline and without its own memory
+  ---
+  duration_ms: 0.10425
+  type: 'test'
+  location: '<repo>/tests/host/materialize.test.cjs:141:1'
+  failureType: 'testCodeFailure'
+  error: 'not implemented'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    verifyPolicy (<repo>/runtime/execution/policy.cjs:3:48)
+    TestContext.<anonymous> (<repo>/tests/host/materialize.test.cjs:142:13)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T12] research through an API is given its messages only: no tools, no network, no recall
+not ok 9 - [T12] research through an API is given its messages only: no tools, no network, no recall
+  ---
+  duration_ms: 0.375208
+  type: 'test'
+  location: '<repo>/tests/host/materialize.test.cjs:150:1'
+  failureType: 'testCodeFailure'
+  error: 'not implemented'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    verifyPolicy (<repo>/runtime/execution/policy.cjs:3:48)
+    TestContext.<anonymous> (<repo>/tests/host/materialize.test.cjs:151:20)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T12] working mode runs, and says that an agent's tools can read more than its inputs
+not ok 10 - [T12] working mode runs, and says that an agent's tools can read more than its inputs
+  ---
+  duration_ms: 0.266542
+  type: 'test'
+  location: '<repo>/tests/host/materialize.test.cjs:156:1'
+  failureType: 'testCodeFailure'
+  error: 'not implemented'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    verifyPolicy (<repo>/runtime/execution/policy.cjs:3:48)
+    TestContext.<anonymous> (<repo>/tests/host/materialize.test.cjs:157:20)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T12] the door writes a run's inputs under .thoughtdag/runs/<runId> in the working directory, as plain read-only files
+not ok 11 - [T12] the door writes a run's inputs under .thoughtdag/runs/<runId> in the working directory, as plain read-only files
+  ---
+  duration_ms: 0.303875
+  type: 'test'
+  location: '<repo>/tests/host/materialize.test.cjs:166:1'
+  failureType: 'testCodeFailure'
+  error: 'not implemented'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    module.exports.materializeRun (<repo>/runtime/agents/ops.cjs:57:53)
+    TestContext.<anonymous> (<repo>/tests/host/materialize.test.cjs:169:24)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T12] the door refuses research by an agent, writes nothing, and says what cannot be held
+not ok 12 - [T12] the door refuses research by an agent, writes nothing, and says what cannot be held
+  ---
+  duration_ms: 0.144792
+  type: 'test'
+  location: '<repo>/tests/host/materialize.test.cjs:179:1'
+  failureType: 'testCodeFailure'
+  error: 'not implemented'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    module.exports.materializeRun (<repo>/runtime/agents/ops.cjs:57:53)
+    TestContext.<anonymous> (<repo>/tests/host/materialize.test.cjs:182:24)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T12] the door refuses a run id or a working directory that could place files anywhere else
+not ok 13 - [T12] the door refuses a run id or a working directory that could place files anywhere else
+  ---
+  duration_ms: 0.131416
+  type: 'test'
+  location: '<repo>/tests/host/materialize.test.cjs:189:1'
+  failureType: 'testCodeFailure'
+  error: 'not implemented'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    module.exports.materializeRun (<repo>/runtime/agents/ops.cjs:57:53)
+    TestContext.<anonymous> (<repo>/tests/host/materialize.test.cjs:192:26)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T12] a file in a folder opened read-only is given as it is, only while it is what was frozen
+not ok 14 - [T12] a file in a folder opened read-only is given as it is, only while it is what was frozen
+  ---
+  duration_ms: 0.144292
+  type: 'test'
+  location: '<repo>/tests/host/materialize.test.cjs:199:1'
+  failureType: 'testCodeFailure'
+  error: 'not implemented'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    fail (<repo>/runtime/execution/materialize.cjs:3:34)
+    TestContext.<anonymous> (<repo>/tests/host/materialize.test.cjs:205:25)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T12] old run directories go beyond the newest ones kept, except one something else wrote into
+not ok 15 - [T12] old run directories go beyond the newest ones kept, except one something else wrote into
+  ---
+  duration_ms: 0.144916
+  type: 'test'
+  location: '<repo>/tests/host/materialize.test.cjs:211:1'
+  failureType: 'testCodeFailure'
+  error: 'not implemented'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    fail (<repo>/runtime/execution/materialize.cjs:3:34)
+    TestContext.<anonymous> (<repo>/tests/host/materialize.test.cjs:215:11)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..15
+# tests 15
+# suites 0
+# pass 0
+# fail 15
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 216.763708

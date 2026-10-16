@@ -113,6 +113,16 @@ interface DesktopAgentRunRequest {
   allowRules?: string[];
 }
 
+/** The part of a run envelope (src/lib/context/contracts.ts) an agent's materials are written from. */
+interface MaterialsEnvelope { runId: string; mode: 'research' | 'workspace'; runtime: unknown; policy: unknown; inputs: unknown[] }
+/** One input as written: where (relative to the run directory), which part, the hash of the frozen whole and of what was written. */
+interface MaterialsReceiptEntry { inputId: string; path: string; displayName: string; part: 'whole' | 'passage'; bytes: number; sourceHash: string; writtenHash: string; permission: 'read' }
+interface MaterialsReceipt { runId: string; manifest: string; entries: MaterialsReceiptEntry[]; totalBytes: number }
+/** `dir` is the run directory, relative to the working directory. Refused, nothing is written. */
+type MaterializeAnswer =
+  | { ok: true; dir: string; receipt: MaterialsReceipt }
+  | { ok: false; code: string; message: string; inputId: string | null; blocked?: string[] };
+
 interface DesktopAgentsBridge {
   /** what this host can do beyond the calls: a native folder dialog */
   capabilities?: { nativePicker: boolean };
@@ -130,8 +140,9 @@ interface DesktopAgentsBridge {
   pickCwd(): Promise<string | null>;
   /** the boundary guard's tuning for a working directory */
   guardWrite(cwd: string, config: { mode: 'ask' | 'allow'; allow: string[] }): Promise<boolean>;
-  /** the canvas's materials written under <cwd>/.thoughtdag/materials */
-  writeMaterials(cwd: string, files: { name: string; content: string; encoding?: 'utf8' | 'base64' }[]): Promise<{ dir: string | null; written: string[] }>;
+  /** a run's inputs written for its agent under <cwd>/.thoughtdag/runs/<runId>, from its envelope;
+   *  `provided` holds what the canvas holds of them, by input id, in base64 */
+  materialize(cwd: string, envelope: MaterialsEnvelope, provided: Record<string, string>): Promise<MaterializeAnswer>;
   onEvent(cb: (payload: { runId: string; event: Record<string, unknown> & { type: string } }) => void): void;
 }
 

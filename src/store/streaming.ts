@@ -10,7 +10,7 @@ import { agentOutbound, adoptAgentTurn, claimAgentTurn, isAgentModel } from '../
 import { countTokens, activeSummary } from '../utils';
 import { toast, useUiStore } from '../lib/ui-store';
 import { getModelsOnce, reconcileModelId } from '../lib/use-models';
-import { checkSend, createTarget, describeTarget, templateFor } from '../lib/agents/target-model';
+import { checkSend, createTarget, describeTarget, RESEARCH_POLICY, templateFor } from '../lib/agents/target-model';
 import { contextLengthFor } from '../lib/runtime-providers';
 import { memoryContextBlock, judgeMemory } from '../lib/memory';
 import { fetchRecallItems, recallContextBlock } from '../lib/recall';
@@ -25,6 +25,7 @@ import type { Reference } from '../types';
 import type { StoreState } from './types';
 import { sanitizeReferenceUrls } from '../lib/outbound-links';
 import type { RunEnvelope } from '../lib/context/contracts';
+import type { PolicyBlock } from '../lib/context/policy';
 import type { FrozenInputs, RunBlocked as RunBlockedError } from '../lib/context/prepare-run';
 
 // Background summary generation — fire and forget. Display channel ONLY:
@@ -147,6 +148,12 @@ function markNotSent(set: Set, get: Get, nodeId: string, message: string): void 
     nodes: state.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, response: message, isLoading: false, restreaming: undefined, reasoning: undefined, generationFailed: true } } : n)),
   }));
   get().pushHistory();
+}
+
+/** Why a run set to research was not sent: what it cannot be held to, in the person's words. */
+function policyText(blocked: readonly PolicyBlock[]): string {
+  const parts = [...new Set(blocked.map((b) => t(`run.policyPart.${b}`)))];
+  return fmt(t('run.policyBlocked'), { what: parts.join(t('run.policyJoin')) });
 }
 
 /** Why a run could not be prepared, in the person's words, naming the file. */
@@ -362,7 +369,10 @@ export async function runNodeGeneration(
   // fingerprints never see this block (memory edits must not mark answers
   // stale; the block is assembled at generation time, after buildContext).
   const selfData = get().nodes.find((n) => n.id === nodeId)?.data;
-  const memBlock = !selfData?.stepKind && !selfData?.digestOf ? memoryContextBlock() : null;
+  // A task set to research is given its inputs and its question, and nothing else: no memory, no recall,
+  // no tools. Whether the AI it runs on can be held to that is checked once the run is prepared (below).
+  const researching = runTarget?.policyId === RESEARCH_POLICY;
+  const memBlock = !researching && !selfData?.stepKind && !selfData?.digestOf ? memoryContextBlock() : null;
   if (memBlock) {
     // Insert AFTER the last assistant turn: the material+chain prefix stays
     // byte-stable across turns, so provider prompt caches keep hitting.
@@ -381,7 +391,8 @@ export async function runNodeGeneration(
   // injection. Items already on the node (a rerun, or some pruned by the
   // person) are used as they stand; a fresh ask searches. Same seat as the
   // memory block: after the last answer, before the question.
-  const recallOn = !selfData?.stepKind && !selfData?.digestOf && (selfData?.recall ?? useUiStore.getState().recallEnabled);
+  const recallOn = !researching && !selfData?.stepKind && !selfData?.digestOf && (selfData?.recall ?? useUiStore.getState().recallEnabled);
+  let recallGiven = false;
   if (recallOn && isCurrent()) {
     let items = selfData?.recallItems;
     if (!items) {
@@ -398,6 +409,7 @@ export async function runNodeGeneration(
       let at = messages.length - 1;
       for (let i = messages.length - 1; i >= 0; i--) { if (messages[i].role === 'assistant') { at = i + 1; break; } }
       messages = [...messages.slice(0, at), block, ...messages.slice(at)];
+      recallGiven = true;
       sources.splice(at, 0, { layer: 'system' });
     }
   }
@@ -410,6 +422,7 @@ export async function runNodeGeneration(
     // Search permissions live on the node (snapshotted at ask time);
     // legacy nodes without flags follow the current shared defaults
     const selfNow = get().nodes.find((n) => n.id === nodeId)?.data;
+    if (researching) return { web: false, scholar: false, mcp: false };
     return {
       web: selfNow?.webSearch ?? useUiStore.getState().webSearchEnabled,
       scholar: selfNow?.scholarSearch ?? useUiStore.getState().scholarSearchEnabled,
@@ -425,7 +438,7 @@ export async function runNodeGeneration(
       graphId: useProjects.getState().activeId ?? 'canvas',
       targetNodeId: nodeId,
       question,
-      mode: runTarget?.kind === 'agent' ? 'workspace' : 'research',
+      mode: researching ? 'research' : 'workspace',
       runtimeSelection: {
         kind: runTarget?.kind ?? (isAgentModel(requestedModel) ? 'agent' : 'provider'),
         runtime: runTarget?.runtime ?? null,
@@ -435,6 +448,7 @@ export async function runNodeGeneration(
         capabilityVersion: null,
       },
       tools: toolPrefs,
+      recall: memBlock ? 'auto' : recallGiven ? 'explicit-only' : 'off',
       context: { messages, images: images ?? [], sources, imageSources: opts.imageSources ?? [] },
       ...(frozen ? { frozen } : {}),
     });
@@ -443,6 +457,16 @@ export async function runNodeGeneration(
     markNotSent(set, get, nodeId, e instanceof prep.RunBlocked ? blockedText(get, e) : fmt(t('run.notPrepared'), { why: e instanceof Error ? e.message : String(e) }));
     return;
   }
+  if (!isCurrent()) return;
+  // what the run is held to, against what its runtime is known to be able to hold it to: a promise that
+  // cannot be kept is not made (research by an agent whose capabilities are not known is not sent)
+  const { verifyPolicy, capabilitiesOf } = await import('../lib/context/policy');
+  const verdict = verifyPolicy(envelope, capabilitiesOf(envelope.runtime.runtime));
+  if (!verdict.ok) {
+    markNotSent(set, get, nodeId, policyText(verdict.blocked));
+    return;
+  }
+  const { materialsFor } = await import('../lib/context/materials');
   if (!isCurrent()) return;
 
   try {
@@ -519,6 +543,8 @@ export async function runNodeGeneration(
           : n)) }));
       }
     }, abortController.signal, images, {
+      // an agent's inputs on disk: written from the envelope, into a directory of the run's own
+      materials: materialsFor(envelope),
       onDispatch: (p) => {
         // the last moment before it leaves: it must be the request prepared, nothing added on the way
         const check = prep.verifyDispatch(envelope!, p);
@@ -687,6 +713,11 @@ export async function runNodeGeneration(
     if (err instanceof DispatchRefused) {
       // stopped before it left: nothing was asked, nothing is recorded as answered
       markNotSent(set, get, nodeId, fmt(t('run.dispatchRefused'), { what: t(`run.dispatchPart.${err.part}`) }));
+      return;
+    }
+    if (err instanceof prep.RunBlocked) {
+      // its inputs could not be written as they were frozen: nothing was written, nothing was sent
+      markNotSent(set, get, nodeId, blockedText(get, err));
       return;
     }
     activeAbortControllers.delete(nodeId);

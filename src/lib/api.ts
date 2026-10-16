@@ -212,6 +212,8 @@ export interface StreamCallbacks {
   /** The request is leaving — exactly this payload, after every image
       substitution or drop, on this lane. Fires again on a retry. */
   onDispatch?: (payload: { messages: ContextMessage[]; images: ImageAttachment[]; model: string; toolPrefs: ToolPrefs; lane: 'direct' | 'proxy' }) => void;
+  /** An agent runtime: write the run's inputs for it in the working directory, resolving with the note the prompt carries. */
+  materials?: (cwd: string) => Promise<string>;
   /** The vision stand-in failed; the original model answers from the
       images' companion text. */
   onImageFallback?: (model: string) => void;
@@ -244,8 +246,9 @@ export async function llmCallStream(
   // An agent runtime in the desktop app: Pi runs the turn with its own
   // tools; the canvas's compiled context rides ahead of the question.
   if (modelId && isAgentModel(modelId) && window.desktopAgents) {
-    callbacks?.onDispatch?.({ messages: contextMessages, images: images ?? [], model: modelId, toolPrefs: toolPrefs ?? {}, lane: 'proxy' });
-    return agentCallStream(contextMessages, onChunk, signal, images, callbacks, modelId, harness?.cwd ? { cwd: harness.cwd, sessionPath: harness.sessionPath, forkEntryId: harness.forkEntryId, continue: harness.continue, ...('effort' in harness ? { effort: harness.effort } : {}) } : undefined, harness?.nodeId);
+    // it leaves once its materials are on disk: a run whose inputs cannot be written is not sent
+    const dispatch = () => callbacks?.onDispatch?.({ messages: contextMessages, images: images ?? [], model: modelId, toolPrefs: toolPrefs ?? {}, lane: 'proxy' });
+    return agentCallStream(contextMessages, onChunk, signal, images, callbacks, modelId, harness?.cwd ? { cwd: harness.cwd, sessionPath: harness.sessionPath, forkEntryId: harness.forkEntryId, continue: harness.continue, ...('effort' in harness ? { effort: harness.effort } : {}) } : undefined, harness?.nodeId, dispatch);
   }
   images = await imagesForModel(modelId, images);
 

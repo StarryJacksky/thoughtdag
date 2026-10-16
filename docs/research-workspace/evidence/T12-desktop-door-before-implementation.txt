@@ -1,0 +1,43 @@
+# npx playwright test -c playwright.desktop.config.ts tests/e2e-desktop/workspace-door.spec.ts at 827c451, before T12: the spec copied in, the app built from that commit
+
+Running 11 tests using 1 worker
+
+  ✓   1 tests/e2e-desktop/workspace-door.spec.ts:93:3 › the workspace door in the desktop shell › a chosen folder opens as a workspace, lists without its own records, and names no path (20ms)
+  ✓   2 tests/e2e-desktop/workspace-door.spec.ts:108:3 › the workspace door in the desktop shell › a file gets its identity through the bridge, and the registry lands in the folder (10ms)
+  ✘   3 tests/e2e-desktop/workspace-door.spec.ts:119:3 › the workspace door in the desktop shell › [T12] an agent's inputs are written from the snapshot the run names, not from the file as it is now (15ms)
+  -   4 tests/e2e-desktop/workspace-door.spec.ts:150:3 › the workspace door in the desktop shell › a path that climbs out is refused by the shell, with a code and no path in the message
+  -   5 tests/e2e-desktop/workspace-door.spec.ts:159:3 › the workspace door in the desktop shell › a frame inside the page is not given the bridge
+  -   6 tests/e2e-desktop/workspace-door.spec.ts:171:3 › the workspace door in the desktop shell › the older bridges answer the app itself
+  -   7 tests/e2e-desktop/workspace-door.spec.ts:178:3 › the workspace door in the desktop shell › the window does not leave the app for another local page
+  -   8 tests/e2e-desktop/workspace-door.spec.ts:198:3 › the workspace door in the desktop shell › the window still moves within the app
+  -   9 tests/e2e-desktop/workspace-door.spec.ts:209:3 › the workspace door in the desktop shell › a link that opens a new window reaches the system only as a web or mail link
+  -  10 tests/e2e-desktop/workspace-door.spec.ts:259:3 › the workspace door in the desktop shell › another page shown in the app window has the bridge and is refused at the door
+  -  11 tests/e2e-desktop/workspace-door.spec.ts:274:3 › the workspace door in the desktop shell › the older bridges refuse a page that is not the app
+
+
+  1) tests/e2e-desktop/workspace-door.spec.ts:119:3 › the workspace door in the desktop shell › [T12] an agent's inputs are written from the snapshot the run names, not from the file as it is now 
+
+    Error: {"ok":false,"message":"window.desktopAgents.materialize is not a function"}
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      133 |
+      134 |     const written = await run('run_desktop', 'workspace', frozen.value.contentHash);
+    > 135 |     expect(written.ok && written.value.ok, json(written)).toBe(true);
+          |                                                           ^
+      136 |     const answer = written.value as Extract<Materialized, { ok: true }>;
+      137 |     expect(answer.dir).toBe('.thoughtdag/runs/run_desktop');
+      138 |     expect(fs.readFileSync(path.join(project, answer.dir, answer.receipt.entries[0].path), 'utf8')).toBe('TOP_NOTE_J6');
+        at <repo>/tests/e2e-desktop/workspace-door.spec.ts:135:59
+
+    Error Context: test-results/workspace-door-the-workspa-1f2e2--from-the-file-as-it-is-now/error-context.md
+
+    Error Context: test-results/workspace-door-the-workspa-1f2e2--from-the-file-as-it-is-now/error-context.md
+
+  1 failed
+    tests/e2e-desktop/workspace-door.spec.ts:119:3 › the workspace door in the desktop shell › [T12] an agent's inputs are written from the snapshot the run names, not from the file as it is now 
+  8 did not run
+  2 passed (984ms)

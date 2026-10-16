@@ -14,6 +14,15 @@ import type { ModelInfo } from '../use-models';
 import { useUiStore } from '../ui-store';
 import { AGENT_RUNTIMES, agentTarget, runtimeOf } from './agent-runtime';
 
+/**
+ * The policy of a target set to research: its runs are given their inputs and their question and
+ * nothing else (no tools, no memory, no recall; an agent only what it can be held to). Any other
+ * policy is working mode, the AI as it is.
+ */
+export const RESEARCH_POLICY = 'research';
+export type RunMode = 'research' | 'workspace';
+export const runModeOf = (target: Pick<ExecutionTarget, 'policyId'> | undefined): RunMode => (target?.policyId === RESEARCH_POLICY ? 'research' : 'workspace');
+
 /** What of a target makes it the AI it is: two targets with the same settings are the same revision. */
 const settingsOf = (t: ExecutionTarget) => [t.kind, t.runtime, t.connectionRef, t.model, t.effort, t.roleRef, t.memoryPolicyId, t.policyId, t.workspaceId, t.budgetId];
 function revisionOf(target: ExecutionTarget): string {

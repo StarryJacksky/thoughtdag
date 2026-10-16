@@ -846,7 +846,6 @@ function setupAgents() {
     const r = await dialog.showOpenDialog(win ?? undefined, { properties: ['openDirectory', 'createDirectory'] });
     return r.canceled || !r.filePaths?.[0] ? null : r.filePaths[0];
   });
-  handle('agents:write-materials', async (_e, cwd, files) => agentOps.writeMaterials(cwd, files));
 
   // ── the why layer: what was asked, answered and remembered across the local agents ──
   handle('why:status', async () => {
@@ -920,6 +919,17 @@ function setupWorkspace() {
     send: (owner, event) => { const page = owner == null ? null : webContents.fromId(owner); if (page && !page.isDestroyed()) page.send('workspace:run-event', event); },
   });
   app.on('web-contents-created', (_event, contents) => releaseWithPage(runner, contents));
+
+  // A run's inputs written for its agent, from the run's envelope: the files of a workspace are read
+  // back from the snapshots the run names (or, in a folder opened read-only, as they are, if they still
+  // are what was frozen), so what the agent reads is what was frozen and nothing the page says instead.
+  handle('agents:materialize', async (_e, cwd, envelope, provided) => agentOps.materializeRun(cwd, envelope, provided, {
+    readSnapshotOfFile: async (fileId, snapshotId) => {
+      const record = await service.resourceRecord(String(fileId));
+      return record ? service.readSnapshot(record.workspaceId, String(snapshotId)) : null;
+    },
+    readCurrentOfFile: async (fileId) => (await service.readBytes(String(fileId), { maxBytes: 8 * 1024 * 1024 })).bytes,
+  }));
 
   // What the page may ask is one table (runtime/workspace/door.cjs). In front
   // of every entry: the call must come from the app's own top frame.

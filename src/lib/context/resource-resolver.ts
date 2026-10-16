@@ -11,7 +11,7 @@ import { documents } from '../documents/document-service';
 import type { ResolvedInput } from './contracts';
 import { digestOf } from './canonicalize';
 
-export type BlockReason = 'lost' | 'conflict' | 'not-saved' | 'selection-ambiguous' | 'selection-lost' | 'too-large' | 'copy-out-of-date' | 'unavailable';
+export type BlockReason = 'lost' | 'conflict' | 'not-saved' | 'selection-ambiguous' | 'selection-lost' | 'too-large' | 'copy-out-of-date' | 'unavailable' | 'policy' | 'inputs-too-large';
 
 /** Why a run was not prepared: what it was wired to cannot be given as it is. */
 export class RunBlocked extends Error {

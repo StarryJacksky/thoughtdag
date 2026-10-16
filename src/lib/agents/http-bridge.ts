@@ -63,7 +63,7 @@ export async function installAgentsHttpBridge(apiBase: string): Promise<boolean>
     workspace: async (canvasId) => (await post<{ dir: string }>('/agents/workspace', { canvasId })).dir,
     pickCwd: () => pickThroughHarness(),
     guardWrite: async (cwd, config) => (await post<{ ok: boolean }>('/agents/guard', { cwd, config })).ok,
-    writeMaterials: async (cwd, files) => post('/agents/materials', { cwd, files }),
+    materialize: async (cwd, envelope, provided) => post('/agents/materials', { cwd, envelope, provided }),
     onEvent: (cb) => { listeners.push(cb); ensureFeed(); },
   };
   return true;

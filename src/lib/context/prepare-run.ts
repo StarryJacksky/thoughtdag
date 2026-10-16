@@ -21,7 +21,7 @@ import { generateId } from '../../utils';
 import { useStore } from '../../store';
 import { useUiStore } from '../ui-store';
 import type { ContextMessage, ImageAttachment, ToolPrefs } from '../api';
-import type { ThoughtNode } from '../../types';
+import type { ThoughtEdge, ThoughtNode } from '../../types';
 import { DEFAULT_RUN_GUARDS, RUN_SCHEMA_VERSION, type EnvelopeMessage, type ExclusionRecord, type ExecutionPolicy, type ResolvedInput, type RunEnvelope, type RuntimeSelection } from './contracts';
 import { RunBlocked, resolveRef, type ResolvedResource } from './resource-resolver';
 import { bytesOfBase64, digestOf, hashBytes, hashText } from './canonicalize';
@@ -46,6 +46,8 @@ export interface PrepareRunRequest {
   mode: 'research' | 'workspace';
   runtimeSelection: RuntimeSelection;
   tools?: ToolPrefs;
+  /** what of memory and recall the run's entry put into the messages: ambient memory is `auto`, recall items listed on the task `explicit-only` */
+  recall?: ExecutionPolicy['recall'];
   /** the context, when the run's entry built it (after freezeInputs put the frozen contents on the canvas); built here when absent */
   context?: PreparedContext;
   /** the inputs freezeInputs froze for this run, when it was called before the context was built */
@@ -60,6 +62,11 @@ export interface FrozenInputs {
 /** The images of an envelope: they are not in the envelope (its inputs name them by hash), and the request is checked against them. */
 const imagesOf = new WeakMap<RunEnvelope, ImageAttachment[]>();
 export const envelopeImages = (envelope: RunEnvelope): ImageAttachment[] => imagesOf.get(envelope) ?? [];
+
+/** What the canvas itself holds of an envelope's inputs, by input id, in base64: the bytes their hashes are over, for the shell to write. */
+const heldOf = new WeakMap<RunEnvelope, Record<string, string>>();
+export const envelopeHeld = (envelope: RunEnvelope): Record<string, string> => heldOf.get(envelope) ?? {};
+const base64OfText = (text: string) => { let raw = ''; for (const b of new TextEncoder().encode(text)) raw += String.fromCharCode(b); return btoa(raw); };
 
 const TEXT_COPY = (type: string) => !type.startsWith('image/') && type !== 'application/pdf' && type !== 'text/html';
 
@@ -124,19 +131,69 @@ function buildTaskContext(taskNodeId: string, question: string, nodes: ThoughtNo
 const TOOL_NAMES: Record<keyof ToolPrefs, string> = { web: 'web_search', scholar: 'scholar_search', mcp: 'mcp' };
 const toolsOf = (prefs: ToolPrefs = {}) => (Object.keys(TOOL_NAMES) as (keyof ToolPrefs)[]).filter((k) => prefs[k]).map((k) => TOOL_NAMES[k]);
 
-/** What a run is allowed: recorded here, enforced by the materializer and the runtimes (T12). */
-function policyOf(mode: PrepareRunRequest['mode'], runtime: RuntimeSelection, inputs: ResolvedInput[], tools: ToolPrefs | undefined): ExecutionPolicy {
+/**
+ * What a run uses, as it is sent: the tools it is given, what of memory and recall is in its
+ * messages, what it may read and write. Whether the runtime can be held to it is checked
+ * against this (policy.ts, and runtime/execution/policy.cjs in the shell).
+ */
+function policyOf(mode: PrepareRunRequest['mode'], runtime: RuntimeSelection, inputs: ResolvedInput[], tools: ToolPrefs | undefined, recall: ExecutionPolicy['recall'] | undefined): ExecutionPolicy {
   const allow = toolsOf(tools);
   const ui = useUiStore.getState() as { recallEnabled?: boolean; memoryEnabled?: boolean };
+  // an agent at work has tools of its own that can reach the network; one asked to research is asked not to
+  const agentNetwork = runtime.kind === 'agent' && mode === 'workspace';
   return {
     read: { scope: mode === 'research' ? 'inputs-only' : 'workspace', inputIds: inputs.map((i) => i.inputId) },
     // an agent writes in the folder it runs in (behind its write guard); a model called through its API writes nothing
     write: { scope: runtime.kind === 'agent' && mode === 'workspace' ? 'workspace' : 'none' },
     tools: { allow, mcpServers: [] },
-    network: runtime.kind === 'agent' || allow.includes('web_search') || allow.includes('scholar_search') ? 'on' : 'off',
-    recall: ui.recallEnabled || ui.memoryEnabled ? 'auto' : 'off',
+    network: agentNetwork || allow.includes('web_search') || allow.includes('scholar_search') ? 'on' : 'off',
+    recall: recall ?? (ui.recallEnabled || ui.memoryEnabled ? 'auto' : 'off'),
     budget: { maxInputTokens: 200_000, reservedOutputTokens: 8_192, ...DEFAULT_RUN_GUARDS },
   };
+}
+
+/** What a task reads that the person left out: each attachment of its context that is excluded and not taken back in. */
+function leftOut(task: ThoughtNode, nodes: ThoughtNode[], edges: ThoughtEdge[]): { nodeId: string; attachmentId: string; name: string }[] {
+  const included = task.data.includedAttachmentIds ?? [];
+  const { materials, mainline } = partitionContext(task.id, nodes, edges);
+  const left = new Set<string>((task.data.excludedAttachmentIds ?? []).filter((id) => !included.includes(id)));
+  for (const n of materials) for (const id of n.data.excludedAttachmentIds ?? []) if (!included.includes(id)) left.add(id);
+  const out: { nodeId: string; attachmentId: string; name: string }[] = [];
+  for (const n of [...materials, ...mainline]) for (const att of n.data.attachments ?? []) if (left.has(att.id)) out.push({ nodeId: n.id, attachmentId: att.id, name: n.data.resourceHint?.name ?? att.name });
+  return out;
+}
+
+/** One line of a run preview: a node's material, by name, and whether the whole or a passage of it is read. */
+export interface RunPreviewItem { nodeId: string; attachmentId: string; name: string; part: 'whole' | 'passage'; bytes: number }
+
+/**
+ * What a run of a task would be given, read from the canvas as it is now (nothing is saved or frozen):
+ * its materials in the order its context reads them, and what the person left out. For the run
+ * preview; a run itself is prepared by prepareRun, from what is frozen when it starts.
+ */
+export function previewRun(taskNodeId: string, nodes: ThoughtNode[], edges: ThoughtEdge[]): { inputs: RunPreviewItem[]; excluded: RunPreviewItem[] } {
+  const task = nodes.find((n) => n.id === taskNodeId);
+  if (!task) return { inputs: [], excluded: [] };
+  const blanked = nodes.map((n) => (n.id === taskNodeId ? { ...n, data: { ...n.data, question: '', response: '' } } : n));
+  const built = buildContext(taskNodeId, blanked, edges, undefined, task.data.excludedAttachmentIds, task.data.includedAttachmentIds);
+  const seen = new Set<string>();
+  const inputs: RunPreviewItem[] = [];
+  const itemOf = (nodeId: string, attachmentId: string | undefined): RunPreviewItem | null => {
+    const n = nodes.find((x) => x.id === nodeId);
+    const att = attachmentId ? n?.data.attachments?.find((a) => a.id === attachmentId) : n?.data.attachments?.[0];
+    if (!n || !att) return null;
+    return { nodeId, attachmentId: att.id, name: n.data.resourceHint?.name ?? att.name, part: n.data.resourceRef?.selector.kind === 'text' ? 'passage' : 'whole', bytes: att.size ?? 0 };
+  };
+  const from = [...built.sources, ...built.imageSources.map((src) => ({ ...src, layer: 'material' as const }))];
+  for (const src of from) {
+    if (!src?.nodeId || !(src.layer === 'material' || ('part' in src && src.part === 'attachment'))) continue;
+    const item = itemOf(src.nodeId, 'attachmentId' in src ? src.attachmentId : undefined);
+    if (!item || seen.has(`${item.nodeId}:${item.attachmentId}`)) continue;
+    seen.add(`${item.nodeId}:${item.attachmentId}`);
+    inputs.push(item);
+  }
+  const excluded = leftOut(task, nodes, edges).map(({ nodeId, attachmentId }) => itemOf(nodeId, attachmentId)).filter((x): x is RunPreviewItem => x !== null);
+  return { inputs, excluded };
 }
 
 /** Prepare a run: freeze, build, digest. Throws RunBlocked when it cannot be prepared as it is. */
@@ -171,6 +228,7 @@ export async function prepareRun(request: PrepareRunRequest): Promise<RunEnvelop
   // the inputs, in the order the context first reads them
   const inputs: ResolvedInput[] = [];
   const byKey = new Map<string, ResolvedInput>();
+  const held = new Map<string, string>();
   const add = (key: string, input: ResolvedInput) => { if (!byKey.has(key)) { byKey.set(key, input); inputs.push(input); } return byKey.get(key)!; };
   const nodeOf = (id: string) => nodes.find((n) => n.id === id);
   const attachmentInput = async (nodeId: string, attachmentId: string): Promise<ResolvedInput | null> => {
@@ -181,7 +239,9 @@ export async function prepareRun(request: PrepareRunRequest): Promise<RunEnvelop
     const image = att.type.startsWith('image/');
     const contentHash = image ? await hashBytes(bytesOfBase64(att.content)) : await hashText(att.extractedText ?? att.content ?? '');
     const size = image ? bytesOfBase64(att.content).byteLength : new TextEncoder().encode(att.extractedText ?? att.content ?? '').byteLength;
-    return add(`attachment:${nodeId}:${attachmentId}`, {
+    const key = `attachment:${nodeId}:${attachmentId}`;
+    if (!byKey.has(key)) held.set(key, image ? att.content : base64OfText(att.extractedText ?? att.content ?? ''));
+    return add(key, {
       inputId: `in_${(await digestOf({ nodeId, attachmentId, contentHash })).slice(7, 23)}`,
       source: { kind: 'attachment', nodeId, attachmentId },
       // held on the canvas node itself: what the run was given is in the envelope's messages, and in the image digests
@@ -214,15 +274,10 @@ export async function prepareRun(request: PrepareRunRequest): Promise<RunEnvelop
   }
 
   // what the task reads that the person left out: named, never carried
-  const excluded: ExclusionRecord[] = [];
-  const left = new Set<string>([...(task.data.excludedAttachmentIds ?? [])].filter((id) => !(task.data.includedAttachmentIds ?? []).includes(id)));
-  for (const n of partitionContext(request.targetNodeId, nodes, edges).materials) for (const id of n.data.excludedAttachmentIds ?? []) if (!(task.data.includedAttachmentIds ?? []).includes(id)) left.add(id);
-  for (const n of [...partitionContext(request.targetNodeId, nodes, edges).materials, ...partitionContext(request.targetNodeId, nodes, edges).mainline]) {
-    for (const att of n.data.attachments ?? []) if (left.has(att.id)) excluded.push({ source: { kind: 'attachment', nodeId: n.id, attachmentId: att.id }, reason: 'left out by the person' });
-  }
+  const excluded: ExclusionRecord[] = leftOut(task, nodes, edges).map(({ nodeId, attachmentId }) => ({ source: { kind: 'attachment', nodeId, attachmentId }, reason: 'left out by the person' }));
 
   const runtime = request.runtimeSelection;
-  const policy = policyOf(request.mode, runtime, inputs, request.tools);
+  const policy = policyOf(request.mode, runtime, inputs, request.tools, request.recall);
   const inputDigest = await digestOf({
     v: 1,
     messages: messages.map(({ role, content }) => ({ role, content })),
@@ -261,6 +316,7 @@ export async function prepareRun(request: PrepareRunRequest): Promise<RunEnvelop
     executionDigest,
   };
   imagesOf.set(envelope, context.images);
+  heldOf.set(envelope, Object.fromEntries([...held].map(([key, base64]) => [byKey.get(key)!.inputId, base64])));
   return envelope;
 }
 

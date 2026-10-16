@@ -21,6 +21,7 @@ import HeaderActions from './HeaderActions';
 import ContextChainSection from './ContextChainSection';
 import ContextOrderSection from './ContextOrderSection';
 import FollowUpInput from './FollowUpInput';
+import RunPreview from '../workspace/RunPreview';
 
 // The panel does three jobs: READ (question/response), ASK (the single
 // follow-up input at the bottom), INSPECT (context chain). Everything else
@@ -196,6 +197,7 @@ export default function FocusPanel({ onFocusNode, nodeId, embedded }: {
           highlightMode={data.highlightMode}
         />
 
+        <RunPreview nodeId={node.id} />
         <ContextOrderSection nodeId={node.id} />
         <ContextChainSection
           key={`c-${selectedNodeId}`}

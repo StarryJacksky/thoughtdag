@@ -269,9 +269,14 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
   /** A read that finds content the record does not have: note it, and say so when it is a change rather than a first look. */
   async function noteRead(record, revision, stat) {
     if (record.revision === revision || await readOnly()) return;
-    const updated = await registry.update(record.fileId, { revision }, observedOf(stat)).catch(() => null);
-    // everyone who refers to the file hears of a change, whoever happened to read it first
-    if (updated && record.revision !== null) { try { notify(updated, 'content'); } catch { /* the listener's own problem */ } }
+    // in step with every other look at this file: a record that moved on while this read was under
+    // way was changed by one of them, and that one has said so
+    await locked(record.fileId, async () => {
+      if ((await registry.get(record.fileId).catch(() => null))?.revision !== record.revision) return;
+      const updated = await registry.update(record.fileId, { revision }, observedOf(stat)).catch(() => null);
+      // everyone who refers to the file hears of a change, whoever happened to read it first
+      if (updated && record.revision !== null) { try { notify(updated, 'content'); } catch { /* the listener's own problem */ } }
+    });
   }
 
   /**
@@ -489,6 +494,9 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
 
     /** Run something that changes the workspace's records from outside this module (catching up with the disk, a file found again by hand) in step with everything here that does. */
     asChange: (fn) => changing(fn),
+
+    /** Run a look at one file that may change its record (catching up with the disk) in step with everything here that looks at that file or changes it: one at a time, each seeing the record as the one before left it. */
+    inStepWithFile: (fileId, fn) => locked(fileId, fn),
 
     /**
      * Create a file. `request` is a CreateFileRequest with `parentId` already

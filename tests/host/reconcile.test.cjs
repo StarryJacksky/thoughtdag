@@ -17,6 +17,13 @@ test.after(() => fs.rmSync(base, { recursive: true, force: true }));
 
 const sha = (content) => 'sha256:' + createHash('sha256').update(content).digest('hex');
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+/** What `promise` resolves with, or a failure naming what did not happen within `ms`. */
+function within(promise, ms, what) {
+  let timer;
+  const late = new Promise((_resolve, reject) => { timer = setTimeout(() => reject(new Error(`${what} did not come within ${ms}ms`)), ms); });
+  return Promise.race([promise, late]).finally(() => clearTimeout(timer));
+}
+const MARKER = 'rescan-marker.md';
 
 let serial = 0;
 /** A project folder, an open workspace, and a watcher whose events the test sends itself. */
@@ -37,9 +44,25 @@ async function setup(files = { 'notes/a.md': 'FIRST_TEXT_B3\n', 'papers/keep.md'
     return { record, ...(await service.readText(record.fileId)) };
   };
   const events = [];
-  const subscribe = () => service.subscribeWorkspace(workspace.workspaceId, (event) => events.push(event));
+  // A file of the test's own, edited along with each burst of events the
+  // test sends: the rescan the burst leads to announces it with whatever
+  // else it found, so once it is heard of, that rescan is over, however
+  // long it took. It is not among `events`.
+  let marker = null;
+  let marks = 0;
+  let markerHeard = () => {};
+  const subscribe = () => service.subscribeWorkspace(workspace.workspaceId, (event) => {
+    if (event.fileId === marker?.fileId) markerHeard();
+    else events.push(event);
+  });
   /** Send watcher events and wait for the rescan they lead to. */
-  const signal = async (...filenames) => { for (const f of filenames) fakeWatch.fire('change', f); await pause(80); };
+  const signal = async (...filenames) => {
+    if (!marker) { fs.writeFileSync(at(MARKER), 'M\n'); marker = (await open(MARKER)).record; }
+    const heard = new Promise((resolve) => { markerHeard = resolve; });
+    fs.writeFileSync(at(MARKER), 'M\n'.repeat(++marks + 1)); // longer each time: a change whatever the clock says
+    for (const f of filenames) fakeWatch.fire('change', f);
+    await within(heard, 10000, 'the rescan these events lead to');
+  };
   return { project, service, workspace, at, open, events, subscribe, signal, fakeWatch };
 }
 
@@ -64,6 +87,33 @@ test('an edit by another program is announced once, however many signals arrive,
     { fileId: read.record.fileId, change: 'content', observedRevision: sha('EXTERNAL_EDIT_E6\n'), opId: null });
   await signal('notes/a.md');
   assert.equal(events.length, 1);
+});
+
+// a signal's rescan can still be under way when the next one starts, when the
+// window comes back to the front, or when the file is looked at or read
+for (const [what, alongside] of [
+  ['another rescan', (service, { workspace }) => service.rescanWorkspace(workspace.workspaceId)],
+  ['a look at that file alone', (service, { read }) => service.reconcile(read.record.fileId)],
+  ['a read of its text', (service, { read }) => service.readText(read.record.fileId)],
+]) {
+  test(`an edit by another program that a rescan and ${what} find at the same time is announced once`, async () => {
+    const { service, workspace, open, at, events, subscribe } = await setup();
+    const read = await open('notes/a.md');
+    await subscribe();
+    fs.writeFileSync(at('notes/a.md'), 'EXTERNAL_EDIT_E6\n');
+    await Promise.all([service.rescanWorkspace(workspace.workspaceId), alongside(service, { workspace, read })]);
+    assert.deepEqual(events.map((e) => [e.fileId, e.change, e.observedRevision]), [[read.record.fileId, 'content', sha('EXTERNAL_EDIT_E6\n')]]);
+  });
+}
+
+test('a rescan that is the first to look at a file\'s content announces nothing: nothing changed', async () => {
+  const { service, workspace, events, subscribe } = await setup();
+  const record = await service.registerEntry(workspace.workspaceId, entryIdOf('notes/a.md'));
+  assert.equal(record.revision, null);
+  await subscribe();
+  assert.deepEqual(await service.rescanWorkspace(workspace.workspaceId), []);
+  assert.deepEqual(events, []);
+  assert.equal((await service.resourceRecord(record.fileId)).revision, sha('FIRST_TEXT_B3\n'));
 });
 
 test('this application\'s own save is announced once with its operation id; the signal that follows adds nothing', async () => {
@@ -290,9 +340,13 @@ test('the real watcher notices an edit by another program', async () => {
   const events = [];
   const unsubscribe = await service.subscribeWorkspace(workspace.workspaceId, (event) => events.push(event));
   try {
-    await pause(150); // let the watcher settle before the change
-    fs.writeFileSync(path.join(project, 'a.md'), 'EXTERNAL_EDIT_E6\n');
-    for (let waited = 0; waited < 5000 && events.length === 0; waited += 100) await pause(100);
+    await pause(150); // the watcher is usually reporting by now
+    // when it starts to is the system's to say, and an edit made before then
+    // is never reported: the same edit is made again until one is heard of
+    for (let waited = 0; waited < 10000 && events.length === 0; waited += 100) {
+      if (waited % 1000 === 0) fs.writeFileSync(path.join(project, 'a.md'), 'EXTERNAL_EDIT_E6\n');
+      await pause(100);
+    }
     assert.deepEqual(events.map((e) => [e.change, e.observedRevision]), [['content', sha('EXTERNAL_EDIT_E6\n')]]);
   } finally {
     unsubscribe();

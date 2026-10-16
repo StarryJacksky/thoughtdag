@@ -36,11 +36,13 @@ const untouched = (a, b) => sameIdentity(a, b) && a.size === b.size && a.mtimeMs
  * The reconciler of one workspace.
  *   grant     { rootPath, readOnly, ... }
  *   registry  see registry.cjs
+ *   inStep    `(fileId, fn)`: runs `fn` in step with everything else that
+ *             looks at that file or changes it (see file-ops.cjs)
  * Every method resolves with `{ record, change }`; `change` is null when the
  * record already matched the disk, else one of 'content', 'moved',
  * 'missing', 'ambiguous', 'restored'.
  */
-function createReconciler({ grant, registry, io = fs.promises }) {
+function createReconciler({ grant, registry, io = fs.promises, inStep = (_fileId, fn) => fn() }) {
   const absoluteOf = (relativePath) => path.join(grant.rootPath, ...relativePath.split('/'));
 
   /** The regular file at a relative path, with its path as the disk spells it, or null. */
@@ -97,7 +99,7 @@ function createReconciler({ grant, registry, io = fs.promises }) {
     return record ? { record, change } : { record: await registry.get(fileId), change: null };
   };
 
-  async function reconcile(fileId) {
+  async function lookAt(fileId) {
     const entry = await registry.entry(fileId);
     if (!entry) throw new WorkspaceAccessError('unknown-file', 'that file is not known to this workspace');
     const { record, observed } = entry;
@@ -110,7 +112,9 @@ function createReconciler({ grant, registry, io = fs.promises }) {
       if (untouched(here.stat, observed) && record.revision && !renamed.relativePath) return { record, change: null };
       const revision = await contentOf(here.absolute);
       if (revision === record.revision && !renamed.relativePath) return settle(fileId, {}, observedOf(here.stat), null);
-      return settle(fileId, { ...renamed, revision }, observedOf(here.stat), revision === record.revision ? 'moved' : 'content');
+      // the first look at a file's content is not news: nobody has seen it to be told it changed
+      const changed = record.revision !== null && revision !== record.revision;
+      return settle(fileId, { ...renamed, revision }, observedOf(here.stat), changed ? 'content' : renamed.relativePath ? 'moved' : null);
     }
 
     if (here && lost) {
@@ -143,6 +147,11 @@ function createReconciler({ grant, registry, io = fs.promises }) {
     return settle(fileId, { status }, undefined, status);
   }
 
+  // A file is looked at by one look at a time, which reads its record as the
+  // one before left it: two looks at the same moment would each find the
+  // same change, and each announce it.
+  const reconcile = (fileId) => inStep(fileId, () => lookAt(fileId));
+
   return {
     reconcile,
 
@@ -160,7 +169,7 @@ function createReconciler({ grant, registry, io = fs.promises }) {
      * The person says the lost file is the one at `relativePath`. That file
      * must exist, be inside the workspace, and not be another registered file.
      */
-    async relink(fileId, relativePath) {
+    relink: (fileId, relativePath) => inStep(fileId, async () => {
       const entry = await registry.entry(fileId);
       if (!entry) throw new WorkspaceAccessError('unknown-file', 'that file is not known to this workspace');
       const target = await assertAllowedPath(grant, 'read', relativePath);
@@ -173,7 +182,7 @@ function createReconciler({ grant, registry, io = fs.promises }) {
       const record = await registry.update(fileId, { relativePath: here.relativePath, mediaType: mediaTypeOf(here.relativePath), revision, status: grant.readOnly ? 'readonly' : 'ready' }, observedOf(here.stat), { unlessHeld: true });
       if (!record) throw new WorkspaceAccessError('claimed', 'that file is already another registered file');
       return { record, change };
-    },
+    }),
   };
 }
 

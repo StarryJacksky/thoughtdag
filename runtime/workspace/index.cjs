@@ -176,8 +176,10 @@ function createWorkspaceService({ stateDir, pickDirectory, trash = null, io, wat
     return ready;
   }
 
+  /** Its looks at a file take their turn with the file operations' own reads and changes of that file. */
   async function reconcilerOf(grant) {
-    return createReconciler({ grant, registry: await registryOf(grant), ...(io ? { io } : {}) });
+    const ops = await operationsOf(grant);
+    return createReconciler({ grant, registry: await registryOf(grant), inStep: ops.inStepWithFile, ...(io ? { io } : {}) });
   }
 
   /** Tell the workspace's subscribers that a file changed. A listener that throws stops nobody else. */

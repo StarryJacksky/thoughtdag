@@ -1,0 +1,179 @@
+# tests/host/reconcile.test.cjs on a974308, before the fixes: the flaky "announced once" test, the real-watcher test,
+# an edit announced twice when two looks at the file are under way at once, and a first look announced as a change. macOS (APFS), 18 cores, node v22.23.1.
+
+## 1. The full host suite, three copies at once, 8 rounds (24 runs): npm run test:host
+# (one copy at a time, 30 runs: the "announced once" test passed every time; the real-watcher test failed 2 times.)
+
+  24 not ok 293 - an edit by another program is announced once, however many signals arrive, and not again
+   3 not ok 312 - the real watcher notices an edit by another program
+
+# every one of the 24 failures of the first test is the same: no announcement yet when the test's fixed 80ms wait was over
+not ok 293 - an edit by another program is announced once, however many signals arrive, and not again
+  ---
+  duration_ms: 1398.363583
+  type: 'test'
+  location: '<repo>/tests/host/reconcile.test.cjs:55:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    0 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/reconcile.test.cjs:61:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+
+# the real watcher: nothing at all in 5 seconds
+not ok 312 - the real watcher notices an edit by another program
+  ---
+  duration_ms: 5398.983167
+  type: 'test'
+  location: '<repo>/tests/host/reconcile.test.cjs:281:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   [
+    -     'content',
+    -     'sha256:ce6964c831808b1a27a322a650740de0466c14b5b6fc09f82d68e4ffb7873862'
+    -   ]
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0:
+      0: 'content'
+      1: 'sha256:ce6964c831808b1a27a322a650740de0466c14b5b6fc09f82d68e4ffb7873862'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/reconcile.test.cjs:296:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+
+## 2. How long after a watcher signal the announcement comes, in the test's own set-up (quiet 15ms), while 1. was running
+# node <tmp>/latency.cjs <repo> 40
+signal→announcement ms over 40: min 19.2 p50 41.6 p90 86.7 max 115.1; over 80ms: 5
+
+## 3. The same test with stat, lstat, realpath and open each 20ms slower (a slow disk), nothing else running
+# SLOW_MS=20 node --require <tmp>/slow-fs.cjs --test --test-name-pattern='announced once, however' reconcile.test.cjs
+# (the test as committed in a974308, run after the code fix of section 4: what fails is the test's fixed wait, not the code)
+not ok 1 - an edit by another program is announced once, however many signals arrive, and not again
+  duration_ms: 408.027083
+    0 !== 1
+    TestContext.<anonymous> (<tmp>/reconcile-old.test.cjs:61:10)
+# pass 0
+# fail 1
+# duration_ms 488.119917
+
+## 4. Two looks at a file under way at once: the new tests, before the fix (line numbers as the file was then)
+# node --test --test-name-pattern='at the same time is announced once' tests/host/reconcile.test.cjs  (10 runs: 0 pass, 3 fail, every time)
+not ok 1 - an edit by another program that a rescan and another rescan find at the same time is announced once
+not ok 2 - an edit by another program that a rescan and a look at that file alone find at the same time is announced once
+not ok 3 - an edit by another program that a rescan and a read of its text find at the same time is announced once
+# pass 0
+# fail 3
+
+not ok 1 - an edit by another program that a rescan and another rescan find at the same time is announced once
+  ---
+  duration_ms: 37.652375
+  type: 'test'
+  location: '<repo>/tests/host/reconcile.test.cjs:76:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+        [
+          'file_af2dc09b-230d-426c-919e-5f82ce7fe693',
+          'content',
+          'sha256:ce6964c831808b1a27a322a650740de0466c14b5b6fc09f82d68e4ffb7873862'
+        ],
+    +   [
+    +     'file_af2dc09b-230d-426c-919e-5f82ce7fe693',
+    +     'content',
+    +     'sha256:ce6964c831808b1a27a322a650740de0466c14b5b6fc09f82d68e4ffb7873862'
+    +   ]
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0:
+      0: 'file_af2dc09b-230d-426c-919e-5f82ce7fe693'
+      1: 'content'
+      2: 'sha256:ce6964c831808b1a27a322a650740de0466c14b5b6fc09f82d68e4ffb7873862'
+
+## 5. fs.watch (recursive) started, the file edited 150ms later, as the real-watcher test does
+# node <tmp>/fsevents-probe.cjs: plain fs.watch, none of this application's code; idle, then while three copies of the host suite run
+edit 150ms after watch(): missed 0/20; of those, a later edit was seen in 0
+edit 150ms after watch(): missed 1/30; of those, a later edit was seen in 1
+
+## 6. After the fix of section 4, before the fix of the first look: the stress of section 1 again (24 runs)
+# 23 runs passed everything; one failed a test that had not failed before. The extra announcement can only be a rescan's
+# (nothing else announces 'content' for a file not yet read, and no rescan runs during a folder move): this fixture uses the
+# real watcher, which most likely reported the set-up's own writes, and that rescan came before the file's first read.
+   1 not ok 192 - a folder moved into another takes its files with it, and every file in it keeps its identity at its new place
+not ok 192 - a folder moved into another takes its files with it, and every file in it keeps its identity at its new place
+  ---
+  duration_ms: 2192.582875
+  type: 'test'
+  location: '<repo>/tests/host/folders-and-recovery.test.cjs:31:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+        [
+    +     'content',
+    +     'notes/a.md',
+    +     'file_8c18182a-54f0-48ed-8d14-f6234d449690'
+    +   ],
+    +   [
+          'moved',
+          'archive/notes/a.md',
+          'file_8c18182a-54f0-48ed-8d14-f6234d449690'
+        ]
+      ]
+
+## 7. A rescan that is the first to look at a file's content: the new test, before the fix
+# node --test --test-name-pattern='first to look at' tests/host/reconcile.test.cjs
+not ok 1 - a rescan that is the first to look at a file's content announces nothing: nothing changed
+  ---
+  duration_ms: 27.803375
+  type: 'test'
+  location: '<repo>/tests/host/reconcile.test.cjs:109:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + [
+    +   {
+    +     fileId: 'file_d7d44640-bc7b-4c0a-ae9a-45b90206dc49',
+    +     locator: {
+    +       kind: 'local',
+    +       relativePath: 'notes/a.md',
+    +       rootGrantId: 'grant_7e48763c-2eb8-4782-a90d-85003918b0c9'
+    +     },
+    +     mediaType: 'text/markdown',
+    +     origin: 'workspace',
+    +     relativePath: 'notes/a.md',
+    +     revision: 'sha256:077ec45fba0d8f49306f9005ef733935b0bb5552e5c0ebf79965f78081bf0afa',
+    +     sourceRevision: null,
+    +     status: 'ready',
+    +     workspaceId: 'ws_f289d7b2-b47a-46ff-9c7b-f5a0d3cd0381'
+    +   }
+    + ]
+# pass 0
+# fail 1

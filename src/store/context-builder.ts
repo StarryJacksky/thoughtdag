@@ -1,7 +1,7 @@
 import type { ThoughtNode } from '../types';
 import type { ThoughtEdge } from '../types';
 import { partitionContext, type ContextReference } from '../lib/graph';
-import { attachmentFingerprint } from '../lib/attachments';
+import { attachmentIdentity } from '../lib/attachments';
 import { countTokens } from '../utils';
 import { fuzzyHighlightRegex } from '../lib/highlight-match';
 import type { ContextMessage, ImageAttachment } from '../lib/api';
@@ -264,7 +264,7 @@ export function buildContext(
         }
         continue;
       }
-      const fp = attachmentFingerprint(att);
+      const fp = attachmentIdentity(att);
       if (seenAttachmentFingerprints.has(fp)) continue;
       seenAttachmentFingerprints.add(fp);
       if (att.type.startsWith('image/')) {

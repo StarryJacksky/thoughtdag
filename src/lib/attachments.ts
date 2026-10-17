@@ -38,6 +38,16 @@ export function attachmentFingerprint(att: Attachment): string {
   return `${att.name}|${att.size}|${att.content?.substring(0, 100)}`;
 }
 
+/**
+ * Whether two attachments are the same file: the same name, kind and the whole of what they
+ * hold. Files that share a name, a length and an opening and differ further on are two files.
+ * One whose content is kept outside the node (and is empty here) is known by its id alone.
+ */
+export function attachmentIdentity(att: Attachment): string {
+  if (!att.content && !att.extractedText) return `id\u0000${att.id}`;
+  return [att.name, att.type, att.content ?? '', att.extractedText ?? ''].join('\u0000');
+}
+
 // Read a File into an Attachment (no server round-trip). Returns null for
 // unsupported types. PDF content is raw base64; extraction happens in processFile.
 export function readFileToAttachment(file: File): Promise<Attachment | null> {

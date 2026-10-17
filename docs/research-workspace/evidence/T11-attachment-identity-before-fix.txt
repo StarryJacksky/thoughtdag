@@ -1,0 +1,65 @@
+# npx vitest run tests/unit/attachment-identity.test.ts at 13bb264, before the fix: attachments are told apart by name, size and their first hundred characters
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/attachment-identity.test.ts (2 tests | 2 failed) 6ms
+   ❯ which attachments are the same file (2)
+     × [T11] two files that differ only after a shared opening both reach the context; the same file twice reaches it once 4ms
+     × [T11] a node keeps two files that differ only after a shared opening, and not the same file twice 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/attachment-identity.test.ts > which attachments are the same file > [T11] two files that differ only after a shared opening both reach the context; the same file twice reaches it once
+AssertionError: expected '[File: report.md]\n# Synthetic report…' to contain 'TAIL_TWO_W6'
+
+- Expected
++ Received
+
+- TAIL_TWO_W6
++ [File: report.md]
++ # Synthetic report
++ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
++ TAIL_ONE_V5
++
++ q-p
++ a-p
++ q-c
++ a-c
+
+ ❯ tests/unit/attachment-identity.test.ts:30:18
+     28|     const text = messages.map((m) => m.content).join('\n');
+     29|     expect(text).toContain('TAIL_ONE_V5');
+     30|     expect(text).toContain('TAIL_TWO_W6');
+       |                  ^
+     31|     expect(text.split('TAIL_ONE_V5').length - 1).toBe(1);
+     32|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/unit/attachment-identity.test.ts > which attachments are the same file > [T11] a node keeps two files that differ only after a shared opening, and not the same file twice
+AssertionError: expected [ 'a1' ] to deeply equal [ 'a1', 'a2' ]
+
+- Expected
++ Received
+
+  [
+    "a1",
+-   "a2",
+  ]
+
+ ❯ tests/unit/attachment-identity.test.ts:39:76
+     37|     useStore.getState().addAttachment('n', file('a2', 'TAIL_TWO_W6\n')…
+     38|     useStore.getState().addAttachment('n', file('a3', 'TAIL_ONE_V5\n')…
+     39|     expect(useStore.getState().nodes[0].data.attachments.map((a) => a.…
+       |                                                                            ^
+     40|   });
+     41| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed (2)
+   Start at  04:43:54
+   Duration  832ms (environment 52%, transform 39%, import 6%, setup 2%, tests 1%)
+

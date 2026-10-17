@@ -1,16 +1,16 @@
 import type { StateCreator } from 'zustand';
 import type { Attachment } from '../../types';
 import { walkUpAncestors } from '../../lib/graph';
-import { attachmentFingerprint } from '../../lib/attachments';
+import { attachmentIdentity } from '../../lib/attachments';
 import type { StoreState, AttachmentSlice } from '../types';
 
 export const createAttachmentSlice: StateCreator<StoreState, [], [], AttachmentSlice> = (set, get) => ({
   addAttachment: (nodeId: string, attachment: Attachment) => {
     get().logEvent('material-add', nodeId, { type: attachment.type });
-    // Dedup: skip if same file already on this node (name + size + content prefix)
+    // Dedup: skip if the same file is already on this node (the same name, kind and content)
     const existing = get().nodes.find((n) => n.id === nodeId)?.data.attachments || [];
-    const fingerprint = attachmentFingerprint(attachment);
-    if (existing.some((a) => attachmentFingerprint(a) === fingerprint)) {
+    const fingerprint = attachmentIdentity(attachment);
+    if (existing.some((a) => attachmentIdentity(a) === fingerprint)) {
       return;
     }
     get().pushHistory();
@@ -106,7 +106,7 @@ export const createAttachmentSlice: StateCreator<StoreState, [], [], AttachmentS
     for (const node of ordered) {
       if (node.id === nodeId) continue;
       for (const att of (node.data.attachments || [])) {
-        const fp = attachmentFingerprint(att);
+        const fp = attachmentIdentity(att);
         if (seenFingerprints.has(fp)) continue;
         seenFingerprints.add(fp);
         result.push({

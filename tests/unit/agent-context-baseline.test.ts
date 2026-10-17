@@ -7,7 +7,6 @@ import { materialsFor } from '../../src/lib/context/materials';
 import { fixture, type FixtureGraph, type ResearchFixture } from '../fixtures/research';
 import { composeRequest } from '../helpers/compose-request';
 import { installFakeDesktop, type FakeDesktop } from '../helpers/fake-desktop';
-import { gap } from '../helpers/gap';
 
 // What an agent runtime is handed today, measured at the desktop bridge:
 // the route, the prompt, and the files written for it to read. `it` cases
@@ -44,11 +43,11 @@ async function generate(f: ResearchFixture, graph: FixtureGraph = f.graph): Prom
     switching: false,
   });
   const target = f.expected.targetNodeId;
-  const route = await agentOutbound(f.policy.model, target);
   const { messages, images } = composeRequest(target, graph.nodes, graph.edges);
-  // what is written for the agent comes from the run's envelope, prepared as a run in place prepares it
+  // the run as a run in place prepares it: what is written for the agent, and whether it goes on in a session, come from it
   const question = graph.nodes.find((n) => n.id === target)!.data.question;
   const envelope = await prepareRun({ graphId: 'fixture-canvas', targetNodeId: target, question, mode: 'workspace', runtimeSelection: { kind: 'agent', runtime: agentTarget(f.policy.model)!.runtime, connectionRef: 'fixture', model: f.policy.model, effort: null, capabilityVersion: null } });
+  const route = await agentOutbound(f.policy.model, target, envelope);
   await agentCallStream(messages, () => {}, undefined, images, { materials: materialsFor(envelope) }, f.policy.model, route, target);
   const run = desktop.runs.at(-1);
   if (!run) throw new Error('the fake bridge saw no run');
@@ -78,12 +77,12 @@ describe('a question off the tail of a mirrored session', () => {
     expect(handed.prompt.endsWith(question)).toBe(true);
   });
 
-  gap('[T14] opens a fresh session when an ancestor answer was edited on the canvas', async () => {
+  it('[T14] opens a fresh session when an ancestor answer was edited on the canvas', async () => {
     const handed = await generate(f, f.edited);
     expect(handed.route?.continue).toBeFalsy();
   });
 
-  gap('[T14] hands the agent the edited ancestor text, not only the question', async () => {
+  it('[T14] hands the agent the edited ancestor text, not only the question', async () => {
     const handed = await generate(f, f.edited);
     for (const marker of f.expected.promptContains ?? []) expect(handed.prompt).toContain(marker);
   });
@@ -123,7 +122,7 @@ describe('two different files with one name', () => {
     for (const marker of f.expected.readableContains ?? []) expect(handed.readable).toContain(marker);
   });
 
-  gap('[T11] both reach the prompt when they share a size and their first hundred characters', async () => {
+  it('[T11] both reach the prompt when they share a size and their first hundred characters', async () => {
     const f = fixture('same-name-same-prefix');
     const handed = await generate(f);
     for (const marker of f.expected.promptContains ?? []) expect(handed.prompt).toContain(marker);

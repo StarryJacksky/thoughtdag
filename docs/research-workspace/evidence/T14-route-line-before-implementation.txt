@@ -1,0 +1,23 @@
+# npx vitest run tests/unit/stale-section.test.tsx -t T14 at 13bb264, before T14: the panel does not say how a version's run was routed
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/stale-section.test.tsx (5 tests | 1 failed | 4 skipped) 15ms
+   ❯ an answer out of date, on its panel (5)
+     × [T14] says whether the version shown went on in a session or started a new one, and why 13ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/stale-section.test.tsx > an answer out of date, on its panel > [T14] says whether the version shown went on in a session or started a new one, and why
+TypeError: Cannot read properties of null (reading 'textContent')
+ ❯ tests/unit/stale-section.test.tsx:122:44
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 skipped (5)
+   Start at  04:45:31
+   Duration  839ms (transform 48%, environment 33%, import 15%, tests 2%, setup 1%)
+

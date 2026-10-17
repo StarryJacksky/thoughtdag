@@ -69,7 +69,7 @@ export function recordRun(envelope: RunEnvelope, outcome: RunOutcome): RunRecord
 }
 
 /** What an answer keeps of the run that wrote it. */
-export function summaryOf(envelope: RunEnvelope, imagesDropped = false): RunSummary {
+export function summaryOf(envelope: RunEnvelope, imagesDropped = false, route?: RunSummary['route']): RunSummary {
   const places = envelopePlaces(envelope);
   return {
     runId: envelope.runId,
@@ -83,6 +83,7 @@ export function summaryOf(envelope: RunEnvelope, imagesDropped = false): RunSumm
       ...(places[i.inputId]?.semanticHash ? { semanticHash: places[i.inputId].semanticHash } : {}),
     })),
     ...(imagesDropped ? { imagesDropped: true } : {}),
+    ...(route ? { route } : {}),
   };
 }
 

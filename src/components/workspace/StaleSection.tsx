@@ -68,6 +68,11 @@ export default function StaleSection({ nodeId }: { nodeId: string }) {
             )}
         </div>
       )}
+      {versionRun?.route && (
+        <p className="mt-1.5 text-2xs text-ink-faint" data-version-route={versionRun.route.action}>
+          {fmt(t('route.line'), { how: t(versionRun.route.action === 'resume' ? 'route.resume' : 'route.fresh'), why: t(`route.reason.${versionRun.route.reason}` as Parameters<typeof t>[0]) })}
+        </p>
+      )}
       {files.length > 0 && (
         <p className="mt-1.5 flex items-start gap-1 text-2xs text-ink-faint" data-version-inputs={nodeId}>
           <History size={11} strokeWidth={1.75} className="mt-px shrink-0" />

@@ -86,7 +86,11 @@ export async function agentModels(): Promise<ModelInfo[]> {
 }
 
 /** `effort`, when given (null: the runtime's own default), is what the run was decided with, together with its model: it is not looked up again later. */
-export type AgentRoute = { cwd: string; sessionPath?: string; forkEntryId?: string; continue?: boolean; effort?: string | null };
+export type AgentRoute = {
+  cwd: string; sessionPath?: string; forkEntryId?: string; continue?: boolean; effort?: string | null;
+  /** whether the run goes on in a session, starts a new one or is not run, and why (route-policy) */
+  decision?: import('../context/contracts').RouteDecision;
+};
 
 export type CwdChoice = { cwd: string; kind: 'chosen' | 'mirrored' | 'session' | 'workspace' };
 
@@ -142,7 +146,7 @@ export async function mirroredCwd(): Promise<string | null> {
 
 /** The session file for a session id: the tail node's own record, else the
  *  file under the runtime's root whose name carries the id. */
-async function agentSessionFile(runtime: AgentRuntime, sessionId: string, tail: { data: { agentSession?: { sessionId: string | null; sessionFile: string | null } } } | undefined): Promise<string | null> {
+export async function agentSessionFile(runtime: AgentRuntime, sessionId: string, tail: { data: { agentSession?: { sessionId: string | null; sessionFile: string | null } } } | undefined): Promise<string | null> {
   const own = tail?.data.agentSession;
   if (own?.sessionId === sessionId && own.sessionFile) return own.sessionFile;
   const bridge = window.desktopSessions;
@@ -166,33 +170,32 @@ async function agentSessionFile(runtime: AgentRuntime, sessionId: string, tail: 
  * wiring, or a different working directory, opens a fresh session carrying
  * the compiled context.
  */
-export async function agentOutbound(model: string | undefined, nodeId?: string): Promise<AgentRoute | undefined> {
+/**
+ * Where an agent run of `nodeId` goes: the folder it runs in, and whether it goes on in a mirrored
+ * session (its last turn the question hangs off) or starts a new one. Going on is decided from the
+ * run as prepared (`envelope`, see route-policy): without it, nothing is gone on in.
+ */
+export async function agentOutbound(model: string | undefined, nodeId?: string, envelope?: import('../context/contracts').RunEnvelope): Promise<AgentRoute | undefined> {
   const runtime = runtimeOf(model);
   if (!window.desktopAgents || !runtime) return undefined;
   const choice = await resolveAgentCwd();
   if (!choice) return undefined;
   if (!nodeId) return { cwd: choice.cwd };
+  if (!envelope) return { cwd: choice.cwd, decision: { action: 'fresh', reason: 'not-prepared' } };
   try {
-    const { useStore } = await import('../../store');
-    const { useProjects } = await import('../../store/projects');
-    const { projects, activeId } = useProjects.getState();
-    const ss = projects.find((p) => p.id === activeId)?.sourceSession;
-    if (!ss) return { cwd: choice.cwd };
-    const { nodes, edges } = useStore.getState();
-    const incoming = edges.filter((e) => e.target === nodeId);
-    if (incoming.length !== 1) return { cwd: choice.cwd };
-    const parentId = incoming[0].source;
-    const entries = [ss, ...(ss.chapters ?? []), ...(ss.branches ?? [])].filter((e) => e.runner === runtime && e.sessionId);
-    const entry = entries.find((e) => e.tailNodeId === parentId);
-    if (!entry) return { cwd: choice.cwd };
-    const tail = nodes.find((n) => n.id === parentId);
-    const sessionCwd = tail?.data.agentSession?.cwd ?? tail?.data.importSource?.cwd ?? null;
-    if (sessionCwd && sessionCwd !== choice.cwd) return { cwd: choice.cwd };
-    const sessionPath = await agentSessionFile(runtime, entry.sessionId, tail);
-    if (!sessionPath) return { cwd: choice.cwd };
-    return { cwd: sessionCwd ?? choice.cwd, sessionPath, continue: true };
+    const { findBinding } = await import('./runtime-binding');
+    const { decideRoute } = await import('./route-policy');
+    const { capabilitiesOf } = await import('../context/policy');
+    const found = await findBinding(nodeId, runtime, choice.cwd);
+    const decision = found.binding || envelope.mode === 'research'
+      ? decideRoute(envelope, found.binding, capabilitiesOf(runtime))
+      : { action: 'fresh' as const, reason: found.reason ?? 'no-session' };
+    if (decision.action === 'resume' && found.binding?.sessionPath) {
+      return { cwd: found.binding.cwd ?? choice.cwd, sessionPath: found.binding.sessionPath, continue: true, decision };
+    }
+    return { cwd: choice.cwd, decision };
   } catch {
-    return { cwd: choice.cwd };
+    return { cwd: choice.cwd, decision: { action: 'fresh', reason: 'unknown-history' } };
   }
 }
 

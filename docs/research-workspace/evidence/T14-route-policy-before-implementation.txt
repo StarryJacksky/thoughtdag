@@ -1,0 +1,196 @@
+# npx vitest run tests/unit/route-policy.test.ts at 13bb264, before T14: the test copied in; route-policy.ts and runtime-binding.ts are placeholders that throw, agentOutbound is as it was
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/route-policy.test.ts (13 tests | 13 failed) 33ms
+   ❯ going on in a mirrored session (12)
+     × [T14] goes on when what is above the question is exactly what the session holds, and says so 7ms
+     × [T14] starts anew, given the whole context, with an answer above rewritten on the canvas 1ms
+     × [T14] starts anew, given the whole context, with a question above rewritten on the canvas 1ms
+     × [T14] starts anew, given the whole context, with a file attached above 1ms
+     × [T14] starts anew, given the whole context, with a role set above 1ms
+     × [T14] starts anew, given the whole context, with a turn above left out 1ms
+     × [T14] follows an exclusion: a file left out above keeps the session; taken back in by the question, it does not 1ms
+     × [T14] does not go on in a session whose turns it cannot know: a turn imported without its source 1ms
+     × [T14] decides nothing without the run prepared: no envelope, no going on 1ms
+     × [T14] starts anew from a turn that is not the session's last, while forking at a turn is not known to work 1ms
+     × [T14] does not run research on an agent not known to keep to its inputs, and never goes on in a session for it 1ms
+     × [T14] does not go on in a session the runtime says it cannot resume, or that is known to be busy elsewhere 0ms
+   ❯ through the run path (1)
+     × [T14] a memory added to the run starts a new session given the whole of it; without one, the question goes on in the session 13ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 13 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/route-policy.test.ts > going on in a mirrored session > [T14] goes on when what is above the question is exactly what the session holds, and says so
+AssertionError: expected { cwd: '/synthetic/project', …(2) } to match object { continue: true, …(2) }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "continue": true,
+-   "decision": {
+-     "action": "resume",
+-     "reason": "same-conversation",
+-   },
+    "sessionPath": "/synthetic/sessions/rollout-sess-synthetic-1.jsonl",
+  }
+
+ ❯ tests/unit/route-policy.test.ts:75:15
+     73|     canvas(f.graph);
+     74|     const r = await route();
+     75|     expect(r).toMatchObject({ continue: true, sessionPath: f.nativeHis…
+       |               ^
+     76|   });
+     77|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/13]⎯
+
+ FAIL  tests/unit/route-policy.test.ts > going on in a mirrored session > [T14] starts anew, given the whole context, with an answer above rewritten on the canvas
+ FAIL  tests/unit/route-policy.test.ts > going on in a mirrored session > [T14] starts anew, given the whole context, with a question above rewritten on the canvas
+ FAIL  tests/unit/route-policy.test.ts > going on in a mirrored session > [T14] starts anew, given the whole context, with a file attached above
+ FAIL  tests/unit/route-policy.test.ts > going on in a mirrored session > [T14] starts anew, given the whole context, with a role set above
+ FAIL  tests/unit/route-policy.test.ts > going on in a mirrored session > [T14] starts anew, given the whole context, with a turn above left out
+AssertionError: expected true to be falsy
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/unit/route-policy.test.ts:88:27
+     86|       canvas(f.graph, change);
+     87|       const r = await route();
+     88|       expect(r?.continue).toBeFalsy();
+       |                           ^
+     89|       expect(r?.sessionPath).toBeUndefined();
+     90|       expect(r?.decision).toEqual({ action: 'fresh', reason });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/13]⎯
+
+ FAIL  tests/unit/route-policy.test.ts > going on in a mirrored session > [T14] follows an exclusion: a file left out above keeps the session; taken back in by the question, it does not
+AssertionError: expected undefined to match object { action: 'resume', …(1) }
+
+- Expected:
+{
+  "action": "resume",
+  "reason": "same-conversation",
+}
+
++ Received:
+undefined
+
+ ❯ tests/unit/route-policy.test.ts:96:39
+     94|   it('[T14] follows an exclusion: a file left out above keeps the sess…
+     95|     canvas(f.graph, (nodes) => patch('n2', { excludedAttachmentIds: [N…
+     96|     expect((await route())?.decision).toMatchObject({ action: 'resume'…
+       |                                       ^
+     97|     canvas(f.graph, (nodes) => patch(TARGET, { includedAttachmentIds: …
+     98|     expect((await route())?.decision).toEqual({ action: 'fresh', reaso…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/13]⎯
+
+ FAIL  tests/unit/route-policy.test.ts > going on in a mirrored session > [T14] does not go on in a session whose turns it cannot know: a turn imported without its source
+Error: not implemented
+ ❯ bindingFor src/lib/agents/runtime-binding.ts:2:79
+      1| // placeholder: there are no runtime bindings yet
+      2| export async function bindingFor(..._args: unknown[]): Promise<never> …
+       |                                                                               ^
+      3|
+ ❯ tests/unit/route-policy.test.ts:104:27
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/13]⎯
+
+ FAIL  tests/unit/route-policy.test.ts > going on in a mirrored session > [T14] decides nothing without the run prepared: no envelope, no going on
+AssertionError: expected true to be falsy
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/unit/route-policy.test.ts:113:25
+    111|     canvas(f.graph);
+    112|     const r = await agentOutbound(MODEL, TARGET);
+    113|     expect(r?.continue).toBeFalsy();
+       |                         ^
+    114|     expect(r?.decision).toEqual({ action: 'fresh', reason: 'not-prepar…
+    115|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/13]⎯
+
+ FAIL  tests/unit/route-policy.test.ts > going on in a mirrored session > [T14] starts anew from a turn that is not the session's last, while forking at a turn is not known to work
+AssertionError: expected undefined to deeply equal { action: 'fresh', …(1) }
+
+- Expected:
+{
+  "action": "fresh",
+  "reason": "not-the-last-turn",
+}
+
++ Received:
+undefined
+
+ ❯ tests/unit/route-policy.test.ts:122:25
+    120|     const r = await route();
+    121|     expect(r?.continue).toBeFalsy();
+    122|     expect(r?.decision).toEqual({ action: 'fresh', reason: 'not-the-la…
+       |                         ^
+    123|   });
+    124|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/13]⎯
+
+ FAIL  tests/unit/route-policy.test.ts > going on in a mirrored session > [T14] does not run research on an agent not known to keep to its inputs, and never goes on in a session for it
+Error: not implemented
+ ❯ bindingFor src/lib/agents/runtime-binding.ts:2:79
+      1| // placeholder: there are no runtime bindings yet
+      2| export async function bindingFor(..._args: unknown[]): Promise<never> …
+       |                                                                               ^
+      3|
+ ❯ tests/unit/route-policy.test.ts:129:27
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/13]⎯
+
+ FAIL  tests/unit/route-policy.test.ts > going on in a mirrored session > [T14] does not go on in a session the runtime says it cannot resume, or that is known to be busy elsewhere
+Error: not implemented
+ ❯ bindingFor src/lib/agents/runtime-binding.ts:2:79
+      1| // placeholder: there are no runtime bindings yet
+      2| export async function bindingFor(..._args: unknown[]): Promise<never> …
+       |                                                                               ^
+      3|
+ ❯ tests/unit/route-policy.test.ts:138:28
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/13]⎯
+
+ FAIL  tests/unit/route-policy.test.ts > through the run path > [T14] a memory added to the run starts a new session given the whole of it; without one, the question goes on in the session
+AssertionError: expected undefined to deeply equal { action: 'resume', …(1) }
+
+- Expected:
+{
+  "action": "resume",
+  "reason": "same-conversation",
+}
+
++ Received:
+undefined
+
+ ❯ tests/unit/route-policy.test.ts:159:67
+    157|     expect(plain.sessionPath).toBe(f.nativeHistory!.sessionFile);
+    158|     expect(plain.prompt).toBe(asked);
+    159|     expect(useStore.getState().nodes.at(-1)!.data.lastRun?.route).toEq…
+       |                                                                   ^
+    160|
+    161|     canvas(f.graph, (nodes) => nodes.filter((n) => n.id !== TARGET));
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/13]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  13 failed (13)
+   Start at  04:42:45
+   Duration  1.04s (environment 46%, transform 42%, import 6%, tests 3%, setup 2%)
+

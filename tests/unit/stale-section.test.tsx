@@ -7,6 +7,7 @@ import { recheckAgents, setModelsCache } from '../../src/lib/use-models';
 import { subscribeWorkspace } from '../../src/lib/workspace/events';
 import { applyWorkspaceEvent, attachEntry } from '../../src/lib/workspace/graph-resource';
 import { useStore } from '../../src/store';
+import { t } from '../../src/i18n';
 import { bootProjects, useProjects } from '../../src/store/projects';
 import { installFakeDesktop, type FakeDesktop } from '../helpers/fake-desktop';
 import { installFakeWorkspace, type FakeWorkspace } from '../helpers/fake-workspace';
@@ -112,5 +113,12 @@ describe('an answer out of date, on its panel', () => {
     const t = await outOfDate(API_MODEL);
     view = await mount(<StaleSection nodeId={t} />);
     expect(q('[data-version-inputs]')!.textContent).toContain('a.md');
+  });
+
+  it('[T14] says whether the version shown went on in a session or started a new one, and why', async () => {
+    const id = task(API_MODEL, 'about nothing');
+    useStore.setState((st) => ({ nodes: st.nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, response: 'R', responses: ['R'], responseIndex: 0, runs: [{ runId: 'run_x', inputDigest: 'sha256:a', executionDigest: 'sha256:b', graphRevision: 'sha256:c', inputs: [], route: { action: 'fresh', reason: 'edited' } }] } } : n)) }));
+    view = await mount(<StaleSection nodeId={id} />);
+    expect(q('[data-version-route="fresh"]')!.textContent).toContain(t('route.reason.edited'));
   });
 });

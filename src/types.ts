@@ -10,6 +10,8 @@ export interface RunSummary {
   inputs: { inputId: string; snapshotId: string; contentHash: string; fileId?: string; workspaceId?: string; name?: string; semanticHash?: string }[];
   /** its images were left out for a model that cannot see them (their text was in the messages) */
   imagesDropped?: boolean;
+  /** an agent run: whether it went on in a session or started a new one, and why (lib/agents/route-policy) */
+  route?: { action: 'resume' | 'fresh'; reason: string };
 }
 
 export interface Attachment {

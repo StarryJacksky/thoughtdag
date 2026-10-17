@@ -327,7 +327,8 @@ export async function runNodeGeneration(
   // still being prepared (its guard, its materials) is the next run's, and never half of this one's.
   const runEffort = runTarget && runTarget.model === requestedModel ? (runTarget.effort ?? null) : undefined;
   const harnessRoute = await harnessOutbound(nodeId, requestedModel);
-  const agentRoute = harnessRoute ? undefined : await agentOutbound(requestedModel, nodeId);
+  // whether an agent run goes on in a session is decided once the run is prepared (lib/agents/route-policy)
+  let agentRoute: Awaited<ReturnType<typeof agentOutbound>>;
   let harnessSession: string | undefined;
   let harnessTurn: { session: string; turn: number | null; userMessageId: string | null; seq: number | null } | null = null;
   // the turn is claimed the moment the bridge names it (mid-generation), so a
@@ -369,7 +370,7 @@ export async function runNodeGeneration(
         const generatedAts = [...kept.map(({ at }) => at), now];
         const editedAts = [...kept.map(({ ed }) => ed), undefined];
         // the run each version came from: an earlier answer still finds what it was given (lib/context/run-records)
-        const summary = envelope && runRecords ? runRecords.summaryOf(envelope, imagesDropped) : undefined;
+        const summary = envelope && runRecords ? runRecords.summaryOf(envelope, imagesDropped, routeTaken) : undefined;
         const runs = [...kept.map(({ rn }) => rn), summary];
         versionWritten = responses.length - 1;
         return { ...n, data: { ...n.data, response, responses, questions, generatedBy, gatewaySearches, generatedEfforts, reasonings, generatedAts, editedAts, runs: runs.some(Boolean) ? runs : undefined, reasoning: undefined, restreaming: undefined, pendingApprovals: undefined, agentTrace: undefined, responseIndex: responses.length - 1, isLoading: false, tokenCount, generationFailed: failed || undefined, references, highlights: pruneHighlights(n.data.highlights, response), lastContextHash: contextHash, lastContextParts: contextParts, lastFeedback: Object.keys(feedbackRead).length > 0 ? feedbackRead : undefined, lastGeneratedAt: now,
@@ -484,6 +485,15 @@ export async function runNodeGeneration(
     markNotSent(set, get, nodeId, policyText(verdict.blocked));
     return;
   }
+  if (!harnessRoute) {
+    agentRoute = await agentOutbound(requestedModel, nodeId, envelope);
+    if (!isCurrent()) return;
+    if (agentRoute?.decision?.action === 'blocked') {
+      markNotSent(set, get, nodeId, fmt(t('route.notSent'), { why: t(`route.reason.${agentRoute.decision.reason}` as Parameters<typeof t>[0]) }));
+      return;
+    }
+  }
+  const routeTaken = agentRoute?.decision && agentRoute.decision.action !== 'blocked' ? { action: agentRoute.decision.action === 'resume' ? 'resume' as const : 'fresh' as const, reason: agentRoute.decision.reason } : undefined;
   const { materialsFor } = await import('../lib/context/materials');
   if (!isCurrent()) return;
   // recorded before anything is sent: the snapshots it was given are held from now on

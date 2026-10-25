@@ -2,7 +2,7 @@ import type { StateCreator } from 'zustand';
 import type { ThoughtNode, ThoughtEdge } from '../../types';
 import { generateId, countTokens } from '../../utils';
 import { COLORS } from '../../lib/constants';
-import { healLegacyNoteEdges, autoLayout, estimateNodeHeight, nodeHeight } from '../../lib/layout';
+import { healLegacyNoteEdges, autoLayout, placeNewNodes, estimateNodeHeight, nodeHeight } from '../../lib/layout';
 import { getDescendantIds, walkUpAncestors } from '../../lib/graph';
 import { referenceBlockContent, upstreamFingerprint, buildContext } from '../context-builder';
 import { pruneHighlights } from '../../lib/highlight-match';
@@ -170,7 +170,7 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
       target: id,
     } : null;
     const newEdges = newEdge ? [...get().edges, newEdge] : get().edges;
-    const newNodes = autoLayout([...get().nodes, newNode], newEdges);
+    const newNodes = placeNewNodes([...get().nodes, newNode], newEdges, [id]);
     set({ nodes: newNodes, edges: newEdges, selectedNodeId: id });
     get().pushHistory();
   },
@@ -332,8 +332,6 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
         };
       }),
     }));
-    // Solid lines obey the arrow grammar — re-run the column tree
-    set((state) => ({ nodes: autoLayout(state.nodes, state.edges) }));
     get().pushHistory();
   },
 

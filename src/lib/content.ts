@@ -2,7 +2,7 @@ import type { ThoughtData, ThoughtNode } from '../types';
 import { generateId, countTokens } from '../utils';
 import { useStore } from '../store';
 import { triggerParadigmCascade } from '../store/streaming';
-import { autoLayout } from './layout';
+import { placeNewNodes } from './layout';
 import { COLORS } from './constants';
 import { processFile } from './attachments';
 import { fetchUrlSnapshot, llmCall } from './api';
@@ -351,7 +351,7 @@ export async function generateDigest(nodeId: string, attId: string): Promise<boo
     };
     const edges = [...st.edges, edge];
     st.pushHistory();
-    useStore.setState({ nodes: autoLayout([...st.nodes, node], edges), edges });
+    useStore.setState({ nodes: placeNewNodes([...st.nodes, node], edges, [id]), edges });
     st.pushHistory();
     digestNode = useStore.getState().nodes.find((n) => n.id === id);
     if (!digestNode) return false;

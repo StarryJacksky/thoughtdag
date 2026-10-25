@@ -571,3 +571,102 @@ export function autoLayout(allNodes: ThoughtNode[], allEdges: ThoughtEdge[]): Th
     return pos ? { ...node, position: pos } : node;
   });
 }
+
+/**
+ * Seat freshly added nodes and leave every other node where it is. Asking a
+ * follow-up, exploring, merging or regenerating used to re-run autoLayout
+ * over the whole canvas, which put back every card the user had dragged
+ * (the questions hanging from a document jumped under the lowest document).
+ * Only the one-click relayout rearranges the canvas now.
+ *
+ * A new node takes the offset the column tree would give it, measured from
+ * where its parent sits NOW: below it for a continuation (below the lowest
+ * parent it continues from, for a merge), one column right for a second
+ * child, beside it for a branch explored out, under its lowest material for
+ * a chain grown from documents, right of the canvas for a new root. If that
+ * spot is taken it moves right a column at a time. `newIds` are seated in
+ * order, so a batch (fan-out) fills the columns one after another.
+ */
+export function placeNewNodes(allNodes: ThoughtNode[], allEdges: ThoughtEdge[], newIds: string[]): ThoughtNode[] {
+  const pending = new Set(newIds);
+  const placed = new Map<string, { x: number; y: number }>();
+  const byId = new Map(allNodes.map((n) => [n.id, n]));
+  const isContent = (n: ThoughtNode) => ['note', 'file', 'link', 'frame'].includes(n.data.stepKind ?? '');
+  const pos = (n: ThoughtNode) => placed.get(n.id) ?? n.position;
+  // A parent this very action folded still carries its expanded measurement.
+  const footprint = (n: ThoughtNode) => (n.data.isCollapsed ? estimateNodeHeight(n) : nodeHeight(n));
+  const STEP = LAYOUT_COL_WIDTH + LAYOUT_H_GAP;
+  const PAD = 24;
+  const isExplore = (e: ThoughtEdge) => !!e.data?.isBranchFromSelection;
+
+  // Same parent rule as autoLayout: structural edges, or the one reference
+  // a re-wired node hangs from; watch edges never place anything.
+  const parentEdges = (id: string) => {
+    const solid = allEdges.filter((e) => e.target === id && !e.data?.isCrossLink);
+    return solid.length ? solid : allEdges.filter((e) => e.target === id && e.data?.isCrossLink && !e.data?.isWatch).slice(0, 1);
+  };
+  const claimantOf = (id: string) => {
+    const ps = parentEdges(id).filter((e) => byId.has(e.source) && !isContent(byId.get(e.source)!));
+    return (ps.find((e) => !isExplore(e)) ?? ps[0])?.source;
+  };
+
+  for (const id of newIds) {
+    const node = byId.get(id);
+    if (!node) continue;
+    pending.delete(id);
+    const others = allNodes.filter((n) => n.id !== id && !pending.has(n.id) && n.data.stepKind !== 'frame');
+    const ins = parentEdges(id).filter((e) => byId.has(e.source));
+    const thoughtIns = ins.filter((e) => !isContent(byId.get(e.source)!));
+    const materials = ins.map((e) => byId.get(e.source)!).filter(isContent);
+    let at: { x: number; y: number };
+    if (thoughtIns.length) {
+      const owner = byId.get(claimantOf(id)!)!;
+      const op = pos(owner);
+      const below = op.y + footprint(owner) + LAYOUT_V_GAP;
+      const ownerEdge = thoughtIns.find((e) => e.source === owner.id)!;
+      if (isExplore(ownerEdge)) {
+        at = { x: op.x + STEP, y: op.y + footprint(owner) * 0.25 };
+      } else {
+        const hasContinuation = allEdges.some((e) => e.source === owner.id && e.target !== id && !isExplore(e)
+          && !e.data?.isCrossLink && !pending.has(e.target) && claimantOf(e.target) === owner.id);
+        if (hasContinuation) {
+          at = { x: op.x + STEP, y: below };
+        } else {
+          // a merge clears every parent it continues from and never rises
+          // above one that explored it out
+          let y = below;
+          for (const e of thoughtIns) {
+            const p = byId.get(e.source)!;
+            y = Math.max(y, isExplore(e) ? pos(p).y : pos(p).y + footprint(p) + LAYOUT_V_GAP);
+          }
+          at = { x: op.x, y };
+        }
+      }
+    } else if (materials.length) {
+      const lowest = materials.reduce((a, b) => (pos(a).y + footprint(a) > pos(b).y + footprint(b) ? a : b));
+      at = { x: pos(lowest).x - 60, y: pos(lowest).y + footprint(lowest) + LAYOUT_V_GAP };
+    } else if (others.length) {
+      at = {
+        x: Math.max(...others.map((n) => pos(n).x + (n.measured?.width ?? n.width ?? LAYOUT_COL_WIDTH))) + LAYOUT_H_GAP,
+        y: Math.min(...others.map((n) => pos(n).y)),
+      };
+    } else {
+      at = { x: 0, y: 0 };
+    }
+
+    // An answer still to come grows the card by up to its 400px cap.
+    const h = footprint(node) + (node.data.response ? 0 : 400);
+    const clash = (x: number, y: number) => others.some((o) => {
+      const p = pos(o);
+      const w = o.measured?.width ?? o.width ?? LAYOUT_COL_WIDTH;
+      return x < p.x + w + PAD && x + LAYOUT_COL_WIDTH + PAD > p.x && y < p.y + footprint(o) + PAD && y + h + PAD > p.y;
+    });
+    for (let guard = 0; guard < 200 && clash(at.x, at.y); guard++) at = { x: at.x + STEP, y: at.y };
+    placed.set(id, at);
+  }
+
+  return allNodes.map((n) => {
+    const p = placed.get(n.id);
+    return p ? { ...n, position: p } : n;
+  });
+}

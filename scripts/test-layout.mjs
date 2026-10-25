@@ -8,6 +8,7 @@
 //   - a node EXPLORED out of a parent stands beside it, never above its top
 //   - no two thought cards overlap
 //   - the same graph, handed over in a different order, lays out the same way
+//   - adding a node moves no node already on the canvas
 //
 // Run: node scripts/test-layout.mjs
 import { execFileSync } from 'node:child_process';
@@ -24,7 +25,7 @@ execFileSync(join(ROOT, 'node_modules/.bin/esbuild'), [
   `--outfile=${bundle}`, '--define:import.meta.env.VITE_API_BASE=""',
   '--define:import.meta.env.DEV=false',
 ], { stdio: ['ignore', 'ignore', 'pipe'] });
-const { autoLayout, nodeHeight } = await import(pathToFileURL(bundle).href);
+const { autoLayout, placeNewNodes, nodeHeight } = await import(pathToFileURL(bundle).href);
 const framesBundle = join(tmp, 'frames.mjs');
 execFileSync(join(ROOT, 'node_modules/.bin/esbuild'), [
   join(ROOT, 'src/lib/frames.ts'), '--bundle', '--format=esm', '--platform=node', `--outfile=${framesBundle}`,
@@ -225,6 +226,106 @@ test('auto layout leaves partially overlapping frames where they are (#64)', () 
     const f = nodeOf(laid, o.id);
     assert(f.position.x === o.position.x && f.position.y === o.position.y && f.width === o.width && f.height === o.height, `${o.id} changed`);
   }
+});
+
+// Adding a node seats that node only: the user's arrangement survives a
+// follow-up, an explore, a merge (the questions hanging from a document used
+// to jump back under the lowest document on every ask).
+const fresh = (id, over = {}) => th(id, { response: '', responses: [], responseIndex: -1, isCollapsed: false, isLoading: true, ...over });
+const unmoved = (before, after) => before.filter((n) => {
+  const m = nodeOf(after, n.id);
+  return m.position.x !== n.position.x || m.position.y !== n.position.y;
+}).map((n) => n.id);
+
+test('a follow-up moves no node already on the canvas, the dragged ones included', () => {
+  const nodes = [file('pdf', 0), placed(file('md', 0), 930, -41, 400, 183),
+                 placed(th('q1'), 420, 381), placed(th('q2'), 1500, 900)];
+  const edges = [ed('pdf', 'q1'), ed('md', 'q1'), ed('q1', 'q2')];
+  const all = [...nodes, fresh('q3')];
+  const laid = placeNewNodes(all, [...edges, ed('q2', 'q3')], ['q3']);
+  assert(unmoved(nodes, laid).length === 0, `moved: ${unmoved(nodes, laid)}`);
+  const q2 = nodeOf(laid, 'q2'), q3 = nodeOf(laid, 'q3');
+  assert(q3.position.x === q2.position.x, `follow-up at x ${q3.position.x}, its parent at ${q2.position.x}`);
+  assert(q3.position.y >= q2.position.y + nodeHeight(q2), 'follow-up above its parent bottom');
+});
+
+test('a parent folded by the ask is measured folded: the follow-up sits right under it', () => {
+  const parent = { ...placed(th('p'), 0, 0, 520, 700), data: { ...th('p').data, isCollapsed: true } };
+  const laid = placeNewNodes([parent, fresh('c')], [ed('p', 'c')], ['c']);
+  const y = nodeOf(laid, 'c').position.y;
+  assert(y < 700, `follow-up at y ${y}, below the parent's stale unfolded height`);
+});
+
+test('a second child stands one column right of the first, never on it', () => {
+  const nodes = [placed(th('p'), 100, 100), placed(th('first'), 100, 400)];
+  const laid = placeNewNodes([...nodes, fresh('second')], [ed('p', 'first'), ed('p', 'second')], ['second']);
+  const s2 = nodeOf(laid, 'second');
+  assert(s2.position.x > 100 + NODE_W, `second child at x ${s2.position.x}`);
+  assert(violations(laid, [ed('p', 'first'), ed('p', 'second')]).length === 0, violations(laid, [ed('p', 'first'), ed('p', 'second')]).join('; '));
+});
+
+test('an explored branch stands beside its parent', () => {
+  const edges = [ed('p', 'x', { isBranchFromSelection: true })];
+  const laid = placeNewNodes([placed(th('p'), 0, 0), fresh('x')], edges, ['x']);
+  const x = nodeOf(laid, 'x');
+  assert(x.position.x >= NODE_W && x.position.y >= 0, `branch at ${x.position.x},${x.position.y}`);
+  assert(violations(laid, edges).length === 0, violations(laid, edges).join('; '));
+});
+
+test('a question grown from documents hangs under the lowest one; a taken spot moves it right', () => {
+  const docs = [file('f0', 0), { ...file('f1', 900), position: { x: 900, y: 400 } }];
+  const blocker = placed(th('there'), 840, 640, 520, 300);
+  const edges = [ed('f0', 'q'), ed('f1', 'q')];
+  const free = placeNewNodes([...docs, fresh('q')], edges, ['q']);
+  assert(xOf(free, 'q') === 900 - 60, `question at x ${xOf(free, 'q')}, not under the lowest document`);
+  const taken = placeNewNodes([...docs, blocker, fresh('q')], edges, ['q']);
+  assert(xOf(taken, 'q') > 840 + NODE_W, `question at x ${xOf(taken, 'q')}, on top of the card already there`);
+  assert(unmoved([...docs, blocker], taken).length === 0, 'an existing node moved');
+});
+
+test('a fan-out seats its branches side by side without overlap', () => {
+  const ids = ['b1', 'b2', 'b3', 'b4'];
+  const edges = ids.map((i) => ed('p', i, { isBranchFromSelection: true }));
+  const laid = placeNewNodes([placed(th('p'), 0, 0), ...ids.map((i) => fresh(i))], edges, ids);
+  assert(violations(laid, edges).length === 0, violations(laid, edges).join('; '));
+});
+
+test('a merge sits below the lowest parent it continues from, under the first', () => {
+  const nodes = [placed(th('a'), 0, 0), placed(th('b'), 700, 600)];
+  const edges = [ed('a', 'm'), ed('b', 'm')];
+  const laid = placeNewNodes([...nodes, fresh('m')], edges, ['m']);
+  assert(xOf(laid, 'm') === 0, `merge at x ${xOf(laid, 'm')}, not under its first parent`);
+  assert(violations(laid, edges).length === 0, violations(laid, edges).join('; '));
+});
+
+test('a new root lands right of the canvas, level with its top', () => {
+  const nodes = [placed(th('a'), 0, 200), placed(th('b'), 900, 500)];
+  const laid = placeNewNodes([...nodes, fresh('r')], [], ['r']);
+  const r = nodeOf(laid, 'r');
+  assert(r.position.x >= 900 + NODE_W && r.position.y === 200, `new root at ${r.position.x},${r.position.y}`);
+});
+
+test('on every benchmark canvas a leaf re-added after layout keeps the arrow order and overlaps nothing', () => {
+  const dir = join(ROOT, 'benchmark/canvases/inputs');
+  let checked = 0; const bad = [];
+  for (const f of readdirSync(dir).filter((n) => n.endsWith('.thoughtdag.json'))) {
+    const c = JSON.parse(readFileSync(join(dir, f), 'utf8'));
+    const edges = c.edges ?? [];
+    const laid = autoLayout(c.nodes ?? [], edges);
+    const leaves = laid.filter((n) => !CONTENT.has(n.data?.stepKind) && !edges.some((e) => e.source === n.id)
+      && edges.some((e) => e.target === n.id && !e.data?.isCrossLink));
+    for (const leaf of leaves.slice(0, 6)) {
+      const rest = laid.filter((n) => n.id !== leaf.id);
+      const again = placeNewNodes([...rest, { ...leaf, position: { x: 0, y: 0 } }], edges, [leaf.id]);
+      const v = violations(again, edges.filter((e) => e.target === leaf.id))
+        .concat(violations(again, []).filter((m) => m.split(' ')[1].split('/').includes(leaf.id)));
+      checked++;
+      if (v.length) bad.push(`${f} ${leaf.id}: ${v[0]}`);
+      if (unmoved(rest, again).length) bad.push(`${f} ${leaf.id}: moved ${unmoved(rest, again)[0]}`);
+    }
+  }
+  assert(checked > 0, 'no leaves checked');
+  assert(bad.length === 0, `${bad.length}/${checked} re-added leaves break a rule: ${bad[0]}`);
 });
 
 test('the benchmark canvases keep the arrow order', () => {

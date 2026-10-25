@@ -18,6 +18,7 @@ import { processFile } from '../lib/attachments';
 import { copyText } from '../lib/export';
 import { isRunLocked } from '../lib/paradigm';
 import { collectExploreMarksKey, type ExploreMark } from '../lib/explore-marks';
+import { withinOneCodeBlock } from '../lib/highlight-match';
 import { useUiStore, toast } from '../lib/ui-store';
 import SearchToggles from './ui/SearchToggles';
 import { Markdown, HighlightedMarkdown } from './Markdown';
@@ -64,7 +65,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
   // fan-out placeholder shows its expand button until branches exist
   const hasFanoutChildren = useStore((s) => s.edges.some((e) => e.source === id && e.data?.isBranchFromSelection));
   const [selectedText, setSelectedText] = useState('');
-  const [selectionPos, setSelectionPos] = useState<{ x: number; y: number } | null>(null);
+  const [selectionPos, setSelectionPos] = useState<{ x: number; y: number; inCode: boolean } | null>(null);
   const inlineDraftKey = `inline:${id}`;
   const [inputValue, setInputValueState] = useState(() => useUiStore.getState().drafts[inlineDraftKey] ?? '');
   const mention = useMentions(id);
@@ -177,6 +178,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
         setSelectionPos({
           x: rangeRect.left + rangeRect.width / 2 - nodeRect.left,
           y: rangeRect.top - nodeRect.top - 48,
+          inCode: withinOneCodeBlock(range),
         });
       }
     } else {
@@ -1151,12 +1153,14 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
             >
               <GitBranch size={14} strokeWidth={1.75} className="inline" /> {t('common.explore')}
             </button>
-            <button
-              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleHighlight(); }}
-              className="bg-amber-500 hover:bg-amber-400 text-white text-xs px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
-            >
-              <Star size={14} strokeWidth={1.75} className="inline" /> {t('common.highlight')}
-            </button>
+            {!selectionPos.inCode && (
+              <button
+                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleHighlight(); }}
+                className="bg-amber-500 hover:bg-amber-400 text-white text-xs px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
+              >
+                <Star size={14} strokeWidth={1.75} className="inline" /> {t('common.highlight')}
+              </button>
+            )}
           </div>
         </div>
       )}

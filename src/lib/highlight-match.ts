@@ -13,7 +13,9 @@ const MD_NOISE = '[*_`~()#>\\[\\]|-]*';
 // the whitespace, allow any run of list/quote/heading/cell prefixes —
 // without this, any highlight crossing a list item or table cell can
 // never match.
-const WS_GAP = `\\s+(?:(?:\\d{1,3}[.)]|[-*+>|]|#{1,6}|[-:|]{3,})\\s+)*`;
+// A code fence line ("```bash", "~~~") is one more such boundary: a
+// selection running from prose into a code block or out of one.
+const WS_GAP = `\\s+(?:(?:\\d{1,3}[.)]|[-*+>|]|#{1,6}|[-:|]{3,}|[\`~]{3,}[^\\s\`~]*)\\s+)*`;
 
 export function fuzzyHighlightRegex(text: string): RegExp | null {
   const chars = [...text.trim()];
@@ -36,6 +38,44 @@ export function fuzzyHighlightRegex(text: string): RegExp | null {
   } catch {
     return null;
   }
+}
+
+// Code renders its source verbatim, so a <mark> spliced into a fenced block
+// shows as literal text (#81). Fenced blocks (an unclosed one runs to the
+// end, as the renderer draws it) and inline spans, in source order.
+const CODE_RE = /(`{3,}|~{3,})[\s\S]*?(?:\1|$)|`[^`\n]*`/g;
+const HAS_TEXT = /[^\s*_`~()#>[\]|-]/;
+
+/** The parts of a matched source range a mark may wrap: fenced code is cut
+    out of it, and a boundary that falls inside an inline code span grows to
+    the whole span (a mark around `code` renders, one inside it does not). */
+export function proseClipper(src: string): (start: number, end: number) => [number, number][] {
+  const fences: [number, number][] = [];
+  const inline: [number, number][] = [];
+  for (const m of src.matchAll(CODE_RE)) (m[1] ? fences : inline).push([m.index!, m.index! + m[0].length]);
+  return (start, end) => {
+    for (const [a, b] of inline) {
+      if (start > a && start < b) start = a;
+      if (end > a && end < b) end = b;
+    }
+    const out: [number, number][] = [];
+    let cur = start;
+    for (const [a, b] of fences) {
+      if (b <= cur || a >= end) continue;
+      if (a > cur) out.push([cur, a]);
+      cur = Math.max(cur, b);
+    }
+    if (cur < end) out.push([cur, end]);
+    return out.filter(([a, b]) => HAS_TEXT.test(src.slice(a, b)));
+  };
+}
+
+/** True when a selection starts and ends inside the same code block: no mark
+    can be drawn there, so the selection menu offers no highlight for it. */
+export function withinOneCodeBlock(range: Range): boolean {
+  const pre = (n: Node) => (n instanceof Element ? n : n.parentElement)?.closest('pre') ?? null;
+  const a = pre(range.startContainer);
+  return !!a && a === pre(range.endContainer);
 }
 
 export function highlightFoundIn(haystack: string, text: string): boolean {

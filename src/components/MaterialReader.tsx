@@ -1491,7 +1491,9 @@ function PdfPage({ doc, pdfjs, pageNo, width, anchors, activeThreadId, onAnchorC
             className={`absolute w-6 h-6 rounded-full shadow-md border flex items-center justify-center text-xs transition-transform hover:scale-110 ${
               activeThreadId === a.id ? 'bg-accent text-white border-accent' : 'bg-card text-accent border-accent/40'
             }`}
-            style={{ left: `calc(${(a.rects[0][0] + a.rects[0][2]) * 100}% + 6px)`, top: `${a.rects[0][1] * 100}%`, zIndex: 4 }}
+            // in the margin beside the passage's first line, where it covers
+            // no text (at the end of the line it sat on the words after it, #81)
+            style={{ left: 'calc(100% + 8px)', top: `${a.rects[0][1] * 100}%`, zIndex: 4 }}
             data-anchor-bubble={a.id}
           >
             💬

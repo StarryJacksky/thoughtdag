@@ -10,7 +10,7 @@ import type { Schema } from 'hast-util-sanitize';
 import type { Element, ElementContent } from 'hast';
 import type { PluggableList } from 'unified';
 import { Check, Code2, Copy, Workflow } from 'lucide-react';
-import { fuzzyHighlightRegex } from '../lib/highlight-match';
+import { fuzzyHighlightRegex, proseClipper } from '../lib/highlight-match';
 import { useT, fmt } from '../i18n';
 import { localPathOf, openLocalPath, basenameOf } from '../lib/local-path';
 import { foldToolCalls } from '../lib/tool-markup';
@@ -295,12 +295,15 @@ export const HighlightedMarkdown = memo(function HighlightedMarkdown({ content, 
   // that impossible. Selections come from the RENDERED text and cross
   // bold/list/line-break syntax; wrapping the matched source verbatim keeps
   // its markdown rendering inside <mark>.
+  // Marks only wrap prose: the code inside a match keeps its source as is.
   const spans: { start: number; end: number; open: string; prio: number }[] = [];
+  const clip = proseClipper(content);
   const collect = (text: string, open: string, prio: number) => {
     const re = fuzzyHighlightRegex(text);
     if (!re) return;
     for (const m of content.matchAll(re)) {
-      if (m[0]) spans.push({ start: m.index!, end: m.index! + m[0].length, open, prio });
+      if (!m[0]) continue;
+      for (const [start, end] of clip(m.index!, m.index! + m[0].length)) spans.push({ start, end, open, prio });
     }
   };
   for (const h of highlights) collect(h, MARK_OPEN, 0);

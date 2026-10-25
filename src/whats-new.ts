@@ -40,6 +40,17 @@ const DOCS = 'https://chenxiachan.github.io/thoughtdag/docs';
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
     // a quiet release: the 0.5.21 entry stays the announcement, this one is history only
+    version: '0.5.26',
+    date: '2026-10-25',
+    announce: false,
+    lead: {
+      zh: '追问、探索、合并或重新生成时只摆放新节点，你拖好的卡片留在原处；想整体对齐时点「一键排版」。高亮和探索标记不再写进代码块，选区跨过代码块时只高亮正文部分。PDF 阅读器里的对话气泡移到页面右侧空白处，不再挡住文字。',
+      en: 'Asking a follow-up, exploring, merging or regenerating places only the new node, and the cards you arranged stay where they are; Tidy layout rearranges the whole canvas when you want it. Highlights and explore marks no longer go into code blocks, and a selection that crosses a code block highlights its text part. The conversation bubble in the PDF reader sits in the page margin and no longer covers text.',
+    },
+    items: [],
+  },
+  {
+    // a quiet release: the 0.5.21 entry stays the announcement, this one is history only
     version: '0.5.25',
     date: '2026-10-24',
     announce: false,

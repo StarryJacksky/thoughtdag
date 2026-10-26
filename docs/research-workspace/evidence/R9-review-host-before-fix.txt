@@ -1,0 +1,997 @@
+# node --test --test-force-exit tests/host/review-round9.test.cjs on the code of 00760bf (the reviewed merge; no fix applied), with the final test. --test-force-exit: on this code the plugin never notices a canvas request whose caller has left (R9-03), so the run would not end by itself
+TAP version 13
+# Subtest: [R9-01] a backup that fails at open leaves the previous backup whole and nothing beside it
+ok 1 - [R9-01] a backup that fails at open leaves the previous backup whole and nothing beside it
+  ---
+  duration_ms: 6.587209
+  type: 'test'
+  ...
+# Subtest: [R9-01] a backup that fails at write leaves the previous backup whole and nothing beside it
+not ok 2 - [R9-01] a backup that fails at write leaves the previous backup whole and nothing beside it
+  ---
+  duration_ms: 1.095208
+  type: 'test'
+  location: '<repo>/tests/host/review-round9.test.cjs:103:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    the previous backup is byte for byte as it was
+    + actual - expected
+    
+    + '{"version":2'
+    - '{"version":2,"name":"Canvas","nodes":[{"id":"n1","data":{"question":"THE_LAST_GOOD_BACKUP"}}],"edges":[]}'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '{"version":2,"name":"Canvas","nodes":[{"id":"n1","data":{"question":"THE_LAST_GOOD_BACKUP"}}],"edges":[]}'
+  actual: '{"version":2'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round9.test.cjs:109:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R9-01] a backup that fails at sync leaves the previous backup whole and nothing beside it
+not ok 3 - [R9-01] a backup that fails at sync leaves the previous backup whole and nothing beside it
+  ---
+  duration_ms: 0.767583
+  type: 'test'
+  location: '<repo>/tests/host/review-round9.test.cjs:103:3'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection: the failure is reported'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (<repo>/tests/host/review-round9.test.cjs:106:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R9-01] a backup that fails at close leaves the previous backup whole and nothing beside it
+not ok 4 - [R9-01] a backup that fails at close leaves the previous backup whole and nothing beside it
+  ---
+  duration_ms: 1.030542
+  type: 'test'
+  location: '<repo>/tests/host/review-round9.test.cjs:103:3'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection: the failure is reported'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (<repo>/tests/host/review-round9.test.cjs:106:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R9-01] a backup that fails at rename leaves the previous backup whole and nothing beside it
+not ok 5 - [R9-01] a backup that fails at rename leaves the previous backup whole and nothing beside it
+  ---
+  duration_ms: 0.6685
+  type: 'test'
+  location: '<repo>/tests/host/review-round9.test.cjs:103:3'
+  failureType: 'testCodeFailure'
+  error: 'Missing expected rejection: the failure is reported'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  operator: 'rejects'
+  stack: |-
+    async TestContext.<anonymous> (<repo>/tests/host/review-round9.test.cjs:106:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R9-01] a first backup that fails leaves no file at all, and the next one writes it whole
+not ok 6 - [R9-01] a first backup that fails leaves no file at all, and the next one writes it whole
+  ---
+  duration_ms: 1.00775
+  type: 'test'
+  location: '<repo>/tests/host/review-round9.test.cjs:115:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    no partial backup stands where none was
+    + actual - expected
+    
+    + [
+    +   'Canvas.thoughtdag.json'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'Canvas.thoughtdag.json'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round9.test.cjs:119:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R9-01] a retry after a failed backup replaces the previous backup only once it is written
+not ok 7 - [R9-01] a retry after a failed backup replaces the previous backup only once it is written
+  ---
+  duration_ms: 0.629709
+  type: 'test'
+  location: '<repo>/tests/host/review-round9.test.cjs:126:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + '{"version":2'
+    - '{"version":2,"name":"Canvas","nodes":[{"id":"n1","data":{"question":"THE_LAST_GOOD_BACKUP"}}],"edges":[]}'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '{"version":2,"name":"Canvas","nodes":[{"id":"n1","data":{"question":"THE_LAST_GOOD_BACKUP"}}],"edges":[]}'
+  actual: '{"version":2'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round9.test.cjs:130:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R9-01] two backups of one canvas end with the later one, whichever write finishes first
+not ok 8 - [R9-01] two backups of one canvas end with the later one, whichever write finishes first
+  ---
+  duration_ms: 52.362084
+  type: 'test'
+  location: '<repo>/tests/host/review-round9.test.cjs:136:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    the backup asked for last is the one on disk
+    + actual - expected
+    
+    + 'AUTOMATIC'
+    - 'BACK_UP_NOW'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'BACK_UP_NOW'
+  actual: 'AUTOMATIC'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round9.test.cjs:146:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R9-01] a mirror canvas in the cli/ drawer is kept the same way
+not ok 9 - [R9-01] a mirror canvas in the cli/ drawer is kept the same way
+  ---
+  duration_ms: 0.978208
+  type: 'test'
+  location: '<repo>/tests/host/review-round9.test.cjs:150:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + '{"version":2'
+    - '{"version":2,"name":"Canvas","nodes":[{"id":"n1","data":{"question":"THE_LAST_GOOD_BACKUP"}}],"edges":[]}'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '{"version":2,"name":"Canvas","nodes":[{"id":"n1","data":{"question":"THE_LAST_GOOD_BACKUP"}}],"edges":[]}'
+  actual: '{"version":2'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round9.test.cjs:157:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R9-03] a canvas turn queued behind the person's running turn leaves the session as the person set it until its own turn starts
+not ok 10 - [R9-03] a canvas turn queued behind the person's running turn leaves the session as the person set it until its own turn starts
+  ---
+  duration_ms: 22.294208
+  type: 'test'
+  location: '<repo>/tests/host/review-round9.test.cjs:263:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    the message was queued with the session as the person set it
+    + actual - expected
+    
+    + 'danger-full-access'
+    - 'workspace-write'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'workspace-write'
+  actual: 'danger-full-access'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round9.test.cjs:271:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R9-03] a canvas message the session refuses to queue changes nothing
+not ok 11 - [R9-03] a canvas message the session refuses to queue changes nothing
+  ---
+  duration_ms: 3.575542
+  type: 'test'
+  location: '<repo>/tests/host/review-round9.test.cjs:283:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    nothing was switched before the message was queued
+    + actual - expected
+    
+    + 'danger-full-access'
+    - 'workspace-write'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'workspace-write'
+  actual: 'danger-full-access'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round9.test.cjs:292:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R9-03] two canvas turns queued in one session (allow, then auto) each run in their own mode, and the session ends as the person set it
+not ok 12 - [R9-03] two canvas turns queued in one session (allow, then auto) each run in their own mode, and the session ends as the person set it
+  ---
+  duration_ms: 13.029584
+  type: 'test'
+  location: '<repo>/tests/host/review-round9.test.cjs:302:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    neither queued turn changed the person's running turn
+    + actual - expected
+    
+    + 'auto'
+    - 'workspace-write'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'workspace-write'
+  actual: 'auto'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round9.test.cjs:312:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R9-03] two canvas turns queued in one session (auto, then allow) each run in their own mode, and the session ends as the person set it
+not ok 13 - [R9-03] two canvas turns queued in one session (auto, then allow) each run in their own mode, and the session ends as the person set it
+  ---
+  duration_ms: 12.235333
+  type: 'test'
+  location: '<repo>/tests/host/review-round9.test.cjs:302:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    neither queued turn changed the person's running turn
+    + actual - expected
+    
+    + 'danger-full-access'
+    - 'workspace-write'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'workspace-write'
+  actual: 'danger-full-access'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round9.test.cjs:312:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R9-03] two canvas turns queued in one session (allow, then allow) each run in their own mode, and the session ends as the person set it
+not ok 14 - [R9-03] two canvas turns queued in one session (allow, then allow) each run in their own mode, and the session ends as the person set it
+  ---
+  duration_ms: 12.799125
+  type: 'test'
+  location: '<repo>/tests/host/review-round9.test.cjs:302:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    neither queued turn changed the person's running turn
+    + actual - expected
+    
+    + 'danger-full-access'
+    - 'workspace-write'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'workspace-write'
+  actual: 'danger-full-access'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round9.test.cjs:312:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R9-03] the later request ending first: the canvas leaves its queued turn while the earlier one runs, and the session still ends as the person set it
+not ok 15 - [R9-03] the later request ending first: the canvas leaves its queued turn while the earlier one runs, and the session still ends as the person set it
+  ---
+  duration_ms: 12.485792
+  type: 'test'
+  location: '<repo>/tests/host/review-round9.test.cjs:328:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'auto'
+    - 'danger-full-access'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'danger-full-access'
+  actual: 'auto'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round9.test.cjs:338:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R9-03] a canvas turn left while it waits in the queue never touches the session
+not ok 16 - [R9-03] a canvas turn left while it waits in the queue never touches the session
+  ---
+  duration_ms: 709.900833
+  type: 'test'
+  location: '<repo>/tests/host/review-round9.test.cjs:355:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    the person's turn ran as they set it from start to end
+    + actual - expected
+    
+    + [
+    +   'S4:danger-full-access'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'S4:danger-full-access'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round9.test.cjs:368:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R9-03] a canvas turn the canvas leaves while it runs is stopped, and the session is put back as it stops
+not ok 17 - [R9-03] a canvas turn the canvas leaves while it runs is stopped, and the session is put back as it stops
+  ---
+  duration_ms: 708.155583
+  type: 'test'
+  location: '<repo>/tests/host/review-round9.test.cjs:378:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    the canvas's own turn is stopped
+    + actual - expected
+    
+    + []
+    - [
+    -   'S7'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'S7'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round9.test.cjs:390:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R9-03] a setting the person changes while the canvas's turn runs is theirs and stays
+ok 18 - [R9-03] a setting the person changes while the canvas's turn runs is theirs and stays
+  ---
+  duration_ms: 7.664125
+  type: 'test'
+  ...
+# Subtest: [R9-03] a session with a hand-tuned setting is left as it is, and the canvas is told so when its turn starts
+ok 19 - [R9-03] a session with a hand-tuned setting is left as it is, and the canvas is told so when its turn starts
+  ---
+  duration_ms: 6.296208
+  type: 'test'
+  ...
+1..19
+# tests 19
+# suites 0
+# pass 3
+# fail 16
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1653.401708
+
+# node --test tests/host/contracts.test.cjs on the code of 00760bf, with the contract samples of the fix (two new RunEnvelope samples, R9-02)
+TAP version 13
+# Subtest: the host loads the same version and kinds
+ok 1 - the host loads the same version and kinds
+  ---
+  duration_ms: 4.03925
+  type: 'test'
+  ...
+# Subtest: CreateFileRequest: minimal create request
+ok 2 - CreateFileRequest: minimal create request
+  ---
+  duration_ms: 0.302041
+  type: 'test'
+  ...
+# Subtest: CreateFileRequest: create request in a chosen folder
+ok 3 - CreateFileRequest: create request in a chosen folder
+  ---
+  duration_ms: 0.074083
+  type: 'test'
+  ...
+# Subtest: CreateFileRequest: create request naming a path
+ok 4 - CreateFileRequest: create request naming a path
+  ---
+  duration_ms: 0.042375
+  type: 'test'
+  ...
+# Subtest: CreateFileRequest: create request with an empty workspace id
+ok 5 - CreateFileRequest: create request with an empty workspace id
+  ---
+  duration_ms: 0.077292
+  type: 'test'
+  ...
+# Subtest: CreateFileRequest: create request whose extension climbs out
+ok 6 - CreateFileRequest: create request whose extension climbs out
+  ---
+  duration_ms: 0.028917
+  type: 'test'
+  ...
+# Subtest: CreateFileRequest: create request with an origin only the host may assign
+ok 7 - CreateFileRequest: create request with an origin only the host may assign
+  ---
+  duration_ms: 0.064917
+  type: 'test'
+  ...
+# Subtest: CreateFileRequest: create request without an idempotency key
+ok 8 - CreateFileRequest: create request without an idempotency key
+  ---
+  duration_ms: 0.031541
+  type: 'test'
+  ...
+# Subtest: CreateFileRequest: create request that is not an object
+ok 9 - CreateFileRequest: create request that is not an object
+  ---
+  duration_ms: 0.172208
+  type: 'test'
+  ...
+# Subtest: WorkspaceRecord: local workspace
+ok 10 - WorkspaceRecord: local workspace
+  ---
+  duration_ms: 0.222208
+  type: 'test'
+  ...
+# Subtest: WorkspaceRecord: space workspace
+ok 11 - WorkspaceRecord: space workspace
+  ---
+  duration_ms: 0.081958
+  type: 'test'
+  ...
+# Subtest: WorkspaceRecord: space workspace carrying a local grant
+ok 12 - WorkspaceRecord: space workspace carrying a local grant
+  ---
+  duration_ms: 0.054291
+  type: 'test'
+  ...
+# Subtest: WorkspaceRecord: workspace of a kind nobody defined
+ok 13 - WorkspaceRecord: workspace of a kind nobody defined
+  ---
+  duration_ms: 0.034458
+  type: 'test'
+  ...
+# Subtest: ResourceRecord: local file, content read
+ok 14 - ResourceRecord: local file, content read
+  ---
+  duration_ms: 0.049333
+  type: 'test'
+  ...
+# Subtest: ResourceRecord: space page known by metadata only
+ok 15 - ResourceRecord: space page known by metadata only
+  ---
+  duration_ms: 0.283792
+  type: 'test'
+  ...
+# Subtest: WorkspaceEvent: file edited by another program
+ok 16 - WorkspaceEvent: file edited by another program
+  ---
+  duration_ms: 0.070709
+  type: 'test'
+  ...
+# Subtest: WorkspaceEvent: event of a kind nobody defined
+ok 17 - WorkspaceEvent: event of a kind nobody defined
+  ---
+  duration_ms: 0.038208
+  type: 'test'
+  ...
+# Subtest: ResourceRecord: copy taken from a space page
+ok 18 - ResourceRecord: copy taken from a space page
+  ---
+  duration_ms: 0.03175
+  type: 'test'
+  ...
+# Subtest: ResourceRecord: copy claiming to stay in sync
+ok 19 - ResourceRecord: copy claiming to stay in sync
+  ---
+  duration_ms: 0.02775
+  type: 'test'
+  ...
+# Subtest: ResourceRecord: file whose revision is not a content hash
+ok 20 - ResourceRecord: file whose revision is not a content hash
+  ---
+  duration_ms: 0.025709
+  type: 'test'
+  ...
+# Subtest: ResourceRecord: file in a status nobody defined
+ok 21 - ResourceRecord: file in a status nobody defined
+  ---
+  duration_ms: 0.025125
+  type: 'test'
+  ...
+# Subtest: ResourceRef: whole document, live
+ok 22 - ResourceRef: whole document, live
+  ---
+  duration_ms: 0.024875
+  type: 'test'
+  ...
+# Subtest: ResourceRef: quoted passage, pinned
+ok 23 - ResourceRef: quoted passage, pinned
+  ---
+  duration_ms: 0.042208
+  type: 'test'
+  ...
+# Subtest: ResourceRef: pdf region
+ok 24 - ResourceRef: pdf region
+  ---
+  duration_ms: 0.041958
+  type: 'test'
+  ...
+# Subtest: ResourceRef: pages of a PDF, with the content they were quoted from
+ok 25 - ResourceRef: pages of a PDF, with the content they were quoted from
+  ---
+  duration_ms: 0.029292
+  type: 'test'
+  ...
+# Subtest: ResourceRef: pages of a PDF quoted from something that is not a content hash
+ok 26 - ResourceRef: pages of a PDF quoted from something that is not a content hash
+  ---
+  duration_ms: 0.033375
+  type: 'test'
+  ...
+# Subtest: ResourceRef: mind-map subtree
+ok 27 - ResourceRef: mind-map subtree
+  ---
+  duration_ms: 0.026958
+  type: 'test'
+  ...
+# Subtest: ResourceRef: pdf selection of no pages
+ok 28 - ResourceRef: pdf selection of no pages
+  ---
+  duration_ms: 0.033291
+  type: 'test'
+  ...
+# Subtest: ResourceRef: pdf page zero
+ok 29 - ResourceRef: pdf page zero
+  ---
+  duration_ms: 0.038709
+  type: 'test'
+  ...
+# Subtest: ResourceRef: pdf region outside the page
+ok 30 - ResourceRef: pdf region outside the page
+  ---
+  duration_ms: 0.032208
+  type: 'test'
+  ...
+# Subtest: ResourceRef: passage with nothing quoted
+ok 31 - ResourceRef: passage with nothing quoted
+  ---
+  duration_ms: 0.02675
+  type: 'test'
+  ...
+# Subtest: ResourceRef: selection by line numbers alone
+ok 32 - ResourceRef: selection by line numbers alone
+  ---
+  duration_ms: 0.026042
+  type: 'test'
+  ...
+# Subtest: ResourceRef: snapshot reference without its snapshot
+ok 33 - ResourceRef: snapshot reference without its snapshot
+  ---
+  duration_ms: 0.023375
+  type: 'test'
+  ...
+# Subtest: SaveResult: saved
+ok 34 - SaveResult: saved
+  ---
+  duration_ms: 0.023958
+  type: 'test'
+  ...
+# Subtest: SaveResult: conflict
+ok 35 - SaveResult: conflict
+  ---
+  duration_ms: 0.074416
+  type: 'test'
+  ...
+# Subtest: SaveResult: waiting to sync
+ok 36 - SaveResult: waiting to sync
+  ---
+  duration_ms: 0.020834
+  type: 'test'
+  ...
+# Subtest: SaveResult: acknowledgement lost
+ok 37 - SaveResult: acknowledgement lost
+  ---
+  duration_ms: 0.023791
+  type: 'test'
+  ...
+# Subtest: SaveResult: saved with no revision to show for it
+ok 38 - SaveResult: saved with no revision to show for it
+  ---
+  duration_ms: 0.020167
+  type: 'test'
+  ...
+# Subtest: SaveResult: a status nobody defined
+ok 39 - SaveResult: a status nobody defined
+  ---
+  duration_ms: 0.018042
+  type: 'test'
+  ...
+# Subtest: SourceWriteResult: source write that is known to have failed
+ok 40 - SourceWriteResult: source write that is known to have failed
+  ---
+  duration_ms: 0.017292
+  type: 'test'
+  ...
+# Subtest: SourceWriteResult: source write against a target that is gone
+ok 41 - SourceWriteResult: source write against a target that is gone
+  ---
+  duration_ms: 0.016209
+  type: 'test'
+  ...
+# Subtest: SourceWriteResult: source write reported saved with nothing to show for it
+ok 42 - SourceWriteResult: source write reported saved with nothing to show for it
+  ---
+  duration_ms: 0.017
+  type: 'test'
+  ...
+# Subtest: SourceCapabilities: nothing known about a source
+ok 43 - SourceCapabilities: nothing known about a source
+  ---
+  duration_ms: 0.0245
+  type: 'test'
+  ...
+# Subtest: SourceCapabilities: a capability given as a boolean
+ok 44 - SourceCapabilities: a capability given as a boolean
+  ---
+  duration_ms: 0.02375
+  type: 'test'
+  ...
+# Subtest: SourceCapabilities: a capability left out
+ok 45 - SourceCapabilities: a capability left out
+  ---
+  duration_ms: 0.0215
+  type: 'test'
+  ...
+# Subtest: ResourcePage: partial listing with a page entry
+ok 46 - ResourcePage: partial listing with a page entry
+  ---
+  duration_ms: 0.024709
+  type: 'test'
+  ...
+# Subtest: TextRevision: text as read
+ok 47 - TextRevision: text as read
+  ---
+  duration_ms: 0.015917
+  type: 'test'
+  ...
+# Subtest: TrashReceipt: trash receipt
+ok 48 - TrashReceipt: trash receipt
+  ---
+  duration_ms: 0.016458
+  type: 'test'
+  ...
+# Subtest: RecoveryItem: trashed folder in the recovery area
+ok 49 - RecoveryItem: trashed folder in the recovery area
+  ---
+  duration_ms: 0.015709
+  type: 'test'
+  ...
+# Subtest: RecoveryItem: trashed file in the recovery area
+ok 50 - RecoveryItem: trashed file in the recovery area
+  ---
+  duration_ms: 0.016541
+  type: 'test'
+  ...
+# Subtest: RecoveryItem: recovery item that names no place
+ok 51 - RecoveryItem: recovery item that names no place
+  ---
+  duration_ms: 0.015084
+  type: 'test'
+  ...
+# Subtest: RecoveryItem: recovery item of a kind nobody defined
+ok 52 - RecoveryItem: recovery item of a kind nobody defined
+  ---
+  duration_ms: 0.016292
+  type: 'test'
+  ...
+# Subtest: FileVersion: earlier version of a file
+ok 53 - FileVersion: earlier version of a file
+  ---
+  duration_ms: 0.016291
+  type: 'test'
+  ...
+# Subtest: FileVersion: version named by something that is not a content hash
+ok 54 - FileVersion: version named by something that is not a content hash
+  ---
+  duration_ms: 0.015834
+  type: 'test'
+  ...
+# Subtest: DocumentDraft: draft of unsaved typing
+ok 55 - DocumentDraft: draft of unsaved typing
+  ---
+  duration_ms: 0.016583
+  type: 'test'
+  ...
+# Subtest: DocumentDraft: draft the person is sorting out by hand
+ok 56 - DocumentDraft: draft the person is sorting out by hand
+  ---
+  duration_ms: 0.016583
+  type: 'test'
+  ...
+# Subtest: DocumentDraft: draft whose by-hand mark is not a yes or no
+ok 57 - DocumentDraft: draft whose by-hand mark is not a yes or no
+  ---
+  duration_ms: 0.268375
+  type: 'test'
+  ...
+# Subtest: DocumentDraft: draft that does not say what it was typed over
+ok 58 - DocumentDraft: draft that does not say what it was typed over
+  ---
+  duration_ms: 0.044416
+  type: 'test'
+  ...
+# Subtest: DocumentDraft: draft carrying a path
+ok 59 - DocumentDraft: draft carrying a path
+  ---
+  duration_ms: 0.026125
+  type: 'test'
+  ...
+# Subtest: SurfaceState: floating surface
+ok 60 - SurfaceState: floating surface
+  ---
+  duration_ms: 0.026833
+  type: 'test'
+  ...
+# Subtest: SurfaceState: surface showing a task of the canvas
+ok 61 - SurfaceState: surface showing a task of the canvas
+  ---
+  duration_ms: 0.02075
+  type: 'test'
+  ...
+# Subtest: SurfaceState: surface holding document text
+ok 62 - SurfaceState: surface holding document text
+  ---
+  duration_ms: 0.01875
+  type: 'test'
+  ...
+# Subtest: RunEnvelope: run envelope
+ok 63 - RunEnvelope: run envelope
+  ---
+  duration_ms: 0.084083
+  type: 'test'
+  ...
+# Subtest: RunEnvelope: run envelope whose message renders several attachments (a turn's tool records)
+not ok 64 - RunEnvelope: run envelope whose message renders several attachments (a turn's tool records)
+  ---
+  duration_ms: 0.475541
+  type: 'test'
+  location: '<repo>/tests/host/contracts.test.cjs:19:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    false !== true
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/contracts.test.cjs:23:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: RunEnvelope: run envelope whose message names several attachments but no input
+not ok 65 - RunEnvelope: run envelope whose message names several attachments but no input
+  ---
+  duration_ms: 0.072333
+  type: 'test'
+  location: '<repo>/tests/host/contracts.test.cjs:19:3'
+  failureType: 'testCodeFailure'
+  error: 'expected minItems at "/messages/0/source/inputIds", got [{"path":"/messages/0/source/attachmentIds","keyword":"additionalProperties","message":"is not an allowed field"},{"path":"/messages/0/source/inputIds","keyword":"additionalProperties","message":"is not an allowed field"}]'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/contracts.test.cjs:25:14)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: RunEnvelope: run envelope of a newer major version
+ok 66 - RunEnvelope: run envelope of a newer major version
+  ---
+  duration_ms: 0.03875
+  type: 'test'
+  ...
+# Subtest: ExclusionRecord: exclusion record carrying the excluded text
+ok 67 - ExclusionRecord: exclusion record carrying the excluded text
+  ---
+  duration_ms: 0.020125
+  type: 'test'
+  ...
+# Subtest: ResolvedInput: input taken from a workspace resource
+ok 68 - ResolvedInput: input taken from a workspace resource
+  ---
+  duration_ms: 0.035708
+  type: 'test'
+  ...
+# Subtest: ResolvedInput: input whose resource reference is malformed
+ok 69 - ResolvedInput: input whose resource reference is malformed
+  ---
+  duration_ms: 0.036625
+  type: 'test'
+  ...
+# Subtest: Budget: budget with no input allowance
+ok 70 - Budget: budget with no input allowance
+  ---
+  duration_ms: 0.01525
+  type: 'test'
+  ...
+# Subtest: ExecutionPolicy: policy in a read scope nobody defined
+ok 71 - ExecutionPolicy: policy in a read scope nobody defined
+  ---
+  duration_ms: 0.021416
+  type: 'test'
+  ...
+# Subtest: ExecutionTarget: agent target
+ok 72 - ExecutionTarget: agent target
+  ---
+  duration_ms: 0.030833
+  type: 'test'
+  ...
+# Subtest: ExecutionTarget: provider target
+ok 73 - ExecutionTarget: provider target
+  ---
+  duration_ms: 0.020542
+  type: 'test'
+  ...
+# Subtest: ExecutionTarget: target with no connection
+ok 74 - ExecutionTarget: target with no connection
+  ---
+  duration_ms: 0.020042
+  type: 'test'
+  ...
+# Subtest: TargetBinding: target binding
+ok 75 - TargetBinding: target binding
+  ---
+  duration_ms: 0.0145
+  type: 'test'
+  ...
+# Subtest: RuntimeBinding: binding to an owned thread
+ok 76 - RuntimeBinding: binding to an owned thread
+  ---
+  duration_ms: 0.024916
+  type: 'test'
+  ...
+# Subtest: RuntimeBinding: binding to a runtime nobody defined
+ok 77 - RuntimeBinding: binding to a runtime nobody defined
+  ---
+  duration_ms: 0.025083
+  type: 'test'
+  ...
+# Subtest: CapabilityReport: capability report, nothing proven
+ok 78 - CapabilityReport: capability report, nothing proven
+  ---
+  duration_ms: 0.026125
+  type: 'test'
+  ...
+# Subtest: CapabilityReport: capability report answering yes
+ok 79 - CapabilityReport: capability report answering yes
+  ---
+  duration_ms: 0.025625
+  type: 'test'
+  ...
+# Subtest: RouteDecision: fresh route
+ok 80 - RouteDecision: fresh route
+  ---
+  duration_ms: 0.017708
+  type: 'test'
+  ...
+# Subtest: RouteDecision: blocked route
+ok 81 - RouteDecision: blocked route
+  ---
+  duration_ms: 0.017333
+  type: 'test'
+  ...
+# Subtest: RouteDecision: resume route
+ok 82 - RouteDecision: resume route
+  ---
+  duration_ms: 0.018333
+  type: 'test'
+  ...
+# Subtest: RouteDecision: fork at a completed turn
+ok 83 - RouteDecision: fork at a completed turn
+  ---
+  duration_ms: 0.018583
+  type: 'test'
+  ...
+# Subtest: RouteDecision: resume with no binding
+ok 84 - RouteDecision: resume with no binding
+  ---
+  duration_ms: 0.018208
+  type: 'test'
+  ...
+# Subtest: RouteDecision: fork with no turn boundary
+ok 85 - RouteDecision: fork with no turn boundary
+  ---
+  duration_ms: 0.01875
+  type: 'test'
+  ...
+# Subtest: RouteDecision: route with no reason
+ok 86 - RouteDecision: route with no reason
+  ---
+  duration_ms: 0.029125
+  type: 'test'
+  ...
+# Subtest: RunState: unknown run state
+ok 87 - RunState: unknown run state
+  ---
+  duration_ms: 0.016292
+  type: 'test'
+  ...
+# Subtest: RunState: a run state nobody defined
+ok 88 - RunState: a run state nobody defined
+  ---
+  duration_ms: 0.016334
+  type: 'test'
+  ...
+# Subtest: SpaceCapabilityReport: blocked space, no interface
+ok 89 - SpaceCapabilityReport: blocked space, no interface
+  ---
+  duration_ms: 0.039666
+  type: 'test'
+  ...
+# Subtest: SpaceCapabilityReport: space report carrying a token
+ok 90 - SpaceCapabilityReport: space report carrying a token
+  ---
+  duration_ms: 0.039709
+  type: 'test'
+  ...
+# Subtest: SpaceCapabilityReport: space report with a gate half open
+ok 91 - SpaceCapabilityReport: space report with a gate half open
+  ---
+  duration_ms: 0.038959
+  type: 'test'
+  ...
+# Subtest: a request of an unknown kind is refused, not passed
+ok 92 - a request of an unknown kind is refused, not passed
+  ---
+  duration_ms: 0.031542
+  type: 'test'
+  ...
+# Subtest: a stored document of a newer version is read-only; an unknown one is unsupported
+ok 93 - a stored document of a newer version is read-only; an unknown one is unsupported
+  ---
+  duration_ms: 0.097833
+  type: 'test'
+  ...
+1..93
+# tests 93
+# suites 0
+# pass 91
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 73.046125

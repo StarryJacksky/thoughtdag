@@ -1063,12 +1063,19 @@ function installApprovalAnswerer(ctx) {
 // Here it maps onto the harness's own permission presets: 'auto' is its
 // Auto review (present when the person installed that integration),
 // 'allow' is full access; 'ask' leaves the session as the person set it.
-// The preset is switched for the canvas's turn only and switched back when
-// the turn ends, so the session keeps its own setting in the harness.
+// The preset belongs to the session, which the person shares: their turn
+// may be running while the canvas's message waits in the queue. So it is
+// switched when the canvas's turn starts running, not when its message is
+// queued, and switched back when that turn ends (or the canvas stops
+// waiting for it). Turns of a session run one at a time; what the session
+// had before a canvas turn switched it is kept per session, so that is what
+// comes back however requests overlap and in whatever order they end.
 const CANVAS_PRESETS = { auto: 'auto', allow: 'danger-full-access' }
 let permissionPresets = null
+/** sessionId → a canvas turn's switch of its preset: the preset found, the one switched to, and the turn holding it */
+const heldPresets = new Map()
 
-/** Apply the canvas's mode to one turn; returns the undo, or null. */
+/** The canvas's mode for one turn: `start` when the turn starts running, `end` when it is over; null when the mode asks for nothing. */
 function canvasPermission(ctx, agent, mode, emit) {
   const want = CANVAS_PRESETS[mode]
   if (!want) return null
@@ -1078,17 +1085,36 @@ function canvasPermission(ctx, agent, mode, emit) {
   if (!presets || !session) { report(false, 'unavailable'); return null }
   try {
     if (!presets.names.includes(want)) { report(false, 'unavailable'); return null }
-    const before = presets.current(session)
-    if (before === want) { report(true); return null }
-    // a hand-tuned mix of sandbox and approval has no preset to come back to
-    if (before === 'custom') { report(false, 'custom'); return null }
-    const set = (name) => presets.apply(session, name, (policy) => ctx.approval.setPolicy(agent, policy))
-    set(want)
-    report(true)
-    return () => { try { if (presets.current(session) === want) set(before) } catch { /* the session closed */ } }
-  } catch (error) {
+  } catch {
     report(false, 'failed')
     return null
+  }
+  const set = (name) => presets.apply(session, name, (policy) => ctx.approval.setPolicy(agent, policy))
+  const holder = {}
+  return {
+    start() {
+      try {
+        const held = heldPresets.get(session.id)
+        const now = presets.current(session)
+        // a canvas turn that switched it and was never seen to end: come back to what that turn found
+        const before = held && now === held.want ? held.before : now
+        // a hand-tuned mix of sandbox and approval has no preset to come back to
+        if (before === 'custom') { heldPresets.delete(session.id); report(false, 'custom'); return }
+        if (now !== want) set(want)
+        if (before === want) heldPresets.delete(session.id)
+        else heldPresets.set(session.id, { before, want, holder })
+        report(true)
+      } catch {
+        report(false, 'failed')
+      }
+    },
+    end() {
+      const held = heldPresets.get(session.id)
+      if (held?.holder !== holder) return
+      heldPresets.delete(session.id)
+      // a setting the person picked while the turn ran is theirs
+      try { if (presets.current(session) === held.want) set(held.before) } catch { /* the session closed */ }
+    },
   }
 }
 
@@ -1140,7 +1166,7 @@ async function runAgentTurn(ctx, body, emit, isClosed, { answerApprovals = true 
   const picked = agentTargetOf(body?.model)
   if (picked && !hasImages) await ctx.sessionController.selectModel({ sessionId, provider: picked.provider, model: picked.model }).catch(() => {})
   const agent = await agentOf(ctx, sessionId)
-  const restorePermission = canvasPermission(ctx, agent, body?.harness?.permission, emit)
+  const permission = canvasPermission(ctx, agent, body?.harness?.permission, emit)
   let sawChunk = false      // text deltas reached us live
   let sawReasoning = false  // reasoning deltas reached us live
   let fullText = ''
@@ -1155,8 +1181,10 @@ async function runAgentTurn(ctx, body, emit, isClosed, { answerApprovals = true 
   const requestId = 'td-' + randomUUID()
   let currentTurn = null
   let ourTurn = null
+  let ourTurnEnded = false
   let ourMessagePending = false
-  const claimTurn = (turn) => { ourTurn = turn; turnEntry.turn = turn }
+  // our turn has started running: only now is the session switched to the canvas's mode
+  const claimTurn = (turn) => { ourTurn = turn; turnEntry.turn = turn; permission?.start() }
   const isOurs = (event) => ourTurn !== null && (typeof event.data?.turn === 'number' ? event.data.turn === ourTurn : currentTurn === ourTurn)
   turnEntry.current = () => currentTurn
   const onDelta = (c) => {
@@ -1219,6 +1247,9 @@ async function runAgentTurn(ctx, body, emit, isClosed, { answerApprovals = true 
       if (event.data?.callId) turnEntry.calls.set(event.data.callId, { name: event.data?.name ?? 'tool', arguments: event.data?.arguments })
       emit({ tool: { name: event.data?.name ?? 'tool', query: toolQuery(event.data?.name, event.data?.arguments) } })
     } else if (event.type === 'turn/end') {
+      // switched back before the session's next turn, which may be the person's, can start
+      ourTurnEnded = true
+      permission?.end()
       done()
     }
   })
@@ -1234,12 +1265,14 @@ async function runAgentTurn(ctx, body, emit, isClosed, { answerApprovals = true 
     const timeout = new Promise(resolve => setTimeout(resolve, 20 * 60 * 1000))
     const closed = new Promise(resolve => { const t = setInterval(() => { if (isClosed()) { clearInterval(t); resolve() } }, 500); finished.then(() => clearInterval(t)) })
     await Promise.race([finished, agent.whenIdle().then(() => finished), timeout, closed])
-    if (isClosed()) { try { agent.cancel({ kind: 'user' }) } catch { /* best effort */ } }
+    // the canvas stopped waiting: stop our turn if it is the one running; while our message is
+    // still queued the turn running is someone else's (the person's), and it is left alone
+    if (isClosed() && ourTurn !== null && !ourTurnEnded && currentTurn === ourTurn) { try { agent.cancel({ kind: 'user' }) } catch { /* best effort */ } }
   } finally {
     if (typeof off === 'function') off()
     if (typeof offStream === 'function') offStream()
     if (canvasTurns.get(sessionId) === turnEntry) canvasTurns.delete(sessionId)
-    restorePermission?.()
+    permission?.end()
   }
   return { sessionId, text: fullText }
 }
@@ -1586,7 +1619,8 @@ export async function apply(ctx, config) {
           }
           res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' })
           let closed = false
-          req.on('close', () => { closed = true })
+          // the response, not the request: a request whose body has been read has already closed
+          res.on('close', () => { closed = true })
           try {
             await runAgentTurn(ctx, body, frame => { if (!closed) res.write(`data: ${JSON.stringify(frame)}\n\n`) }, () => closed)
             if (!closed) res.write('data: [DONE]\n\n')

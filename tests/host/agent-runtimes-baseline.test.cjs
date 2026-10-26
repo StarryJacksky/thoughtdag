@@ -39,7 +39,8 @@ test('codex: a fresh run starts a thread in the working directory and sends the 
   const events = await runToEnd(codex, { runtime: 'codex', cwd: fake.project, prompt: PROMPT, model: { provider: 'codex', id: 'gpt-synthetic' } });
   const msgs = received('codex');
   assert.deepEqual(msgs.map((m) => m.method), ['thread/start', 'turn/start']);
-  assert.deepEqual(msgs[0].params, { cwd: fake.project, approvalPolicy: 'on-request', sandbox: 'workspace-write', model: 'gpt-synthetic' });
+  // the canvas's permission switch at its default (ask): the person reviews approvals
+  assert.deepEqual(msgs[0].params, { cwd: fake.project, approvalPolicy: 'on-request', sandbox: 'workspace-write', approvalsReviewer: 'user', model: 'gpt-synthetic' });
   assert.deepEqual(msgs[1].params.input, [{ type: 'text', text: PROMPT, text_elements: [] }]);
   assert.ok(types(events).includes('session'));
   assert.ok(types(events).includes('message_update'));
@@ -66,7 +67,7 @@ test('codex: a fork names the thread only; no turn boundary travels', async () =
   await runToEnd(codex, { runtime: 'codex', cwd: fake.project, prompt: 'branch', sessionPath: path.join(fake.sessions, `rollout-${SESSION}.jsonl`), forkEntryId: 'entry-7', model: { provider: 'codex', id: 'gpt-synthetic' } });
   const fork = received('codex')[0];
   assert.equal(fork.method, 'thread/fork');
-  assert.deepEqual(Object.keys(fork.params).sort(), ['approvalPolicy', 'cwd', 'model', 'sandbox', 'threadId']);
+  assert.deepEqual(Object.keys(fork.params).sort(), ['approvalPolicy', 'approvalsReviewer', 'cwd', 'model', 'sandbox', 'threadId']);
   assert.equal(fork.params.threadId, SESSION);
 });
 

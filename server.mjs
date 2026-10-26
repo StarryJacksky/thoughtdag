@@ -124,8 +124,11 @@ if (process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
 
 if (process.env.DEEPSEEK_API_KEY) {
   const deepseek = createDeepSeek({ apiKey: process.env.DEEPSEEK_API_KEY });
-  // deepseek-chat/-reasoner were retired 2026-07-24 in favor of explicit V4 ids
-  register(envModels('DEEPSEEK', ['deepseek-v4-flash', 'deepseek-v4-pro']), 'DeepSeek', (id) => deepseek(id), { vision: false });
+  // deepseek-chat/-reasoner were retired 2026-07-24 in favor of explicit V4
+  // ids; deepseek-v4-flash in turn on 2026-09-10, served since by
+  // deepseek-flash (V4.1 Flash). That model reads images, but this provider
+  // library drops image parts, so images reroute to a vision model here.
+  register(envModels('DEEPSEEK', ['deepseek-flash', 'deepseek-v4-pro']), 'DeepSeek', (id) => deepseek(id), { vision: false });
 }
 
 if (process.env.MOONSHOT_API_KEY) {
@@ -192,11 +195,16 @@ let DEFAULT_MODEL = ZHIPU_KEY ? 'glm-5.3-flash' : Object.keys(modelRegistry)[0];
 // Choose model entry: if images are attached and the model is text-only,
 // switch to its provider's vision counterpart — or, failing that, any
 // registered vision-capable model.
+// Ids a provider retired and now serves through a successor: a pick or pin
+// still naming one runs on the successor where only the new id is listed.
+const RETIRED_MODEL_IDS = { 'deepseek-v4-flash': 'deepseek-flash', 'deepseek-v4-flash-vision-exp': 'deepseek-flash' };
+
 function resolveModel(modelId, hasImages, reqProviders) {
   // per-request overlay from browser-supplied providers; .env wins on collision
   const reg = reqProviders?.length ? { ...providerEntries(reqProviders), ...modelRegistry } : modelRegistry;
   const fallbackId = modelRegistry[DEFAULT_MODEL] ? DEFAULT_MODEL : Object.keys(reg)[0];
-  const pickedId = reg[modelId] ? modelId : fallbackId;
+  const successor = RETIRED_MODEL_IDS[modelId];
+  const pickedId = reg[modelId] ? modelId : successor && reg[successor] ? successor : fallbackId;
   const entry = reg[pickedId];
   if (!entry) return null; // empty registry: no .env key and no request providers
   // Vision reroute is never silent: the caller gets who actually answers
@@ -304,6 +312,45 @@ async function anySearchWeb(query, count = 5, key = ANYSEARCH_KEY) {
       url: x.url,
       content: (x.snippet || x.content || '').slice(0, 600),
       date: x.date || undefined,
+    }));
+}
+
+// DeepSeek Search API ($0.75 per 1,000 successful requests; empty results
+// and errors are free): its own index, results ranked for relevance,
+// authority and freshness, each with a summary written for a model to read.
+// The key is the DeepSeek one already in use: .env, or a DeepSeek interface
+// configured in the browser. Only an explicit engine pick turns it on —
+// every search is billed, so it never becomes a default by itself.
+const DEEPSEEK_KEY = process.env.DEEPSEEK_API_KEY || '';
+function findDeepSeekKey(providers) {
+  if (DEEPSEEK_KEY) return DEEPSEEK_KEY;
+  for (const p of (Array.isArray(providers) ? providers : [])) {
+    if (p.apiKey && /(^|\/\/|\.)api\.deepseek\.com/i.test(String(p.baseURL ?? ''))) return p.apiKey;
+  }
+  return '';
+}
+
+async function deepseekSearchWeb(query, count = 5, key, question = '') {
+  const ori = String(question).replace(/\s+/g, ' ').trim().slice(0, 128);
+  const r = await fetch('https://api.deepseek.com/v1/tools/search', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    // over-fetch so filtering still leaves `count` usable results (count
+    // does not change the price); the API takes queries of 1–128 characters
+    body: JSON.stringify({ query: query.slice(0, 128), count: Math.min(count * 2, 10), ...(ori ? { ori_question: ori } : {}) }),
+    signal: AbortSignal.timeout(30000),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data?.error?.message || `DeepSeek search HTTP ${r.status}`);
+  return (data.results || [])
+    .filter((x) => x.url && !isBlockedUrl(x.url))
+    .slice(0, count)
+    .map((x) => ({
+      title: x.title || x.url,
+      url: x.url,
+      content: (x.summary || x.snippet || '').slice(0, 800),
+      media: x.site_name || undefined,
+      date: x.date ? x.date.slice(0, 10) : undefined,
     }));
 }
 
@@ -442,25 +489,32 @@ function makeTools(sources, onSearch, prefs = {}) {
   const tools = {};
 
   if (prefs.web !== false) {
+    // engine dispatch: an explicit 'deepseek' or 'anysearch' pref wins (a
+    // DeepSeek pick without a DeepSeek key falls through to the default);
+    // otherwise GLM when a key exists (env or browser-configured), AnySearch
+    // as the keyless default for everyone else.
+    const picked = prefs.searchEngine || SEARCH_ENGINE;
+    const deepseekKey = picked === 'deepseek' ? prefs.deepseekKey : '';
+    const engine = picked === 'deepseek' ? SEARCH_ENGINE : picked;
     tools.web_search = tool({
       description:
         'ONLY for current events, time-sensitive facts, or specific verifiable claims you cannot answer confidently from your own knowledge. ' +
         'NEVER use for conceptual, definitional, reasoning or creative questions — answer those directly. ' +
         'Results are numbered [1], [2], ... — when you use information from a result, cite it inline as [n]. At most 3 searches per answer.',
       inputSchema: z.object({
-        query: z.string().describe('The search query, in the language most likely to find good results'),
+        query: z.string().describe(deepseekKey
+          ? 'The search query, in the language most likely to find good results. Operators work: site:example.com (several joined with OR), -site:, "exact phrase", -term, lang:en, after:2025 / before:2026-06-01'
+          : 'The search query, in the language most likely to find good results'),
       }),
       execute: async ({ query }) => {
         onSearch?.('web_search', query);
-        // engine dispatch: an explicit 'anysearch' pref wins; otherwise GLM
-        // when a key exists (env or browser-configured), AnySearch as the
-        // keyless default for everyone else.
-        const engine = prefs.searchEngine || SEARCH_ENGINE;
         const useAnysearch = engine === 'anysearch' || (!ZHIPU_KEY && !prefs.glm);
         try {
-          return pushNumbered(useAnysearch
-            ? await anySearchWeb(query, 5, prefs.anysearchKey || ANYSEARCH_KEY)
-            : await zhipuWebSearch(query, 5, engine, ZHIPU_KEY ? null : prefs.glm));
+          return pushNumbered(deepseekKey
+            ? await deepseekSearchWeb(query, 5, deepseekKey, prefs.question)
+            : useAnysearch
+              ? await anySearchWeb(query, 5, prefs.anysearchKey || ANYSEARCH_KEY)
+              : await zhipuWebSearch(query, 5, engine, ZHIPU_KEY ? null : prefs.glm));
         }
         catch (e) { return `Search failed (${e.message}) — try a different tool or answer from your knowledge.`; }
       },
@@ -774,6 +828,8 @@ function modelsPayload() {
       webSearch: true,
       searchEngine: ZHIPU_KEY ? (process.env.ZHIPU_SEARCH_ENGINE || 'search_std') : 'anysearch',
       anysearch: true,
+      // a DeepSeek key is at hand, so the DeepSeek engine can be picked
+      deepseekSearch: !!DEEPSEEK_KEY,
       scholarSearch: true,
       vision: models.some((m) => m.vision),
     },
@@ -897,6 +953,7 @@ async function modelsPayloadFor(providers) {
     capabilities: {
       ...base.capabilities,
       webSearch: base.capabilities.webSearch || Object.values(overlay).some((m) => m.online) || !!findGlmSearch(providers),
+      deepseekSearch: !!findDeepSeekKey(providers),
       vision: models.some((m) => m.vision),
     },
   };
@@ -932,25 +989,62 @@ app.post('/api/runtime-key', async (req, res) => {
 // OpenRouter models take a reasoning switch; Zhipu's flash models always think
 // ("该模型始终思考，不支持关闭思考") and the provider library exposes no effort
 // level, so they keep their defaults.
-const noThink = (base) => ({ ...(base ?? {}), openrouter: { ...(base?.openrouter ?? {}), reasoning: { enabled: false } } });
+// The switch is a preference, never a condition: some endpoints refuse it
+// ("Reasoning is mandatory for this endpoint", z-ai/glm-5.3-flash and
+// openrouter/auto among them, 2026-10-22, answered with HTTP 400), and a fast
+// call must not fail where the ordinary call succeeds. A failed quiet request
+// is sent again as the ordinary one. Only a rejection of the request itself
+// (400, 404, 422) is remembered, so that model's later fast calls go out
+// ordinary from the start; a 5xx or a dropped connection says nothing about
+// the switch, and the next fast call tries quiet again. The provider's wording
+// is never parsed; statuses no request shape can change (the key, the
+// balance, the rate) and a caller who left skip the second request.
+const quietOptions = (entry) => entry.providerOptions?.openrouter
+  ? { ...entry.providerOptions, openrouter: { ...entry.providerOptions.openrouter, reasoning: { enabled: false } } }
+  : null;
+const quietRefused = new Set();
+const UNCHANGEABLE_STATUS = new Set([401, 402, 403, 429]);
+const REFUSAL_STATUS = new Set([400, 404, 422]);
+const upstreamStatus = (err) => err?.statusCode ?? err?.lastError?.statusCode;
+async function generateForBackground(entry, id, args, fast) {
+  const quiet = fast && !quietRefused.has(id) ? quietOptions(entry) : null;
+  if (!quiet) return generateText({ ...args, providerOptions: entry.providerOptions });
+  try {
+    return await generateText({ ...args, providerOptions: quiet });
+  } catch (err) {
+    const status = upstreamStatus(err);
+    if (args.abortSignal?.aborted || UNCHANGEABLE_STATUS.has(status)) throw err;
+    const out = await generateText({ ...args, providerOptions: entry.providerOptions });
+    if (REFUSAL_STATUS.has(status)) {
+      quietRefused.add(id);
+      console.warn(`[fast] ${id} refused the reasoning switch, its fast calls now go out ordinary: ${err?.message}`);
+    }
+    return out;
+  }
+}
 
 app.post('/api/claude', async (req, res) => {
   const { messages, model: modelId, images, providers, fast } = req.body;
   const resolved = resolveModel(modelId || DEFAULT_MODEL, images && images.length > 0, providers);
   if (!resolved) { res.status(503).json({ error: 'No model configured. Add an API key first.' }); return; }
   const { entry, id: actualModelId } = resolved;
+  // a caller that gave up (a background call's deadline, a closed page) stops the upstream call with it:
+  // nothing would read the answer, and it would still be billed
+  const left = new AbortController();
+  res.on('close', () => { if (!res.writableFinished) left.abort(); });
 
   try {
     const prompt = toSdkPrompt(messages, images);
-    const { text, usage } = await generateText({
+    const { text, usage } = await generateForBackground(entry, actualModelId, {
       maxOutputTokens: MAX_OUTPUT_TOKENS,
       model: entry.model(),
       system: prompt.system,
       messages: prompt.messages,
-      providerOptions: fast ? noThink(entry.providerOptions) : entry.providerOptions,
-    });
+      abortSignal: left.signal,
+    }, fast);
     res.json({ text, usage, model: actualModelId });
   } catch (err) {
+    if (left.signal.aborted) return;
     console.error('Generate error:', err);
     res.status(500).json({ error: `[${actualModelId}] ${err.message}` });
   }
@@ -983,8 +1077,8 @@ app.post('/api/stream', async (req, res) => {
   // No local search key but an OpenRouter model: the gateway's :online
   // variant searches instead — and the web TOOL stands down (never both,
   // that would run two searches for one question). An explicit 'anysearch'
-  // engine pref keeps the tool loop instead.
-  const gatewayOnline = !ZHIPU_KEY && webSearch !== false && !!entry.online && searchEngine !== 'anysearch';
+  // or 'deepseek' engine pref keeps the tool loop instead.
+  const gatewayOnline = !ZHIPU_KEY && webSearch !== false && !!entry.online && searchEngine !== 'anysearch' && searchEngine !== 'deepseek';
   // The gateway searches without tool pings — the UI would show nothing.
   // One frame up front lets it say "searching the web" and stamp the answer.
   if (gatewayOnline) res.write(`data: ${JSON.stringify({ gatewaySearch: true })}\n\n`);
@@ -996,7 +1090,12 @@ app.post('/api/stream', async (req, res) => {
       // Progress ping so the UI can show what's being searched
       res.write(`data: ${JSON.stringify({ tool: { name, query } })}\n\n`);
     },
-    { web: webSearch !== false && !gatewayOnline, scholar: scholarSearch !== false, mcp: mcpTools !== false, searchEngine, glm: findGlmSearch(providers), anysearchKey }
+    {
+      web: webSearch !== false && !gatewayOnline, scholar: scholarSearch !== false, mcp: mcpTools !== false,
+      searchEngine, glm: findGlmSearch(providers), anysearchKey, deepseekKey: findDeepSeekKey(providers),
+      // the question that set off the search, which the DeepSeek engine reads to understand a terse query
+      question: [...(messages || [])].reverse().find((m) => m.role === 'user')?.content,
+    }
   );
 
   const prompt = toSdkPrompt(messages, images);

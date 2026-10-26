@@ -1,5 +1,6 @@
 import { get as idbGet, set as idbSet, del as idbDel, keys as idbKeys } from 'idb-keyval';
 import type { Attachment, ThoughtNode } from '../types';
+import { isNotebook } from './notebook';
 
 // The attachment vault: bulky base64 payloads live in their own IndexedDB
 // keys instead of inside node.data. Today that means PDF originals — they
@@ -31,8 +32,11 @@ const vaultKey = (attId: string) => `${KEY_PREFIX}${attId}`;
 /** The vault key an attachment's payload is under. */
 export const vaultIdOf = (att: Pick<Attachment, 'id' | 'vaultId'>): string => att.vaultId ?? att.id;
 
+// A notebook's raw JSON joins them: its base64 figures make it heavy, and
+// only the reader's original view reads it (the model reads extractedText,
+// the figures ride their own field).
 const shouldVault = (att: Attachment): boolean =>
-  att.type === 'application/pdf' && !!att.content && !att.contentInVault;
+  (att.type === 'application/pdf' || isNotebook(att)) && !!att.content && !att.contentInVault;
 
 /** The key a payload is kept under: its own hash, so that one key only ever holds one payload. */
 async function keyOfPayload(content: string): Promise<string> {
@@ -46,7 +50,7 @@ async function keyOfPayload(content: string): Promise<string> {
 }
 
 /** Move a bulky payload into the vault; returns the lightened attachment.
-    Non-PDF (and already-vaulted) attachments pass through unchanged. The
+    Other (and already-vaulted) attachments pass through unchanged. The
     payload goes under a key of its own (`vaultId`), never its id: see above. */
 export async function internAttachment(att: Attachment): Promise<Attachment> {
   if (!shouldVault(att)) return att;

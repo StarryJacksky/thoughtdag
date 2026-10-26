@@ -6,6 +6,7 @@ import { useUiStore } from '../../lib/ui-store';
 import { Markdown, HighlightedMarkdown } from '../Markdown';
 import ReasoningDisclosure from './ReasoningDisclosure';
 import { isViewerMode } from '../../lib/viewer';
+import { withinOneCodeBlock } from '../../lib/highlight-match';
 import { generateId, isImeComposing } from '../../utils';
 import { useT } from '../../i18n';
 
@@ -26,7 +27,7 @@ export default function ResponseViewer() {
   const shellRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [selectedText, setSelectedText] = useState('');
-  const [selectionPos, setSelectionPos] = useState<{ x: number; y: number } | null>(null);
+  const [selectionPos, setSelectionPos] = useState<{ x: number; y: number; inCode: boolean } | null>(null);
   const [branchFrom, setBranchFrom] = useState('');
   const [input, setInput] = useState('');
 
@@ -45,12 +46,14 @@ export default function ResponseViewer() {
     if (selection && selection.toString().trim().length > 0 && bodyRef.current?.contains(selection.anchorNode)) {
       const text = selection.toString().trim();
       setSelectedText(text);
-      const rangeRect = selection.getRangeAt(0).getBoundingClientRect();
+      const range = selection.getRangeAt(0);
+      const rangeRect = range.getBoundingClientRect();
       const shellRect = shellRef.current?.getBoundingClientRect();
       if (shellRect) {
         setSelectionPos({
           x: Math.max(70, Math.min(rangeRect.left + rangeRect.width / 2 - shellRect.left, shellRect.width - 70)),
           y: Math.max(8, rangeRect.top - shellRect.top - 46),
+          inCode: withinOneCodeBlock(range),
         });
       }
     } else {
@@ -158,12 +161,14 @@ export default function ResponseViewer() {
             >
               <GitBranch size={14} strokeWidth={1.75} className="inline" /> {t('common.explore')}
             </button>
-            <button
-              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); highlightSelection(); }}
-              className="bg-amber-500 hover:bg-amber-400 text-white text-xs px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
-            >
-              <Star size={14} strokeWidth={1.75} className="inline" /> {t('common.highlight')}
-            </button>
+            {!selectionPos.inCode && (
+              <button
+                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); highlightSelection(); }}
+                className="bg-amber-500 hover:bg-amber-400 text-white text-xs px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
+              >
+                <Star size={14} strokeWidth={1.75} className="inline" /> {t('common.highlight')}
+              </button>
+            )}
           </div>
         )}
 

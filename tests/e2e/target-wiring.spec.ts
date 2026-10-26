@@ -91,6 +91,30 @@ async function wire(page: Page, from: Locator, to: Locator) {
   await page.mouse.up();
 }
 
+/**
+ * Click an edge where a person would: on a part of its line no card covers.
+ * Cards are not moved to make room when one is added, so the middle of an
+ * edge's box can lie under a card.
+ */
+async function clickEdge(page: Page, selector: string) {
+  const at = await page.evaluate((sel) => {
+    const edge = document.querySelector(sel);
+    const path = edge?.querySelector<SVGPathElement>('path.react-flow__edge-interaction') ?? edge?.querySelector<SVGPathElement>('path');
+    const ctm = path?.getScreenCTM();
+    if (!edge || !path || !ctm) return null;
+    const length = path.getTotalLength();
+    for (let i = 1; i < 40; i++) {
+      const p = path.getPointAtLength((length * i) / 40);
+      const x = p.x * ctm.a + p.y * ctm.c + ctm.e;
+      const y = p.x * ctm.b + p.y * ctm.d + ctm.f;
+      if (edge.contains(document.elementFromPoint(x, y))) return { x, y };
+    }
+    return null;
+  }, selector);
+  if (!at) throw new Error(`no part of ${selector} can be clicked`);
+  await page.mouse.click(at.x, at.y);
+}
+
 test('two tasks on one canvas run on their own models, share a note by an edge each, and have a panel each', async ({ page, context }) => {
   await withoutModels(page);
   await page.goto('/');
@@ -158,7 +182,7 @@ test('two tasks on one canvas run on their own models, share a note by an edge e
 
   // taking the edge into X away leaves the one into Y
   const xId = await x.getAttribute('data-id');
-  await page.locator(`.react-flow__edge[data-id$="-${xId}"]`).click({ force: true });
+  await clickEdge(page, `.react-flow__edge[data-id$="-${xId}"]`);
   await page.keyboard.press('Backspace');
   await expect(page.locator('.react-flow__edge')).toHaveCount(1);
   await expect(inputsOf(x)).toHaveAttribute('data-target-inputs', '0');

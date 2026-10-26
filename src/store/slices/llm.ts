@@ -1,7 +1,7 @@
 import type { StateCreator } from 'zustand';
 import type { ThoughtNode, ThoughtEdge } from '../../types';
 import { generateId } from '../../utils';
-import { autoLayout } from '../../lib/layout';
+import { placeNewNodes } from '../../lib/layout';
 import { getDescendantIds, selectionSinks, walkUpAncestors } from '../../lib/graph';
 import { COLORS } from '../../lib/constants';
 import type { ContextMessage, ImageAttachment } from '../../lib/api';
@@ -37,10 +37,13 @@ function refusedToSend(task: { target?: ExecutionTarget; model?: string } | unde
 }
 import type { StoreState, LlmSlice, AddQuestionOptions } from '../types';
 import { condenseGuard } from '../../lib/condense-guard';
+import { isNotebook, notebookContext } from '../../lib/notebook';
 
 export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, get) => ({
   addQuestion: async (question: string, opts: AddQuestionOptions = {}) => {
     if (condenseGuard()) return;
+    // the ask is one step, recorded when its answer lands (settleNode); settle what came before it
+    get().pushHistory();
     const { parentId, branchContext, branchYRatio, inheritRole, rolePrompt, initialAttachments, excludeAllInheritedAttachments, mentions } = opts;
     // the new question continues its parent's line: what it would be sent to is the parent's to say
     if (refusedToSend(parentId ? get().nodes.find((n) => n.id === parentId)?.data : undefined)) return;
@@ -146,7 +149,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     const updatedNodes = parentId
       ? get().nodes.map((n) => n.id === parentId ? { ...n, data: { ...n.data, isCollapsed: true } } : n)
       : get().nodes;
-    const newNodes = autoLayout([...updatedNodes, newNode], newEdges);
+    const newNodes = placeNewNodes([...updatedNodes, newNode], newEdges, [id]);
     set({ nodes: newNodes, edges: newEdges, selectedNodeId: id });
 
     // a question asked starts a round: feedback lines into what it reads move to their latest finished answers
@@ -166,7 +169,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     // Collect this node's own attachments (skip if same file already from ancestors)
     const selfAttachments = selfNode?.data.attachments || [];
     for (const att of selfAttachments) {
-      const alreadyInContext = contextMessages.some(m => m.content.includes(`[PDF: ${att.name}]`) || m.content.includes(`[File: ${att.name}]`));
+      const alreadyInContext = contextMessages.some(m => m.content.includes(`[PDF: ${att.name}]`) || m.content.includes(`[File: ${att.name}]`) || m.content.startsWith(`[Notebook: ${att.name} — `));
       if (alreadyInContext) continue;
       if (att.type.startsWith('image/')) {
         contextImages.push({ data: att.content, mimeType: att.type });
@@ -179,6 +182,12 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
         // extracted Markdown only — raw HTML source never reaches a model
         if (att.extractedText?.trim()) {
           contextMessages.push({ role: 'user', content: `[File: ${att.name}]\n${att.extractedText}` });
+        }
+      } else if (isNotebook(att)) {
+        // converted cells only — the raw JSON (base64 figures and all) never reaches a model
+        if (att.extractedText?.trim()) contextMessages.push({ role: 'user', content: notebookContext(att) });
+        if (att.renderMode !== 'text-only') {
+          for (const f of att.figures ?? []) contextImages.push({ data: f.data, mimeType: f.mimeType, hasCompanion: true });
         }
       } else if (att.content) {
         contextMessages.push({ role: 'user', content: `[File: ${att.name}]\n${att.content}` });
@@ -229,7 +238,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
       newNodes.push({
         id,
         type: 'thought',
-        // follow mode skips autoLayout (watch edges are cross-links, not
+        // follow mode skips placeNewNodes (watch edges are cross-links, not
         // ancestry) — stack reviewers to the right of the watched node
         position: follow ? { x: parent.position.x + 640, y: parent.position.y + i * 380 } : { x: 0, y: 0 },
         dragHandle: '.drag-handle',
@@ -283,7 +292,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
 
     const allEdges = [...get().edges, ...newEdges];
     const merged = [...get().nodes.map((n) => (n.id === parentId && !follow ? { ...n, data: { ...n.data, isCollapsed: true } } : n)), ...newNodes];
-    const allNodes = follow ? merged : autoLayout(merged, allEdges);
+    const allNodes = follow ? merged : placeNewNodes(merged, allEdges, created.map((c) => c.id));
     set({ nodes: allNodes, edges: allEdges, selectedNodeId: null, selectedNodeIds: [] });
 
     // Bounded concurrency: free-tier providers dislike large bursts
@@ -357,7 +366,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
       data: {},
     }));
     const allEdges = [...edges, ...newEdges];
-    set({ nodes: autoLayout([...nodes, newNode], allEdges), edges: allEdges, selectedNodeId: id, selectedNodeIds: [] });
+    set({ nodes: placeNewNodes([...nodes, newNode], allEdges, [id]), edges: allEdges, selectedNodeId: id, selectedNodeIds: [] });
 
     // Standard context walk through the fresh fan-in edges (self blanked)
     const ctx = buildContext(
@@ -392,6 +401,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
         n.id === nodeId ? { ...n, data: { ...n.data, question: q, askedAt: new Date().toISOString(), isEditing: false } } : n
       ),
     }));
+    get().pushHistory();
     triggerParadigmCascade(get, nodeId);
   },
 
@@ -452,6 +462,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
   regenerate: async (nodeId: string) => {
     const node = get().nodes.find((n) => n.id === nodeId);
     if (!node) return;
+    get().pushHistory();
 
     // The sibling is the same task asked again: it gets every edge into the
     // original (its conversation parent and every piece of material or
@@ -494,7 +505,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
 
     const newEdges = [...get().edges, ...incoming.map((e, i) => ({ ...e, id: incoming.findIndex((o) => o.source === e.source) === i ? `edge-${e.source}-${id}` : `edge-${e.source}-${id}-${i}`, target: id }))];
 
-    const newNodes = autoLayout([...get().nodes, newNode], newEdges);
+    const newNodes = placeNewNodes([...get().nodes, newNode], newEdges, [id]);
     set({ nodes: newNodes, edges: newEdges, selectedNodeId: id });
 
     // the context is built the way a rerun in place builds it, from the sibling with its own question and answer
@@ -579,7 +590,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
 
     get().pushHistory();
     const newEdges = [...edges, ...fanIn];
-    const newNodes = autoLayout([...nodes, newNode], newEdges);
+    const newNodes = placeNewNodes([...nodes, newNode], newEdges, [id]);
     set({ nodes: newNodes, edges: newEdges, selectedNodeId: id, selectedNodeIds: [] });
 
     // Context arrives via the fan-in edges; the prompt is instruction only
@@ -652,7 +663,6 @@ ${intent.trim()}` : ''}` },
             ],
           }));
         }
-        set((state) => ({ nodes: autoLayout(state.nodes, state.edges) }));
       },
     });
   },
@@ -713,7 +723,7 @@ ${intent.trim()}` : ''}` },
 
     get().pushHistory();
     const newEdges = [...edges, ...fanIn];
-    set({ nodes: autoLayout([...nodes, newNode], newEdges), edges: newEdges, selectedNodeId: id, selectedNodeIds: [] });
+    set({ nodes: placeNewNodes([...nodes, newNode], newEdges, [id]), edges: newEdges, selectedNodeId: id, selectedNodeIds: [] });
 
     // First generation feeds ONLY the marks (the whole point: human-curated
     // input). The fan-in edges carry provenance and the full upstream for

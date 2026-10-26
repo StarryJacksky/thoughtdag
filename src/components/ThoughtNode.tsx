@@ -18,6 +18,7 @@ import { processFile } from '../lib/attachments';
 import { copyText } from '../lib/export';
 import { isRunLocked } from '../lib/paradigm';
 import { collectExploreMarksKey, type ExploreMark } from '../lib/explore-marks';
+import { withinOneCodeBlock } from '../lib/highlight-match';
 import { useUiStore, toast } from '../lib/ui-store';
 import SearchToggles from './ui/SearchToggles';
 import { Markdown, HighlightedMarkdown } from './Markdown';
@@ -31,6 +32,7 @@ import { levelText } from '../lib/ladder-core';
 import { usePlaqueClip } from '../lib/use-plaque-clip';
 import { ApprovalCard } from './ui/ApprovalCard';
 import { AgentTrace } from './ui/AgentTrace';
+import { AgentRerunButton } from './ui/AgentRerunButton';
 import { SquareTerminal } from 'lucide-react';
 import { useT, fmt } from '../i18n';
 import MentionSurface from './ui/NodeMention';
@@ -65,7 +67,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
   // fan-out placeholder shows its expand button until branches exist
   const hasFanoutChildren = useStore((s) => s.edges.some((e) => e.source === id && e.data?.isBranchFromSelection));
   const [selectedText, setSelectedText] = useState('');
-  const [selectionPos, setSelectionPos] = useState<{ x: number; y: number } | null>(null);
+  const [selectionPos, setSelectionPos] = useState<{ x: number; y: number; inCode: boolean } | null>(null);
   const inlineDraftKey = `inline:${id}`;
   const [inputValue, setInputValueState] = useState(() => useUiStore.getState().drafts[inlineDraftKey] ?? '');
   const mention = useMentions(id);
@@ -75,7 +77,14 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
   };
   const [branchFromText, setBranchFromText] = useState('');
   const [branchYRatio, setBranchYRatio] = useState(0.5);
-  const [editValue, setEditValue] = useState(data.question);
+  // An ask node's first question lives in the shared drafts until sent, like
+  // the follow-up box: undoing the node and redoing it brings the words back.
+  const askDraftKey = `ask:${id}`;
+  const [editValue, setEditValueState] = useState(() => data.question || useUiStore.getState().drafts[askDraftKey] || '');
+  const setEditValue = (v: string) => {
+    setEditValueState(v);
+    if (!data.question) useUiStore.getState().setDraft(askDraftKey, v);
+  };
   const [editResponseValue, setEditResponseValue] = useState(data.response);
   const responseRef = useRef<HTMLDivElement>(null);
   const nodeRef = useRef<HTMLDivElement>(null);
@@ -111,7 +120,9 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
   // box. And while a paradigm run is in progress the canvas is a DASHBOARD
   // (waiting/running states are what the human watches), not a map. Both
   // keep their working form at every zoom.
-  const zoomedOut = mapMode && !isAwaitingHuman && !isAwaitingAsk && !(isParadigmNode && runLocked);
+  // a running agent waiting on the person keeps its card open at any zoom
+  const hasOpenQuestion = !!data.isLoading && (data.pendingApprovals ?? []).some((p) => !p.answered);
+  const zoomedOut = mapMode && !isAwaitingHuman && !isAwaitingAsk && !hasOpenQuestion && !(isParadigmNode && runLocked);
   // Glyph tier: the node collapses to one seal — the thinking's skeleton
   const glyphTier = zoomTier === 'glyph' && zoomedOut;
   // Handles move to hug the seal at glyph tier — tell React Flow to re-measure
@@ -174,6 +185,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
         setSelectionPos({
           x: rangeRect.left + rangeRect.width / 2 - nodeRect.left,
           y: rangeRect.top - nodeRect.top - 48,
+          inCode: withinOneCodeBlock(range),
         });
       }
     } else {
@@ -256,6 +268,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
     } else {
       editQuestion(id, editValue.trim());
     }
+    useUiStore.getState().setDraft(askDraftKey, '');
   };
 
   const handleResponseEditSubmit = () => {
@@ -758,7 +771,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               className="question-md markdown-body text-sm text-ink font-semibold mb-3 cursor-pointer hover:bg-wash rounded-xl px-2 py-1.5 -mx-1 transition-colors max-h-[180px] overflow-y-auto nowheel nopan"
             >
               {/* a question is markdown like an answer (lists, code, emphasis), set compact; the plaques above keep the plain text */}
-              <Markdown>{data.question}</Markdown>
+              <Markdown diagrams="placeholder">{data.question}</Markdown>
             </div>
           )}
 
@@ -873,9 +886,9 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
               className="markdown-body text-sm text-ink leading-relaxed max-h-[400px] overflow-y-auto cursor-text nopan nodrag nowheel px-3 py-2.5 bg-surface rounded-xl"
             >
               {highlightedTexts.size > 0 || exploreSpecs.length > 0 ? (
-                <HighlightedMarkdown content={data.response} highlights={highlightedTexts} exploreMarks={exploreSpecs} />
+                <HighlightedMarkdown content={data.response} highlights={highlightedTexts} exploreMarks={exploreSpecs} diagrams="placeholder" />
               ) : (
-                <Markdown base={data.importSource?.cwd}>{data.response}</Markdown>
+                <Markdown base={data.importSource?.cwd} diagrams="placeholder">{data.response}</Markdown>
               )}
             </div>
             </>
@@ -952,6 +965,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
                   <Pencil size={13} strokeWidth={1.75} />
                 </button>
               )}
+              <AgentRerunButton nodeId={id} data={data} />
               {data.focusRole === 'ctx' && (
                 <span className="w-[7px] h-[7px] rounded-full bg-accent inline-block ml-1 shrink-0" title={t('focus.inContext')} data-focus-dot />
               )}
@@ -1146,12 +1160,14 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
             >
               <GitBranch size={14} strokeWidth={1.75} className="inline" /> {t('common.explore')}
             </button>
-            <button
-              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleHighlight(); }}
-              className="bg-amber-500 hover:bg-amber-400 text-white text-xs px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
-            >
-              <Star size={14} strokeWidth={1.75} className="inline" /> {t('common.highlight')}
-            </button>
+            {!selectionPos.inCode && (
+              <button
+                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleHighlight(); }}
+                className="bg-amber-500 hover:bg-amber-400 text-white text-xs px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
+              >
+                <Star size={14} strokeWidth={1.75} className="inline" /> {t('common.highlight')}
+              </button>
+            )}
           </div>
         </div>
       )}

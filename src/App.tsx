@@ -47,6 +47,7 @@ import { RESOURCE_DRAG_TYPE, parseDragPayload } from './lib/workspace/graph-reso
 import { useWorkspacePanel } from './lib/workspace/session';
 import SessionAtlas from './components/SessionAtlas';
 import { useStore } from './store';
+import { undoState } from './store/slices/history';
 import { shownStaleIds } from './lib/stale-judge';
 import { frameMembers } from './lib/frames';
 import { useProjects, adoptImportedProject, markInstantiatedFrom } from './store/projects';
@@ -65,6 +66,7 @@ import { countTokens } from './utils';
 import { buildExampleGraph } from './lib/example-graph';
 import { COLORS, FRAME_COLORS, PANEL_INSET } from './lib/constants';
 import { panelShift } from './lib/panel-shift';
+import { useReaderDock } from './lib/reader-dock';
 import { migrateActiveCanvasToVault, gcVaultAtBoot } from './lib/attachment-vault-boot';
 import { consumeOpenRouterCallback, handMintedKeyToModal, startOpenRouterOAuth } from './lib/openrouter-oauth';
 import { bootDesktopUpdateUI } from './lib/desktop-update-ui';
@@ -80,7 +82,7 @@ import ShareDialog from './components/ui/ShareDialog';
 import ThoughtMapDialog from './components/ui/ThoughtMapDialog';
 import BackupDialog from './components/ui/BackupDialog';
 import CondenseDialog from './components/ui/CondenseDialog';
-import { backupSupported } from './lib/local-backup';
+import { backupCapable } from './lib/local-backup';
 import LangSwitch from './components/ui/LangSwitch';
 import ModelPicker from './components/ui/ModelPicker';
 import RoleTemplateChips from './components/ui/RoleTemplateChips';
@@ -91,6 +93,8 @@ import LadderJobCard from './components/ui/LadderJobCard';
 if (import.meta.env.DEV) void import('./lib/ladder-lab');
 import ReleaseNotesDialog from './components/ui/ReleaseNotesDialog';
 import AgentCwdChip from './components/ui/AgentCwdChip';
+import AgentPermissionChip from './components/ui/AgentPermissionChip';
+import WaitingPill from './components/ui/WaitingPill';
 import { pluginUpdateCommand } from './lib/plugin-update';
 import { useT, t as ti, fmt, useI18n } from './i18n';
 import { isViewerMode, buildViewerLink } from './lib/viewer';
@@ -221,6 +225,7 @@ export default function App() {
 
 function Canvas() {
   const { nodes, edges, setNodes, setEdges, addQuestion, undo, redo, addCrossLink, setSelectedNodeId, setSelectedNodeIds, history, historyIndex, relayout } = useStore();
+  const undoable = undoState({ nodes, edges, history, historyIndex });
   const t = useT();
   const setTutorialOpen = useUiStore((s) => s.setTutorialOpen);
   const annotationsHidden = useUiStore((s) => s.annotationsHidden);
@@ -308,6 +313,7 @@ function Canvas() {
   const loadExample = useCallback(() => {
     const { nodes: exNodes, edges: exEdges } = buildExampleGraph(lang);
     const st = useStore.getState();
+    st.pushHistory();
     st.setNodes([...st.nodes, ...exNodes.filter((n) => !st.nodes.some((x) => x.id === n.id))]);
     st.setEdges([...st.edges, ...exEdges.filter((e) => !st.edges.some((x) => x.id === e.id))]);
     st.pushHistory();
@@ -336,6 +342,7 @@ function Canvas() {
     const last = st.nodes[st.nodes.length - 1];
     const pos = last ? { x: last.position.x, y: last.position.y + 340 } : { x: 120, y: 80 };
     const id = generateId();
+    st.pushHistory();
     st.setNodes([...st.nodes, {
       id, type: 'thought', position: pos, dragHandle: '.drag-handle',
       data: {
@@ -370,6 +377,7 @@ function Canvas() {
   const spawnFrame = useCallback((pos: { x: number; y: number }) => {
     const st = useStore.getState();
     const id = generateId();
+    st.pushHistory();
     st.setNodes([...st.nodes, {
       id, type: 'thought', position: pos, width: 640, height: 420, zIndex: -1, dragHandle: '.drag-handle',
       data: {
@@ -386,7 +394,7 @@ function Canvas() {
     st.pushHistory();
   }, []);
 
-  // Dropped-file gate: accept what we can actually parse (images, PDF,
+  // Dropped-file gate: accept what we can actually parse (images, PDF, notebooks,
   // text/code). Word and friends would ingest as binary soup — reject with
   // an actionable hint instead.
   const filterDroppedFiles = useCallback((list: FileList | File[]): File[] => {
@@ -394,7 +402,7 @@ function Canvas() {
     for (const f of Array.from(list)) {
       const ext = f.name.split('.').pop()?.toLowerCase() ?? '';
       if (f.type.startsWith('image/') || f.type === 'application/pdf' || f.type.startsWith('text/')
-        || ['pdf', 'docx', 'txt', 'md', 'csv', 'json', 'yaml', 'yml', 'toml', 'js', 'ts', 'tsx', 'jsx', 'py', 'sh', 'c', 'cpp', 'h', 'java', 'rs', 'go', 'rb', 'swift', 'css', 'html', 'xml', 'sql', 'tex', 'bib'].includes(ext)) {
+        || ['pdf', 'docx', 'ipynb', 'txt', 'md', 'csv', 'json', 'yaml', 'yml', 'toml', 'js', 'ts', 'tsx', 'jsx', 'py', 'sh', 'c', 'cpp', 'h', 'java', 'rs', 'go', 'rb', 'swift', 'css', 'html', 'xml', 'sql', 'tex', 'bib'].includes(ext)) {
         ok.push(f);
       } else {
         toast('info', fmt(ti('toast.unsupportedFile'), { name: f.name }));
@@ -405,9 +413,11 @@ function Canvas() {
 
   // Ask node: an ordinary Q&A node dropped EMPTY — wire material in, then
   // type the question; it answers from whatever the edges carry.
-  const spawnAskNode = useCallback((pos: { x: number; y: number }): string => {
+  // record=false: the caller makes the node part of a larger step and records it
+  const spawnAskNode = useCallback((pos: { x: number; y: number }, record = true): string => {
     const st = useStore.getState();
     const id = generateId();
+    if (record) st.pushHistory();
     st.setNodes([...st.nodes, {
       id, type: 'thought', position: pos, dragHandle: '.drag-handle',
       data: {
@@ -421,7 +431,7 @@ function Canvas() {
         // its question box, and what is set there must be what the ask uses
       },
     }]);
-    st.pushHistory();
+    if (record) st.pushHistory();
     return id;
   }, []);
   // Material-first entry: every dropped document becomes a material node;
@@ -575,6 +585,8 @@ function Canvas() {
   // delta from ITS start position, so there is no incremental drift.
   const frameDrag = useRef<{ frameId: string; start: { x: number; y: number }; members: { id: string; start: { x: number; y: number } }[] } | null>(null);
   const onNodeDragStart: OnNodeDrag<ThoughtNodeType> = useCallback((_e, node) => {
+    // a move is a step of its own: settle anything unrecorded before it
+    useStore.getState().pushHistory();
     // unlinked frames (frameCarry === false) move alone — the state while
     // the frame itself is still being adjusted over its nodes
     if (node.data.stepKind !== 'frame' || node.data.frameCarry === false) return;
@@ -603,7 +615,11 @@ function Canvas() {
       }),
     }));
   }, []);
-  const onNodeDragStop: OnNodeDrag<ThoughtNodeType> = useCallback(() => { frameDrag.current = null; }, []);
+  const onNodeDragStop: OnNodeDrag<ThoughtNodeType> = useCallback(() => {
+    frameDrag.current = null;
+    useStore.getState().pushHistory();
+  }, []);
+  const recordMove = useCallback(() => useStore.getState().pushHistory(), []);
 
   // Edge right-click context menu
   const [edgeMenu, setEdgeMenu] = useState<{ x: number; y: number; edgeId: string } | null>(null);
@@ -684,7 +700,9 @@ function Canvas() {
     const pos = flowPosAt({ x: clientX, y: clientY });
     const st = useStore.getState();
     if (st.nodes.find((n) => n.id === parentId)?.data.stepKind === 'frame') return;
-    const newId = spawnAskNode(pos);
+    // the node and the wire into it are one step
+    st.pushHistory();
+    const newId = spawnAskNode(pos, false);
     st.setEdges([...useStore.getState().edges, {
       id: `edge-${parentId}-${newId}`,
       source: parentId,
@@ -729,9 +747,17 @@ function Canvas() {
       if (useUiStore.getState().confirmRequest) return;
       // Viewer: only Cmd+F search survives; every mutating shortcut is inert
       if (isViewerMode && !((e.metaKey || e.ctrlKey) && e.key === 'f')) return;
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
-        if (e.shiftKey) { e.preventDefault(); redo(); }
-        else { e.preventDefault(); undo(); }
+      // Undo belongs to a text field while it has focus: the field takes back
+      // its own typing, and the canvas steps once the edit is committed.
+      // Redo answers to Shift+Cmd/Ctrl+Z (the key reads 'Z' with Shift held
+      // on some systems) and to Ctrl+Y.
+      const key = e.key.toLowerCase();
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && (key === 'z' || (key === 'y' && e.ctrlKey && !e.metaKey))) {
+        const field = e.target as HTMLElement;
+        if (field.tagName === 'INPUT' || field.tagName === 'TEXTAREA' || field.isContentEditable) return;
+        e.preventDefault();
+        if (key === 'y' || e.shiftKey) redo(); else undo();
+        return;
       }
       // Cmd+F: node search (replaces browser find on the canvas)
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
@@ -1064,11 +1090,39 @@ function Canvas() {
     return () => clearTimeout(timer);
   }, [panelOpen, selectedNodeId]);
 
+  // The docked reader: a column on the left the canvas steps aside for
+  // (lib/reader-dock decides its width, or 0). While it is up, the reader
+  // follows the selection: a selected material shows in it, and a question
+  // anchored to a page scrolls it to that page, so the text beside the
+  // canvas is always the one the selected node came from.
+  const readerDock = useReaderDock();
+  useEffect(() => {
+    if (!readerDock.docked || !selectedNodeId) return;
+    const st = useStore.getState();
+    const n = st.nodes.find((x) => x.id === selectedNodeId);
+    if (!n) return;
+    const ui = useUiStore.getState();
+    const kind = n.data.stepKind;
+    if (kind === 'file' || kind === 'link') {
+      if (ui.readerNodeId !== n.id) ui.setReaderNodeId(n.id);
+      return;
+    }
+    const anchor = n.data.anchor;
+    if (!anchor?.page) return;
+    const grownFrom = st.edges.find((e) =>
+      e.target === n.id && !e.data?.isCrossLink
+      && st.nodes.some((m) => m.id === e.source && (m.data.stepKind === 'file' || m.data.stepKind === 'link' || m.data.stepKind === 'note')))?.source;
+    const clippedFrom = anchor.attId ? st.nodes.find((m) => m.data.attachments?.some((a) => a.id === anchor.attId))?.id : undefined;
+    const material = grownFrom ?? clippedFrom;
+    if (material) ui.setReaderNodeId(material, { page: anchor.page });
+  }, [readerDock.docked, selectedNodeId]);
+
   return (
     <div className="relative w-full h-full" data-searching={searching || undefined}>
-      {/* Canvas — full width always; the focus panel floats on top of it */}
+      {/* Canvas — steps aside by the docked reader's width; the focus panel floats on top of it */}
       <div
-        className="relative h-full w-full"
+        className="absolute inset-y-0 right-0"
+        style={{ left: readerDock.width }}
         onDoubleClick={(e) => {
           // Double-click on empty canvas → drop an ask node right there
           // (same gesture family as double-click-on-node = open panel)
@@ -1163,6 +1217,8 @@ function Canvas() {
         onNodeDragStart={onNodeDragStart}
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
+        onSelectionDragStart={recordMove}
+        onSelectionDragStop={recordMove}
         onConnect={onConnect}
         onConnectStart={onConnectStart}
         onConnectEnd={onConnectEnd}
@@ -1664,7 +1720,9 @@ function Canvas() {
             </button>
           </>
         )}
+        {!isParadigm && <WaitingPill />}
         {!isParadigm && <AgentCwdChip />}
+        {!isParadigm && <AgentPermissionChip />}
         {!isParadigm && <ModelPicker />}
         {/* every task goes to the toolbar's AI; this turns on choosing another for single tasks */}
         {!isParadigm && hasNodes && <PerTaskAiToggle />}
@@ -1781,7 +1839,7 @@ function Canvas() {
             <Loader2 size={14} strokeWidth={1.75} className="animate-spin" /><span className="text-2xs font-mono">{condenseRunState.current}/{condenseRunState.total}</span>
           </button>
         )}
-        {backupSupported && (
+        {backupCapable() && (
           <button
             onClick={() => useUiStore.getState().setBackupDialogOpen(true)}
             className="bg-card/90 backdrop-blur border border-line rounded-lg w-8 h-8 flex items-center justify-center shadow-sm hover:bg-wash transition-colors text-ink-muted hover:text-accent"
@@ -2003,7 +2061,7 @@ function Canvas() {
         </div>
         <button
           onClick={undo}
-          disabled={historyIndex <= 0}
+          disabled={!undoable.canUndo}
           className="bg-card/90 backdrop-blur border border-line rounded-lg w-8 h-8 flex items-center justify-center shadow-sm hover:bg-wash transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
           title={t('canvas.undo')}
         >
@@ -2011,7 +2069,7 @@ function Canvas() {
         </button>
         <button
           onClick={redo}
-          disabled={historyIndex >= history.length - 1}
+          disabled={!undoable.canRedo}
           className="bg-card/90 backdrop-blur border border-line rounded-lg w-8 h-8 flex items-center justify-center shadow-sm hover:bg-wash transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
           title={t('canvas.redo')}
         >

@@ -10,9 +10,11 @@ import { useT } from '../../i18n';
 import { isViewerMode } from '../../lib/viewer';
 import { isWebUrl } from '../../../shared/web-url.mjs';
 import { collectExploreMarksKey, type ExploreMark } from '../../lib/explore-marks';
+import { withinOneCodeBlock } from '../../lib/highlight-match';
 import ReasoningDisclosure from '../ui/ReasoningDisclosure';
 import { ApprovalCard, DecisionsDisclosure } from '../ui/ApprovalCard';
 import { AgentTrace } from '../ui/AgentTrace';
+import { AgentRerunButton } from '../ui/AgentRerunButton';
 import type { ThoughtData } from '../../types';
 
 export default function ResponseSection({
@@ -65,7 +67,7 @@ export default function ResponseSection({
 
   const [editResponseValue, setEditResponseValue] = useState('');
   const [selectedText, setSelectedText] = useState('');
-  const [selectionPos, setSelectionPos] = useState<{ x: number; y: number } | null>(null);
+  const [selectionPos, setSelectionPos] = useState<{ x: number; y: number; inCode: boolean } | null>(null);
   const responseRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<HTMLDivElement>(null);
 
@@ -99,6 +101,7 @@ export default function ResponseSection({
         setSelectionPos({
           x: rangeRect.left + rangeRect.width / 2 - panelRect.left,
           y: rangeRect.top - panelRect.top - 48,
+          inCode: withinOneCodeBlock(range),
         });
       }
     } else {
@@ -235,12 +238,14 @@ export default function ResponseSection({
                 >
                   <GitBranch size={14} strokeWidth={1.75} className="inline" /> {t('common.explore')}
                 </button>
-                <button
-                  onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleHighlight(); }}
-                  className="bg-amber-500 hover:bg-amber-400 text-white text-xs px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
-                >
-                  <Star size={14} strokeWidth={1.75} className="inline" /> {t('common.highlight')}
-                </button>
+                {!selectionPos.inCode && (
+                  <button
+                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleHighlight(); }}
+                    className="bg-amber-500 hover:bg-amber-400 text-white text-xs px-3 py-1.5 rounded-lg transition-all whitespace-nowrap cursor-pointer"
+                  >
+                    <Star size={14} strokeWidth={1.75} className="inline" /> {t('common.highlight')}
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -276,6 +281,7 @@ export default function ResponseSection({
               <Pencil size={14} strokeWidth={1.75} />
             </button>
           )}
+          <AgentRerunButton nodeId={nodeId} data={data} size="md" />
           {(data.generatedBy?.[data.responseIndex]) && (
             <span
               className="text-2xs text-ink-faint font-mono ml-1 truncate flex-1 min-w-0 max-w-[420px]"

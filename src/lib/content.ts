@@ -2,10 +2,11 @@ import type { ThoughtData, ThoughtNode } from '../types';
 import { generateId, countTokens } from '../utils';
 import { useStore } from '../store';
 import { triggerParadigmCascade } from '../store/streaming';
-import { autoLayout } from './layout';
+import { placeNewNodes } from './layout';
 import { COLORS } from './constants';
 import { processFile } from './attachments';
 import { fetchUrlSnapshot, llmCall } from './api';
+import { backgroundCall, apiVisionModels, BACKGROUND_TIMEOUT_MS } from './background-model';
 import { getModelsOnce } from './use-models';
 import { toast, useUiStore } from './ui-store';
 import { t, fmt, useI18n } from '../i18n';
@@ -58,7 +59,8 @@ export function spawnContentNode(
   const st = useStore.getState();
   const built = buildContentNode(kind, position, init);
   const node = more ? { ...built, data: { ...built.data, ...more } } : built;
-  st.setNodes([...st.nodes, node]);
+  st.pushHistory();
+  st.setNodes([...useStore.getState().nodes, node]);
   st.pushHistory();
   if (node.data.question) triggerParadigmCascade(useStore.getState, node.id);
   return node.id;
@@ -98,9 +100,9 @@ export function generateMaterialSummary(nodeId: string, name: string, text: stri
   // paper on a Chinese map gets a Chinese plaque — the map speaks to its
   // reader, the material keeps its own language inside.
   const labelLang = useI18n.getState().lang === 'zh' ? 'Chinese' : 'English';
-  llmCall([
+  backgroundCall([
     { role: 'user', content: `A source material on a thinking map:\n\n[${name}]\n${text.slice(0, 6000)}\n\nCompress it for a map plaque. Output exactly ONE line in the format: topic | takeaway\n\ntopic: the subject as a bare noun phrase. Hard limit: 6 characters for CJK languages, 14 characters otherwise.\n\ntakeaway: what this material contains or claims, one plain clause. Hard limit: 18 characters for CJK languages, 40 characters otherwise.\n\nBoth in ${labelLang} (the reader's interface language), regardless of the material's language. Never use dash characters (—, –, -); use commas or colons instead. Output only that one line.` },
-  ]).then((raw) => {
+  ]).then(({ text: raw }) => {
     const line = raw.trim().split('\n')[0].trim();
     const m = line.match(/^([^|｜]+?)\s*[|｜]\s*(.+)$/s);
     const topic = m ? m[1].trim() : undefined;
@@ -211,7 +213,7 @@ export async function extractImage(nodeId: string, attId: string): Promise<void>
   if (!att || !att.type.startsWith('image/')) return;
 
   const data = await getModelsOnce();
-  const vision = (data?.models ?? []).filter((m) => m.vision);
+  const vision = apiVisionModels(data?.models ?? []);
   if (vision.length === 0) return; // no vision model: the capabilities panel explains
   const candidates = rankVision(vision);
 
@@ -220,10 +222,12 @@ export async function extractImage(nodeId: string, attId: string): Promise<void>
   const failures: string[] = [];
   for (const model of candidates) {
     try {
+      // a model that never answers passes to the next instead of leaving the image reading forever
       const text = await llmCall(
         [{ role: 'user', content: t('content.extractPrompt') }],
         [image],
         model.id,
+        { timeoutMs: BACKGROUND_TIMEOUT_MS },
       );
       useStore.getState().setAttachmentData(nodeId, attId, { isExtracting: false, extractedText: text.trim(), extractedBy: model.id });
       generateMaterialSummary(nodeId, att.name, text.trim());
@@ -264,7 +268,7 @@ export async function recognizePdfPages(
   if (!att || att.type !== 'application/pdf' || !att.pageImages?.length) return;
 
   const data = await getModelsOnce();
-  const vision = (data?.models ?? []).filter((m) => m.vision);
+  const vision = apiVisionModels(data?.models ?? []);
   if (vision.length === 0) return; // no vision model: the capabilities panel explains
   const candidates = rankVision(vision);
 
@@ -279,7 +283,7 @@ export async function recognizePdfPages(
     for (const model of order) {
       if (isCancelled()) return;
       try {
-        pageMd = (await llmCall([{ role: 'user', content: t('content.pdfPagePrompt') }], [image], model.id)).trim();
+        pageMd = (await llmCall([{ role: 'user', content: t('content.pdfPagePrompt') }], [image], model.id, { timeoutMs: BACKGROUND_TIMEOUT_MS })).trim();
         winner = model.id;
         break;
       } catch (err) {
@@ -297,6 +301,7 @@ export async function recognizePdfPages(
   }
   useStore.getState().pushHistory();
   useStore.getState().setAttachmentData(nodeId, attId, { extractedText: parts.join('\n\n'), extractedBy: winner });
+  useStore.getState().pushHistory();
   toast('success', t('reader.recognizeDone'));
 }
 
@@ -348,7 +353,8 @@ export async function generateDigest(nodeId: string, attId: string): Promise<boo
       data: {},
     };
     const edges = [...st.edges, edge];
-    useStore.setState({ nodes: autoLayout([...st.nodes, node], edges), edges });
+    st.pushHistory();
+    useStore.setState({ nodes: placeNewNodes([...st.nodes, node], edges, [id]), edges });
     st.pushHistory();
     digestNode = useStore.getState().nodes.find((n) => n.id === id);
     if (!digestNode) return false;
@@ -364,6 +370,9 @@ export async function generateDigest(nodeId: string, attId: string): Promise<boo
 }
 
 /** Fetch the URL server-side and store the stamped text snapshot on the node. */
+/** A link card still waiting for its page: no text yet and no error title. */
+const linkPending = (d: ThoughtData) => !d.question && !d.linkTitle;
+
 export async function fetchLinkIntoNode(nodeId: string, url: string): Promise<void> {
   const patch = (p: Partial<ThoughtData>) => useStore.setState((s) => ({
     nodes: s.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ...p } } : n)),
@@ -392,9 +401,10 @@ export async function fetchLinkIntoNode(nodeId: string, url: string): Promise<vo
       linkFetchedAt: snap.fetchedAt,
       tokenCount: countTokens(text),
     });
-    useStore.getState().pushHistory();
+    useStore.getState().settleNode(nodeId, linkPending);
     triggerParadigmCascade(useStore.getState, nodeId);
   } catch (err) {
     patch({ linkTitle: `⚠ ${err instanceof Error ? err.message : 'fetch failed'}` });
+    useStore.getState().settleNode(nodeId, linkPending);
   }
 }

@@ -12,7 +12,8 @@ export type Paper = 'plain' | 'grid';
 const LS_LIGHTING = 'thoughtdag.lighting';
 const LS_PAPER = 'thoughtdag.paper';
 
-const media = typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+// no matchMedia where there is no screen to ask (a test's DOM): the system's lighting is then light
+const media = typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 
 function resolve(lighting: Lighting): 'light' | 'dark' {
   return lighting === 'system' ? (media?.matches ? 'dark' : 'light') : lighting;

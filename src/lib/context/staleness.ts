@@ -51,6 +51,8 @@ export function detectStale(graph: { nodes: ThoughtNode[]; edges: ThoughtEdge[] 
   const reasons: StaleReason[] = [];
   for (const n of nodes) {
     if (!n.data.response || NOT_ASKED.has(n.data.stepKind ?? '')) continue;
+    // an archived answer feeds no context: replaying it would only cost model calls
+    if (n.data.archived) continue;
     const own: StaleReason[] = [];
     for (const input of records[n.id]?.inputs ?? []) {
       if (!input.fileId) continue;

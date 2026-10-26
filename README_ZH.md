@@ -13,6 +13,8 @@
 
 ![License](https://img.shields.io/badge/许可-MIT-green)
 
+<a href="https://trendshift.io/repositories/89640?utm_source=trendshift-badge&utm_medium=badge&utm_campaign=badge-trendshift-89640" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/89640/daily?language=TypeScript" alt="chenxiachan/thoughtdag | Trendshift" width="250" height="55"/></a>
+
 </div>
 
 [0.5 更新](#05-更新--thoughtdag--jev) · [CLI](#从命令行找回历史上下文) · [Harness](#在-deepseek-harness-里使用) · [桌面版](#桌面版) · [连线规则](#唯一法则) · [产品对比](#与其他工具有什么不同) · [研究](#-研究为什么上下文需要可编辑)
@@ -54,7 +56,7 @@ npx thoughtdag topics                       # 查看本地索引中的主题
 
 ## 在 DeepSeek Harness 里使用
 
-在 Harness 内切换对话与思维图：用画布选择上下文，再由 Harness 执行下一轮。
+在 Harness 侧栏打开 ThoughtDAG：用画布选择上下文，再由 Harness 执行下一轮。
 
 桌面版 Harness（0.2.0-rc.2 起）：打开「插件」页，搜索 `dsh-thoughtdag` 安装，装完重启 Harness。刚发布的版本要写明版本号 `dsh-thoughtdag@<版本号>`（pnpm 默认压住发布不满 24 小时的版本）。网页版用命令行：
 
@@ -64,6 +66,8 @@ dsh web
 ```
 
 插件自带画布和记忆层。需要 Node 22.19+（22.x）或 24+，以及 DeepSeek Harness 0.1.2-rc.1 或更新版本。[插件说明 →](https://chenxiachan.github.io/thoughtdag/docs/zh/guides/deepseek-harness)
+
+打开联网开关后，Harness 自带的模型通过 Harness 的网页搜索查资料。用哪个搜索服务、怎么计费，在 Harness 的 **插件 › 内置插件配置 › 网页搜索** 里设置。在那里打开「启用新版 Web 搜索 API」后，每条结果都带摘要；默认服务通常只返回标题和链接。
 
 <img src="docs/harness-plugin-zh.gif" alt="在 DeepSeek Harness 中切换到 ThoughtDAG 画布，提问并从回答继续展开新节点。" width="100%"/>
 
@@ -199,7 +203,7 @@ npm run dev       # 前端 :5173
 
 画布、文档、索引和档案保存在本机。**调用远程模型时，相关内容会发送到你配置的服务**，判断和档案生成也不例外。服务商可能收费，关闭 Jev 不等于关闭普通模型调用。
 
-可以接入本地 Ollama 或兼容 OpenAI 协议的端点；在 DeepSeek Harness 内，推理由 Harness 的服务配置和密钥处理。支持备份和 Markdown 导出，公开分享前请检查正文及元数据。[配置与隐私说明 →](docs/setup_ZH.md)
+可以接入本地 Ollama 或兼容 OpenAI 协议的端点；在 DeepSeek Harness 内，推理由 Harness 的服务配置和密钥处理。联网搜索用模型菜单里选定的引擎：智谱 GLM、AnySearch（本地运行免 key），或用你的 DeepSeek key 的 DeepSeek 搜索，按成功的搜索次数计费（每千次 5 元）。支持备份和 Markdown 导出，公开分享前请检查正文及元数据。[配置与隐私说明 →](docs/setup_ZH.md)
 
 ## 贡献者
 
@@ -212,6 +216,9 @@ npm run dev       # 前端 :5173
 <a href="https://github.com/HarveyZed" title="@HarveyZed"><img src="https://github.com/HarveyZed.png?size=80" width="40" height="40" alt="@HarveyZed" /></a>
 <a href="https://github.com/Pireirik" title="@Pireirik"><img src="https://github.com/Pireirik.png?size=80" width="40" height="40" alt="@Pireirik" /></a>
 <a href="https://github.com/suhyungJang" title="@suhyungJang"><img src="https://github.com/suhyungJang.png?size=80" width="40" height="40" alt="@suhyungJang" /></a>
+<a href="https://github.com/Heizaillica469" title="@Heizaillica469"><img src="https://github.com/Heizaillica469.png?size=80" width="40" height="40" alt="@Heizaillica469" /></a>
+<a href="https://github.com/orphiczhou" title="@orphiczhou"><img src="https://github.com/orphiczhou.png?size=80" width="40" height="40" alt="@orphiczhou" /></a>
+<a href="https://github.com/Archiloss" title="@Archiloss"><img src="https://github.com/Archiloss.png?size=80" width="40" height="40" alt="@Archiloss" /></a>
 
 欢迎参与贡献，从 [CONTRIBUTING_ZH.md](./CONTRIBUTING_ZH.md) 开始。
 

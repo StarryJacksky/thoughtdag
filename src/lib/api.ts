@@ -7,6 +7,8 @@ import { storedProviders, storedVision, learnVision, pushProviders } from './run
 import { setModelsCache } from './use-models';
 import { directProvider, directLlmStream, directLlmCall } from './direct-llm';
 import { errorText } from './error-text';
+import { IN_HARNESS } from './embedded';
+import type { FormAnswer } from '../types';
 
 const API_URL = `${API_BASE}/api/claude`;
 // Providers only travel when configured; undefined keeps .env-only setups
@@ -25,18 +27,21 @@ const APPROVALS_URL = `${API_BASE}/api/approvals`;
     withdrawal. A desktop runtime's run answers through the shell; the
     harness bridge takes only the yes/no. False when nothing was waiting
     under that id any more — the runtime withdrew it, or the turn ended. */
-export type QuestionAnswer = { confirmed: boolean; /** 'session': allow this for the rest of the conversation, not once */ scope?: 'session' } | { value: string } | { cancelled: true };
+export type QuestionAnswer = { confirmed: boolean; /** 'session': allow this for the rest of the conversation, not once */ scope?: 'session' } | { value: string } | { answers: FormAnswer[] } | { cancelled: true };
 export async function answerApproval(request: { id: string; channel?: { runId: string } }, answer: QuestionAnswer | 'allowed-once' | 'allowed-session' | 'rejected'): Promise<boolean> {
   const id = request.id;
   const a: QuestionAnswer = typeof answer === 'string' ? { confirmed: answer !== 'rejected', ...(answer === 'allowed-session' ? { scope: 'session' as const } : {}) } : answer;
   if (request.channel?.runId && window.desktopAgents) {
     try { return await window.desktopAgents.answer(request.channel.runId, id, a); } catch { return false; }
   }
-  const outcome = 'confirmed' in a && a.confirmed ? 'allowed-once' : 'rejected';
+  // the harness bridge: a decision by name, or a form's answers (a skip is an empty batch)
+  const body = 'answers' in a ? { answers: a.answers }
+    : 'cancelled' in a ? { outcome: 'cancelled' }
+    : { outcome: 'confirmed' in a && a.confirmed ? (a.scope === 'session' ? 'allowed-session' : 'allowed-once') : 'rejected' };
   try {
     const r = await fetch(`${APPROVALS_URL}/${encodeURIComponent(id)}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
-      body: JSON.stringify({ outcome }),
+      body: JSON.stringify(body),
     });
     return r.ok;
   } catch {
@@ -147,13 +152,36 @@ async function guardDirectVision(modelId: string | undefined, images?: ImageAtta
 }
 
 // Non-streaming call (used for background summaries)
-export async function llmCall(contextMessages: ContextMessage[], images?: ImageAttachment[], modelOverride?: string, opts?: { /** a selection or classification call: ask the model not to think out loud (the proxy turns reasoning off where the provider allows) */ fast?: boolean }): Promise<string> {
+export type LlmCallOptions = {
+  /** a selection or classification call: ask the model not to think out loud (the proxy turns reasoning off where the provider allows) */
+  fast?: boolean;
+  /** give up after this long (background calls; a question the person asked waits as long as it takes) */
+  timeoutMs?: number;
+};
+
+export async function llmCall(contextMessages: ContextMessage[], images?: ImageAttachment[], modelOverride?: string, opts?: LlmCallOptions): Promise<string> {
+  return (await llmCallAnswered(contextMessages, images, modelOverride, opts)).text;
+}
+
+/** llmCall that also says which model answered: the proxy names it, and it is not always the one asked for
+ *  (an id the proxy does not know falls back to its default, an image reroutes to a vision model). */
+export async function llmCallAnswered(contextMessages: ContextMessage[], images?: ImageAttachment[], modelOverride?: string, opts?: LlmCallOptions): Promise<{ text: string; model: string | undefined }> {
   const modelId = modelOverride || useUiStore.getState().selectedModel || undefined;
   images = await imagesForModel(modelId, images);
+  // The deadline cancels the request itself, on the proxy lane and the direct one alike (the proxy then stops the
+  // upstream call, server.mjs), and its message names the wait
+  const timeoutMs = opts?.timeoutMs;
+  const deadline = timeoutMs ? new AbortController() : null;
+  const timer = deadline ? setTimeout(() => deadline.abort(new Error(`no answer within ${Math.round(timeoutMs! / 1000)} s`)), timeoutMs) : undefined;
+  const timedOut = (err: unknown): unknown => (deadline?.signal.aborted ? deadline.signal.reason : err);
   const direct = directProvider(modelId);
   if (direct && modelId) {
-    await guardDirectVision(modelId, images);
-    return directLlmCall(direct, modelId, contextMessages, images);
+    try {
+      await guardDirectVision(modelId, images);
+      return { text: await directLlmCall(direct, modelId, contextMessages, images, deadline?.signal), model: modelId };
+    } catch (err: unknown) {
+      throw timedOut(err);
+    } finally { clearTimeout(timer); }
   }
   try {
     const res = await fetch(API_URL, {
@@ -162,12 +190,13 @@ export async function llmCall(contextMessages: ContextMessage[], images?: ImageA
       body: JSON.stringify({
         messages: contextMessages,
         images: images?.length ? images : undefined,
-        model: modelOverride || useUiStore.getState().selectedModel || undefined,
+        model: modelId,
         ...(opts?.fast ? { fast: true } : {}),
         // browser-configured providers ride along on EVERY request — the
         // proxy builds a per-request registry and forgets it (stateless)
         providers: statelessProviders(),
       }),
+      ...(deadline ? { signal: deadline.signal } : {}),
     });
 
     if (!res.ok) {
@@ -176,10 +205,10 @@ export async function llmCall(contextMessages: ContextMessage[], images?: ImageA
     }
 
     const data = await res.json();
-    return data.text;
+    return { text: data.text, model: typeof data.model === 'string' ? data.model : modelId };
   } catch (err: unknown) {
-    throw wrapError(err);
-  }
+    throw wrapError(timedOut(err));
+  } finally { clearTimeout(timer); }
 }
 
 export interface StreamCallbacks {
@@ -225,6 +254,17 @@ export interface ToolPrefs {
   mcp?: boolean;
 }
 
+/** Whether a request on this model declares tools (web or scholarly search,
+ *  MCP), so the context's execution records can say which tools it has.
+ *  Inside the harness only its own models search, through the host (an own
+ *  OpenRouter interface searches as `:online`, without tools); browser-direct
+ *  lanes carry none; the proxy declares a tool group whenever it is on. */
+export function declaresTools(modelId: string | undefined, prefs: ToolPrefs): boolean {
+  if (IN_HARNESS) return !!prefs.web && !storedProviders().some((p) => p.models.some((m) => m.id === modelId));
+  if (directProvider(modelId)) return false;
+  return !!(prefs.web || prefs.scholar || prefs.mcp);
+}
+
 // Streaming call — invokes onChunk with each text delta, returns full text
 export async function llmCallStream(
   contextMessages: ContextMessage[],
@@ -237,7 +277,7 @@ export async function llmCallStream(
   /** Agent lanes only: which working directory the turn runs in, which
       session it continues, or which DSH session+turn anchor it forks from.
       The harness fields are ignored by every non-Harness backend. */
-  harness?: { cwd?: string; session?: string; forkSession?: string; forkAnchor?: string; sessionPath?: string; forkEntryId?: string; nodeId?: string; continue?: boolean; effort?: string | null },
+  harness?: { cwd?: string; session?: string; forkSession?: string; forkAnchor?: string; sessionPath?: string; forkEntryId?: string; nodeId?: string; continue?: boolean; effort?: string | null; permission?: 'auto' | 'allow' },
 ): Promise<string> {
   // On the Workers deployment, OpenRouter models stream straight from the
   // browser — the proxy's CPU allowance can't survive big contexts + heavy
@@ -372,6 +412,11 @@ export async function llmCallStream(
           }
           if (parsed.gatewaySearch) {
             cbs.onGatewaySearch?.();
+          }
+          // the harness could not run this turn in the canvas's permission mode: say so once
+          if (parsed.permission && parsed.permission.applied === false) {
+            const why = parsed.permission.reason === 'custom' ? 'agent.permissionCustom' : 'agent.permissionUnavailable';
+            toast('info', fmt(t(why), { mode: t(parsed.permission.mode === 'auto' ? 'agent.permAuto' : 'agent.permAllow') }), 9000);
           }
           // Harness routing frames (only the embedded dsh bridge sends them)
           if (typeof parsed.harnessSession === 'string') {

@@ -279,9 +279,10 @@ export function buildCondensedCopy(segments: CondenseSegment[], distillates: str
   useStore.setState((state) => {
     const merged = [...state.nodes, ...copies];
     const mergedEdges = [...state.edges, ...newEdges];
-    // one layout pass fixes the copy's post-collapse geometry; autoLayout
-    // is deterministic for the untouched original, so both stay tidy
-    return { nodes: autoLayout(merged, mergedEdges), edges: mergedEdges };
+    // one layout pass fixes the copy's post-collapse geometry; the original
+    // keeps the positions the user gave it
+    const copyIds = new Set(copies.map((c) => c.id));
+    return { nodes: autoLayout(merged, mergedEdges).map((n, i) => (copyIds.has(n.id) ? n : merged[i])), edges: mergedEdges };
   });
   return { copiedNodes: copies.length, collapsedRuns: segments.length, distillIds };
 }

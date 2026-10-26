@@ -13,6 +13,8 @@ const OPEN_RUNTIMES_KEY = 'thoughtdag.pickerOpenRuntimes';
 const runtimeLabelOf = (id: string): string => { const rt = runtimeOf(id); if (rt) return AGENT_RUNTIMES[rt].label; if (id.startsWith('harness/')) return 'Harness'; return id.split('/')[0] || 'agent'; };
 const loadOpenRuntimes = (): Set<string> => { try { const v = JSON.parse(localStorage.getItem(OPEN_RUNTIMES_KEY) ?? '[]'); return new Set(Array.isArray(v) ? v : []); } catch { return new Set(); } };
 import { refreshStoredProviders, pushProviders, storedProviders } from '../../lib/runtime-providers';
+import { IN_HARNESS } from '../../lib/embedded';
+import { apiVisionModels } from '../../lib/background-model';
 import { fmt } from '../../i18n';
 import { useT } from '../../i18n';
 
@@ -359,7 +361,8 @@ function GlobalCapabilities() {
   const memoryCount = useUiStore((s) => profileLines(s.profile).length);
   const setMemoryManagerOpen = useUiStore((s) => s.setMemoryManagerOpen);
   const caps = data?.capabilities;
-  const visionModels = (data?.models ?? []).filter((m) => m.vision);
+  // the image readers: an agent sees images inside its own runs, it does not read one for the canvas
+  const visionModels = apiVisionModels(data?.models ?? []);
   // an old proxy / offline fetch reports nothing — say nothing, not "missing"
   if (!caps) return null;
   const hasVision = visionModels.length > 0;
@@ -397,7 +400,13 @@ function GlobalCapabilities() {
         {dot(!!caps?.webSearch)}
         <div className="flex-1 min-w-0">
           <p className="text-2xs text-ink-muted font-medium">{t('caps.webSearch')}</p>
-          {caps?.webSearch ? (
+          {/* inside the harness the host's own web search serves its models
+              (its service is set in the harness), an own OpenRouter interface
+              searches as :online; the engine picker and the AnySearch key
+              would be dead controls there (#72) */}
+          {caps?.webSearch && IN_HARNESS ? (
+            <p className="text-2xs text-ink-faint leading-relaxed mt-0.5">{t('caps.webSearchViaInterface')}</p>
+          ) : caps?.webSearch ? (
             <select
               value={searchEnginePref}
               onChange={(e) => setSearchEnginePref(e.target.value)}
@@ -409,12 +418,16 @@ function GlobalCapabilities() {
               <option value="search_std">{t('caps.engineStd')}</option>
               <option value="search_pro">{t('caps.enginePro')}</option>
               {(caps.anysearch || anysearchKey) && <option value="anysearch">{t('caps.engineAnysearch')}</option>}
+              {(caps.deepseekSearch || searchEnginePref === 'deepseek') && <option value="deepseek">{t('caps.engineDeepseek')}</option>}
             </select>
           ) : (
-            <p className="text-2xs text-ink-faint leading-relaxed mt-0.5">{t('caps.webSearchOff')}</p>
+            <p className="text-2xs text-ink-faint leading-relaxed mt-0.5">{t(IN_HARNESS ? 'caps.webSearchOffHost' : 'caps.webSearchOff')}</p>
           )}
-          {caps?.webSearch && searchEnginePref === 'anysearch' && anysearchKeyRow('caps.anysearchHintQuota')}
-          {!caps?.webSearch && anysearchKeyRow('caps.anysearchHintEnable')}
+          {!IN_HARNESS && caps?.webSearch && searchEnginePref === 'anysearch' && anysearchKeyRow('caps.anysearchHintQuota')}
+          {!IN_HARNESS && caps?.webSearch && searchEnginePref === 'deepseek' && (
+            <p className="text-2xs text-ink-faint leading-relaxed mt-0.5" data-deepseek-search-hint>{t(caps.deepseekSearch ? 'caps.deepseekHintBilled' : 'caps.deepseekHintNoKey')}</p>
+          )}
+          {!IN_HARNESS && !caps?.webSearch && anysearchKeyRow('caps.anysearchHintEnable')}
         </div>
       </div>
       <div className="px-3 py-1 flex items-start gap-2">

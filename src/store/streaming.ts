@@ -1,25 +1,27 @@
 import type { StoreApi } from 'zustand';
 import { partitionContext, walkUpAncestors } from '../lib/graph';
 import { isFeedback } from '../lib/feedback';
-import { upstreamFingerprint, upstreamParts, recordParts, type MessageSource } from './context-builder';
+import { upstreamFingerprint, upstreamParts, recordParts, recordsForAgent, recordsWithTools, type MessageSource } from './context-builder';
 import { sha256Hex, canonicalStringify } from '../lib/context-bundle';
 import { pruneHighlights } from '../lib/highlight-match';
-import { llmCall, llmCallStream, type ContextMessage, type ImageAttachment } from '../lib/api';
-import { harnessOutbound, claimHarnessTurn, stampHarnessTurn } from '../lib/atlas/dsh-bridge';
+import { llmCallStream, declaresTools, type ContextMessage, type ImageAttachment } from '../lib/api';
+import { harnessOutbound, claimHarnessTurn, stampHarnessTurn, isHarnessAgentModel } from '../lib/atlas/dsh-bridge';
 import { agentOutbound, adoptAgentTurn, claimAgentTurn, isAgentModel } from '../lib/agents/agent-runtime';
 import { countTokens, activeSummary } from '../utils';
 import { toast, useUiStore } from '../lib/ui-store';
-import { getModelsOnce, reconcileModelId } from '../lib/use-models';
+import { getModelsOnce, reconcileModelId, describeModel } from '../lib/use-models';
 import { checkSend, createTarget, describeTarget, RESEARCH_POLICY, templateFor, writesFiles } from '../lib/agents/target-model';
 import { contextLengthFor } from '../lib/runtime-providers';
 import { memoryContextBlock, judgeMemory } from '../lib/memory';
 import { fetchRecallItems, recallContextBlock } from '../lib/recall';
 import { fillCards } from '../lib/recall-cards';
 import { judgeAvailable, decideTakeaway } from '../lib/judge';
-import { buildLadder, ladderModelFor, inFlight, levelText, type LadderOptions } from '../lib/ladder';
+import { buildLadder, ladderPreference, inFlight, levelText, type LadderOptions } from '../lib/ladder';
+import { backgroundCall, BackgroundCallError } from '../lib/background-model';
 import { ladderContextFor } from '../lib/ladder-context';
 import type { Ladder } from '../types';
 import { t, fmt } from '../i18n';
+import { notifyWaiting } from '../lib/agents/waiting';
 import { isViewerMode } from '../lib/viewer';
 import type { Reference } from '../types';
 import type { StoreState } from './types';
@@ -38,10 +40,10 @@ import type { FrozenInputs, RunBlocked as RunBlockedError } from '../lib/context
 export const SUMMARY_MIN_CHARS = 400;
 export function generateSummary(nodeId: string, question: string, response: string, setSummary: (id: string, summary: string, forResponse: string, type?: string, topic?: string, confidence?: number, conclusive?: number) => void, mapLines?: string[], ladder?: { model?: string; set: (id: string, forResponse: string, ladder: Ladder | null) => void } & LadderOptions) {
   if (response.length < SUMMARY_MIN_CHARS) return;
-  // One rule for who summarises: the model that answered when it is an API model,
-  // the default background model for agent answers (an agent id would otherwise
-  // be sent to the plain chat route).
-  const who = ladderModelFor(ladder?.model);
+  // One rule for who summarises: the model that answered when it is an API
+  // model, then the shared background order (lib/background-model.ts), which
+  // is all an agent's answer gets and which takes over whenever a model fails.
+  const prefer = ladderPreference(ladder?.model);
   // With a judge, the MOVE (rule-out, decision, pivot, open, plain step) is a
   // typed decision with a probability; the model's own tag stands in when
   // no judge answers. The takeaway line is still the model's — a judge
@@ -59,11 +61,11 @@ export function generateSummary(nodeId: string, question: string, response: stri
   const mapBlock = mapLines && mapLines.length > 0
     ? `Takeaway lines already on the map, along this node's ancestor path (oldest first):\n${mapLines.join('\n')}\n\nUse those lines ONLY to align terminology and avoid repeating them. Classify this exchange's epistemic move on its own merits, independent of the lines above.\n\n`
     : '';
-  const viaLine = (m: string | undefined) => llmCall([
+  const viaLine = () => backgroundCall([
     { role: 'user', content: question },
     { role: 'assistant', content: response },
     { role: 'user', content: `${mapBlock}Compress the above exchange for a map plaque. Output exactly ONE line in the format: TAG | topic | takeaway\n\nTAG classifies the epistemic move: INSIGHT (learned or confirmed something), RULEOUT (killed a hypothesis or option), DECISION (chose among options), PIVOT (reframed the question or direction), OPEN (raised a new unresolved question). Most exchanges are INSIGHT.\n\ntopic: the subject as a bare noun phrase. Hard limit: 6 characters for CJK languages, 14 characters otherwise.\n\ntakeaway: the conclusion, stated first and plainly, as one clause. Hard limit: 18 characters for CJK languages, 40 characters otherwise — it must fit whole on a small plaque, never truncated. A reader scanning many such lines should see how the thinking progressed.\n\nBoth in the same language as the question. Never use dash characters (—, –, -) inside topic or takeaway; use commas or colons instead. Output only that one line.` },
-  ], undefined, m, { fast: true }).then((raw) => {
+  ], { prefer, fast: true }).then(({ text: raw }) => {
     // "TAG | topic | takeaway" — older models or drift may still answer
     // "TAG: text"; unknown/missing tags degrade to the unmarked default
     const line = raw.trim().split('\n')[0].trim();
@@ -74,27 +76,42 @@ export function generateSummary(nodeId: string, question: string, response: stri
     const text = three ? three[3].trim() : (two ? two[2].trim() : line);
     return settle(text, topic, modelType);
   });
-  if (!ladder) { void who.then(viaLine).catch(() => {}); return; }
+  if (!ladder) { void viaLine().catch(noteSummaryFailure); return; }
   // The zoom ladder (lib/ladder.ts): ONE call writes topic, takeaway and brief with
   // the thread in view and points at the evidence sentences. Its takeaway IS the
   // plaque's line, so no second line is written; when it lands, setLadder also
   // rewrites the plain summary and topic so the plaque and the ladder never
-  // disagree. No API model at all (agent-only setups): no call, the plaque keeps
-  // its local ladder.
+  // disagree. A reply it cannot use falls back to the plain line; when no model
+  // answered at all, the line would ask the same models again, so the plaque
+  // keeps its local ladder and the person hears once where to retry. No API
+  // model at all (agent-only setups): no call, nothing to say.
   inFlight.add(nodeId);
-  void who.then(async (m) => {
-    if (!m) return;
-    const l = await buildLadder(question, response, m, { context: ladder.context, thread: ladder.thread, parentAnswer: ladder.parentAnswer }).catch(() => null);
+  void (async () => {
+    const l = await buildLadder(question, response, prefer, { context: ladder.context, thread: ladder.thread, parentAnswer: ladder.parentAnswer });
     ladder.set(nodeId, response, l);
     if (l) await settle(levelText(l, 1), levelText(l, 0), l.move ?? 'insight');
-    else await viaLine(m);
-  }).catch(() => {}).finally(() => inFlight.delete(nodeId));
+    else await viaLine();
+  })().catch(noteSummaryFailure).finally(() => inFlight.delete(nodeId));
+}
+
+// A summary that no model wrote is said once per session, with what the
+// models answered and where to try again; after that the plaques quietly keep
+// their local ladders (the cause is the same until the setup changes).
+let summaryFailureNoted = false;
+function noteSummaryFailure(e: unknown): void {
+  // anything else is a fault in the pipeline itself: not for a toast, but not to vanish either
+  if (!(e instanceof BackgroundCallError)) { console.warn('[summary] not written:', e); return; }
+  if (!e.tried.length || summaryFailureNoted) return;
+  summaryFailureNoted = true;
+  const first = e.tried[0];
+  toast('info', fmt(t('ladder.bgFailed'), { models: e.tried.map((x) => describeModel(x.model)).join(t('ladder.bgFailedJoin')), error: first.error, action: t('ctx.reselectLadder') }), 12000);
 }
 
 /** The map lines a fresh takeaway should align with: the ancestor path's
     tagged takeaways (nearest 8), prefixed by the map's opening question. */
 export function collectMapLines(nodeId: string, nodes: StoreState['nodes'], edges: StoreState['edges']): string[] {
-  const { ordered } = walkUpAncestors(nodeId, nodes, edges);
+  // an archived step is out of the context, so out of the map the summariser aligns with (as in ladderContextFor)
+  const ordered = walkUpAncestors(nodeId, nodes, edges).ordered.filter((n) => !n.data.archived);
   const TAG: Record<string, string> = { ruleout: 'RULEOUT', decision: 'DECISION', pivot: 'PIVOT', open: 'OPEN' };
   const lines = ordered
     .filter((n) => n.id !== nodeId)
@@ -183,7 +200,7 @@ export async function freezeForRun(set: Set, get: Get, nodeId: string): Promise<
  * The one streaming pipeline for filling a node's response:
  * register an AbortController (Stop button) → stream chunks into
  * `data.response` → on completion write response/versions/tokenCount and
- * collapse → pushHistory → kick off the background summary.
+ * collapse → settleNode → kick off the background summary.
  * On abort or error, whatever streamed so far is kept.
  */
 export async function runNodeGeneration(
@@ -198,7 +215,7 @@ export async function runNodeGeneration(
     versionMode?: 'replace' | 'append';
     /** True when fired by the auto-refresh chain; manual generations reset all budgets. */
     autoChain?: boolean;
-    /** Extra work after the final state write, before pushHistory (e.g. re-layout). */
+    /** Extra work after the final state write, before settleNode (e.g. re-layout). */
     onSuccess?: (response: string) => void;
     /** where each context message came from — the members of this request */
     sources?: MessageSource[];
@@ -448,6 +465,10 @@ export async function runNodeGeneration(
       mcp: useUiStore.getState().mcpEnabled,
     };
   })();
+  // execution records tell a plain model it has no tools; an agent has them,
+  // and a request that declares search tools has those
+  if (isAgentModel(requestedModel) || isHarnessAgentModel(requestedModel)) messages = recordsForAgent(messages);
+  else if (declaresTools(requestedModel, toolPrefs)) messages = recordsWithTools(messages);
   const prep = await import('../lib/context/prepare-run');
   const frozen = frozenFor.get(nodeId);
   frozenFor.delete(nodeId);
@@ -669,7 +690,8 @@ export async function runNodeGeneration(
             return { ...n, data: { ...n.data, pendingApprovals: [...cur, { ...request, askedAt }] } };
           }),
         }));
-        toast('info', t('approval.toast'), 8000);
+        toast('info', t((request.kind ?? 'confirm') === 'confirm' ? 'approval.toast' : 'approval.toastAsk'), 8000);
+        notifyWaiting(request, nodeId);
       },
       onApprovalDecided: ({ id, outcome, value, auto, name, query, rule }) => {
         if (!isCurrent()) return;
@@ -725,7 +747,7 @@ export async function runNodeGeneration(
       await stampHarnessTurn(set, get, nodeId, { question, response }, harnessRoute, harnessSession, harnessTurn, ledgerAdvanced);
     }
     onSuccess?.(response);
-    get().pushHistory();
+    get().settleNode(nodeId);
     // The ladder sees the thread as its own plaques (lib/ladder-context.ts), not the compiled conversation: in the
     // 09-27 comparison the two read alike, and resending the conversation cost several times the plaque lines. Every
     // route (API model, agent, harness) and every later update (right-click, lasso) thus writes from the same view.
@@ -779,7 +801,7 @@ export async function runNodeGeneration(
       }
       writeFinal(partial || t('node.failedPlaceholder'), true);
     }
-    get().pushHistory();
+    get().settleNode(nodeId);
   }
 }
 

@@ -13,6 +13,8 @@ Explore a side question, connect useful paths, and choose what the model sees ne
 
 ![License](https://img.shields.io/badge/license-MIT-green)
 
+<a href="https://trendshift.io/repositories/89640?utm_source=trendshift-badge&utm_medium=badge&utm_campaign=badge-trendshift-89640" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/89640/daily?language=TypeScript" alt="chenxiachan/thoughtdag | Trendshift" width="250" height="55"/></a>
+
 </div>
 
 [0.5 update](#new-in-05--thoughtdag--jev) · [CLI](#find-past-context-from-the-command-line) · [Harness](#inside-deepseek-harness) · [Desktop](#the-desktop-app) · [How it works](#the-one-rule) · [How it differs](#how-thoughtdag-differs) · [Research](#-research-why-editable-context-matters)
@@ -64,6 +66,8 @@ dsh web
 ```
 
 The plugin bundles the canvas and memory layer. Requires Node 22.19+ (22.x) or 24+, and DeepSeek Harness 0.1.2-rc.1 or later. [Plugin guide →](https://chenxiachan.github.io/thoughtdag/docs/guides/deepseek-harness)
+
+With the web switch on, the harness's own models search through Harness's web search. The search service and its billing are set in Harness under **Plugins › Built-in plugin settings › Web search**. Turning on the new Web Search API there gives each result an excerpt; the default service usually returns titles and links only.
 
 <img src="docs/harness-plugin-en.gif" alt="Switching from chat to the ThoughtDAG canvas inside DeepSeek Harness, asking a question and continuing in a new node." width="100%"/>
 
@@ -199,7 +203,7 @@ Deleting a wrong claim may leave its consequences in later replies. In our synth
 
 Canvases, documents, the index and dossiers are stored locally. **Remote model calls send relevant content to your configured providers**, including decision and dossier-generation calls. Provider charges may apply; disabling Jev does not disable ordinary model calls.
 
-Connect local Ollama or an OpenAI-compatible endpoint. Inside DeepSeek Harness, inference uses the harness's providers and keys. Export backups and Markdown, and review text and metadata before sharing. [Setup and privacy details →](docs/setup.md)
+Connect local Ollama or an OpenAI-compatible endpoint. Inside DeepSeek Harness, inference uses the harness's providers and keys. Web search uses the engine picked in the model menu: Zhipu GLM, AnySearch (keyless on local runs), or DeepSeek Search with your DeepSeek key, billed per successful search ($0.75 per 1,000). Export backups and Markdown, and review text and metadata before sharing. [Setup and privacy details →](docs/setup.md)
 
 ## Contributors
 
@@ -212,6 +216,9 @@ Connect local Ollama or an OpenAI-compatible endpoint. Inside DeepSeek Harness, 
 <a href="https://github.com/HarveyZed" title="@HarveyZed"><img src="https://github.com/HarveyZed.png?size=80" width="40" height="40" alt="@HarveyZed" /></a>
 <a href="https://github.com/Pireirik" title="@Pireirik"><img src="https://github.com/Pireirik.png?size=80" width="40" height="40" alt="@Pireirik" /></a>
 <a href="https://github.com/suhyungJang" title="@suhyungJang"><img src="https://github.com/suhyungJang.png?size=80" width="40" height="40" alt="@suhyungJang" /></a>
+<a href="https://github.com/Heizaillica469" title="@Heizaillica469"><img src="https://github.com/Heizaillica469.png?size=80" width="40" height="40" alt="@Heizaillica469" /></a>
+<a href="https://github.com/orphiczhou" title="@orphiczhou"><img src="https://github.com/orphiczhou.png?size=80" width="40" height="40" alt="@orphiczhou" /></a>
+<a href="https://github.com/Archiloss" title="@Archiloss"><img src="https://github.com/Archiloss.png?size=80" width="40" height="40" alt="@Archiloss" /></a>
 
 Contributions are welcome — start with [CONTRIBUTING.md](./CONTRIBUTING.md).
 

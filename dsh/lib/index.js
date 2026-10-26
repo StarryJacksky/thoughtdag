@@ -81,6 +81,10 @@ export const inject = ['webServer', 'sessions', 'sessionController', 'agents', '
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const require = createRequire(import.meta.url)
 const APP_DIR = resolve(__dirname, '../dist-app')
+// the path rules for the canvas's local backup (#66); the route below shells
+// this, and it is required HERE because the handler needs it in scope — inside
+// agentsHttp() it would be a function-local binding the handler cannot see
+const { writeBackup, BackupRequestError } = require(resolve(__dirname, 'runtime', 'backup-write.cjs'))
 
 // The plugin's own version travels into the canvas's URL (?dv=), so the
 // update dialog and the release history know which release runs here, as
@@ -422,7 +426,13 @@ function contentOf(body) {
   throw new HttpError(400, 'body needs text or blocks')
 }
 
-const SOURCE = { kind: 'plugin', plugin: 'dsh-thoughtdag' }
+// The attribution on every message this plugin injects. The kind is this
+// producer's OWN: the harness's v4 session format refuses the bare shared
+// literal 'plugin' (its validator throws "format v4 message requires a
+// producer-owned source kind" before the Session adopts the event, so the
+// targeted turn dies and nothing is persisted, #69); only the v3→v4 migration
+// ever rewrote it. scripts/test-inject-source.mjs holds this line to that rule.
+const SOURCE = { kind: 'plugin:dsh-thoughtdag', plugin: 'dsh-thoughtdag' }
 
 // ── the other agents' session files on this machine ────────────────────
 
@@ -560,7 +570,8 @@ async function modelsPayload(ctx, ownProviders = []) {
   return {
     models,
     default: def && models.some(m => m.id === def) ? def : (models[0]?.id ?? null),
-    capabilities: { webSearch: ownProviders.some(p => isOpenRouterURL(p.baseURL)), searchEngine: 'none', scholarSearch: false, vision: models.some(m => m.vision) },
+    // the harness's own models search through the host's web service; an own OpenRouter interface through `:online`
+    capabilities: { webSearch: typeof ctx.web?.search === 'function' || ownProviders.some(p => isOpenRouterURL(p.baseURL)), searchEngine: 'none', scholarSearch: false, vision: models.some(m => m.vision) },
     harness: { routableProviders: cat.routableProviders ?? [], failures: (cat.failures ?? []).map(f => ({ provider: f.id, message: f.message })) },
   }
 }
@@ -633,22 +644,49 @@ function ownMessagesOf(body) {
   return messages
 }
 
-/** One chat-completions request to the interface; the response as fetched (the caller reads it). */
-async function ownRequest(target, body, stream) {
+// A fast call asks OpenRouter not to think out loud. The switch is a
+// preference, never a condition (as in server.mjs): some endpoints refuse it,
+// so a failed quiet request is sent again as the ordinary one. Only a
+// rejection of the request itself (400, 404, 422) is remembered, so that
+// model's later fast calls go out ordinary from the start; a 5xx or a dropped
+// connection says nothing about the switch. Statuses no request shape can
+// change, and a caller who left, skip the second request.
+const quietRefused = new Set()
+const UNCHANGEABLE_STATUS = new Set([401, 402, 403, 429])
+const REFUSAL_STATUS = new Set([400, 404, 422])
+
+/** One chat-completions request to the interface; the response as fetched (the caller reads it).
+ *  `left`: aborts when the caller has gone, so the interface stops working (and billing) for nobody. */
+async function ownRequest(target, body, stream, left) {
   const { provider, model } = target
-  // OpenRouter searches through its `:online` variant and takes a reasoning switch; a fast call never thinks out loud
+  // OpenRouter searches through its `:online` variant and takes a reasoning switch
   const openrouter = isOpenRouterURL(provider.baseURL)
   const id = openrouter && body?.webSearch && !model.endsWith(':online') ? `${model}:online` : model
-  const payload = { model: id, messages: ownMessagesOf(body), stream, ...(openrouter ? { reasoning: { enabled: !body?.fast } } : {}) }
+  const messages = ownMessagesOf(body)
   const headers = { 'content-type': 'application/json', ...(provider.apiKey ? { authorization: `Bearer ${provider.apiKey}` } : {}), ...(openrouter ? { 'HTTP-Referer': 'https://github.com/chenxiachan/thoughtdag', 'X-Title': 'ThoughtDAG' } : {}) }
-  const res = await fetch(`${provider.baseURL}/chat/completions`, { method: 'POST', headers, body: JSON.stringify(payload), signal: AbortSignal.timeout(10 * 60 * 1000) })
-  if (!res.ok) {
+  const send = async (thinking) => {
+    const payload = { model: id, messages, stream, ...(openrouter ? { reasoning: { enabled: thinking } } : {}) }
+    const deadline = AbortSignal.timeout(10 * 60 * 1000)
+    const signal = left && typeof AbortSignal.any === 'function' ? AbortSignal.any([deadline, left]) : deadline
+    const res = await fetch(`${provider.baseURL}/chat/completions`, { method: 'POST', headers, body: JSON.stringify(payload), signal })
+    if (res.ok) return res
     const text = await res.text().catch(() => '')
     let detail = text.slice(0, 300)
     try { const j = JSON.parse(text); detail = j?.error?.message ?? j?.message ?? detail } catch { /* not json */ }
-    throw new HttpError(res.status === 401 || res.status === 403 ? 401 : 502, `${provider.name}: HTTP ${res.status}${detail ? ' · ' + detail : ''}`)
+    const error = new HttpError(res.status === 401 || res.status === 403 ? 401 : 502, `${provider.name}: HTTP ${res.status}${detail ? ' · ' + detail : ''}`)
+    error.upstreamStatus = res.status
+    throw error
   }
-  return res
+  const key = `${provider.baseURL} ${id}`
+  if (!openrouter || !body?.fast || quietRefused.has(key)) return send(true)
+  try {
+    return await send(false)
+  } catch (error) {
+    if (left?.aborted || UNCHANGEABLE_STATUS.has(error?.upstreamStatus)) throw error
+    const res = await send(true)
+    if (REFUSAL_STATUS.has(error?.upstreamStatus)) quietRefused.add(key)
+    return res
+  }
 }
 
 /** Stream one answer from the interface as the canvas's frames: { text }, { reasoning }, [DONE]. */
@@ -677,8 +715,8 @@ async function ownStream(res, target, body, isClosed) {
 }
 
 /** One whole answer from the interface (the canvas's background calls). */
-async function ownCall(target, body) {
-  const upstream = await ownRequest(target, body, false)
+async function ownCall(target, body, left) {
+  const upstream = await ownRequest(target, body, false, left)
   const j = await upstream.json()
   const c = j?.choices?.[0]?.message?.content
   return typeof c === 'string' ? c : Array.isArray(c) ? c.map(x => (typeof x?.text === 'string' ? x.text : '')).join('') : ''
@@ -724,6 +762,150 @@ async function callOf(ctx, body, target) {
   return { provider: target.provider, model: target.model, messages, ...(system.length ? { system: system.join('\n\n') } : {}) }
 }
 
+// ── web search for the harness's own models ────────────────────────────
+// The canvas's web toggle reaches a bare model as one tool, web_search,
+// served by the host's web service (ctx.web): the host owns the backend
+// (its own search, or DeepSeek's Search API once the person turns that on
+// in the harness's web search settings) and the credential, so this plugin
+// never holds a key. Results are numbered across the whole answer and
+// stream back in the frames the app's own proxy uses: a { tool } ping per
+// search, { sources } at the end.
+// searches per answer, as the tool's description promises the model
+const SEARCH_LIMIT = 3
+const SEARCH_RESULTS = 5
+// keep in step with makeTools() and the directive in server.mjs
+const WEB_SEARCH_TOOL = {
+  name: 'web_search',
+  description:
+    'ONLY for current events, time-sensitive facts, or specific verifiable claims you cannot answer confidently from your own knowledge. ' +
+    'NEVER use for conceptual, definitional, reasoning or creative questions — answer those directly. ' +
+    'Results are numbered [1], [2], ... — when you use information from a result, cite it inline as [n]. At most 3 searches per answer.',
+  parameters: {
+    type: 'object',
+    properties: { query: { type: 'string', description: 'The search query, in the language most likely to find good results' } },
+    required: ['query'],
+    additionalProperties: false,
+  },
+}
+const SEARCH_DIRECTIVE = [
+  'Tools are AVAILABLE, not mandatory: first decide whether your own knowledge answers the question. Conceptual, definitional, reasoning and creative questions must be answered DIRECTLY, with no tool calls. Search only when the answer depends on current events, specific verifiable facts you are unsure of, or literature citations — or when the user explicitly asks you to look something up.',
+  'After using any search tool, you MUST follow up with a complete answer that SYNTHESIZES the results in your own words — analyze and conclude, never just list the results.',
+  'Cite sources inline as [n], using EXACTLY the bracket numbers shown in this turn\'s search results (they always start at [1]). Ignore any citation numbers appearing in earlier conversation messages — they refer to different sources.',
+  'If the search results are not actually relevant to the question, say so explicitly and answer from your own knowledge instead of forcing citations.',
+  'Never end your turn immediately after a search.',
+].join(' ')
+const SEARCH_LIMIT_NOTE = '\n\n(That was the last search for this answer: write the final answer now from the results above.)'
+
+/** Chunks of one model call assembled the way the host's own assembler
+ *  does it (a closed block as the adapter sent it, an open one from its
+ *  deltas), so a round's blocks line up with its replay state. */
+function chunkAssembler() {
+  const parts = new Map()
+  const order = []
+  let finish = { kind: 'stop' }
+  let replayState
+  const at = (index, blockType) => {
+    let p = parts.get(index)
+    if (!p) { p = { blockType, text: '', args: '' }; parts.set(index, p); order.push(index) }
+    return p
+  }
+  return {
+    push(chunk) {
+      switch (chunk.type) {
+        case 'block-start': at(chunk.index, chunk.blockType); return
+        case 'text-delta':
+        case 'reasoning-delta': { const p = at(chunk.index, chunk.type === 'text-delta' ? 'text' : 'reasoning'); if (!p.block) p.text += chunk.text; return }
+        case 'tool-call-delta': {
+          const p = at(chunk.index, 'tool-call')
+          if (p.block) return
+          p.id = chunk.id
+          if (chunk.name) p.name = chunk.name
+          p.args += chunk.argumentsDelta ?? ''
+          return
+        }
+        case 'block-end': { const p = at(chunk.index, chunk.block.type); if (!p.block) p.block = chunk.block; return }
+        case 'finish': finish = chunk.reason; replayState = chunk.replayState; return
+      }
+    },
+    blocks: () => order.map((index) => {
+      const p = parts.get(index)
+      if (p.block) return p.block
+      if (p.blockType === 'tool-call') return { type: 'tool-call', id: p.id ?? `call-${index}`, name: p.name ?? '', arguments: p.args }
+      return p.blockType === 'text' || p.blockType === 'reasoning' ? { type: p.blockType, text: p.text } : null
+    }).filter(Boolean),
+    get finish() { return finish },
+    get replayState() { return replayState },
+  }
+}
+
+/** One web_search call run through the host; its results join `sources`
+ *  under the next numbers, and the text the model reads comes back. */
+async function webSearchFor(ctx, call, sources, write) {
+  let query = ''
+  try { query = String(JSON.parse(call.arguments || '{}')?.query ?? '').trim() } catch { /* malformed arguments */ }
+  if (!query) return { text: 'web_search needs a query.', isError: true }
+  write({ tool: { name: 'web_search', query } })
+  try {
+    const r = await ctx.web.search({ query, maxResults: SEARCH_RESULTS }, AbortSignal.timeout(60000))
+    const results = (r?.sources ?? []).filter(s => s?.url).map(s => ({
+      title: s.title || s.url,
+      url: s.url,
+      content: String(s.snippet ?? '').slice(0, 600),
+      ...(s.publishedAt ? { date: String(s.publishedAt).slice(0, 10) } : {}),
+    }))
+    const start = sources.length
+    sources.push(...results)
+    if (results.length === 0) return { text: 'No results found.' }
+    return { text: results.map((x, i) => `[${start + i + 1}] ${x.title}${x.date ? ` (${x.date})` : ''}\n${x.url}\n${x.content}`).join('\n\n') }
+  } catch (error) {
+    const why = [error?.code, error instanceof Error ? error.message : String(error)].filter(Boolean).join(': ')
+    return { text: `Search failed (${why}). Answer from your own knowledge and say that the search did not run.`, isError: true }
+  }
+}
+
+/** One answer from a harness model, streamed to the canvas as its frames.
+ *  With search on, the model may call web_search up to SEARCH_LIMIT times:
+ *  each round's blocks and results join the request (the way an agent keeps
+ *  its own tool history) and the next round continues; a call past the
+ *  limit is answered with "no more searches". */
+async function harnessStream(ctx, target, options, search, write, isClosed) {
+  const sources = []
+  const messages = [...options.messages]
+  const request = search
+    ? { ...options, tools: [WEB_SEARCH_TOOL], system: options.system ? `${options.system}\n\n${SEARCH_DIRECTIVE}` : SEARCH_DIRECTIVE }
+    : options
+  let searched = 0
+  for (let round = 0; round <= SEARCH_LIMIT + 1; round++) {
+    const asm = chunkAssembler()
+    for await (const chunk of ctx.llm.stream({ ...request, messages })) {
+      if (isClosed()) return
+      asm.push(chunk)
+      if (chunk.type === 'text-delta' && chunk.text) write({ text: chunk.text })
+      else if (chunk.type === 'reasoning-delta' && chunk.text) write({ reasoning: chunk.text })
+    }
+    const finish = asm.finish
+    if (finish.kind === 'error') throw new Error(finish.failure?.message ?? finish.failure?.code ?? 'the model call failed')
+    if (finish.kind === 'aborted') return
+    // a call cut off by the output limit cannot run safely (the host's rule)
+    const calls = finish.kind === 'max-tokens' ? [] : asm.blocks().filter(b => b.type === 'tool-call')
+    if (!search || calls.length === 0 || round === SEARCH_LIMIT + 1) break
+    messages.push({
+      id: 'td-' + randomUUID(), role: 'assistant', content: asm.blocks(),
+      source: { kind: 'model', provider: target.provider, model: target.model, ...(asm.replayState ? { replayState: asm.replayState } : {}) },
+    })
+    for (const call of calls) {
+      const allowed = call.name === WEB_SEARCH_TOOL.name && searched < SEARCH_LIMIT
+      if (allowed) searched++
+      const r = allowed
+        ? await webSearchFor(ctx, call, sources, write)
+        : { text: 'No more searches for this answer: write the final answer now from the results above.', isError: true }
+      const text = allowed && searched === SEARCH_LIMIT ? r.text + SEARCH_LIMIT_NOTE : r.text
+      messages.push({ id: 'td-' + randomUUID(), role: 'tool', toolCallId: call.id, content: [{ type: 'text', text }], source: { kind: 'tool', callId: call.id }, ...(r.isError ? { isError: true } : {}) })
+    }
+  }
+  if (sources.length > 0) write({ sources })
+}
+
 /** The canvas's compiled messages, split for the agent: the last user
  *  message is the question; everything before it is the context the canvas
  *  wired in, rendered as one block the harness receives ahead of the turn. */
@@ -764,41 +946,150 @@ function toolQuery(name, args) {
 /** sessionId → the canvas turn running in it: its frame emitter, its
  *  close probe, and the tool calls seen so far (callId → name, arguments). */
 const canvasTurns = new Map()
-/** approval id → the resolver waiting for the person's decision */
+/** approval or question id → the resolver waiting for the person's decision */
 const pendingApprovals = new Map()
+/** sessionId → the exact steps the person allowed for the rest of the
+ *  session ("tool name + its arguments"; the harness's own approvals are
+ *  one-shot, so the standing allowance lives here, in memory) */
+const sessionRules = new Map()
 
-const APPROVAL_OUTCOMES = new Set(['allowed-once', 'rejected'])
+const APPROVAL_OUTCOMES = new Set(['allowed-once', 'allowed-session', 'rejected', 'cancelled'])
+
+/** Wait for the person's answer to one canvas card, the canvas stream going
+ *  away, or the harness withdrawing the request — whichever comes first. */
+async function personDecides(id, sessionId, entry, signal, kind) {
+  let clear
+  const decision = new Promise(resolve => { pendingApprovals.set(id, { resolve, sessionId, kind }) })
+  const closed = new Promise(resolve => { const t = setInterval(() => { if (entry.isClosed()) { clearInterval(t); resolve('closed') } }, 500); clear = () => clearInterval(t) })
+  const aborted = new Promise(resolve => {
+    if (!signal) return
+    if (signal.aborted) resolve('aborted')
+    else signal.addEventListener('abort', () => resolve('aborted'), { once: true })
+  })
+  const r = await Promise.race([decision, closed, aborted])
+  pendingApprovals.delete(id)
+  clear?.()
+  return r
+}
+
+// what a step does, without the prose the model writes around it each time
+// (a bash call carries a fresh description and justification on every try)
+const PROSE_ARGS = new Set(['description', 'justification', 'reason', 'rationale', 'explanation', 'summary', 'title'])
+function stepKey(args) {
+  let v = args
+  if (typeof v === 'string') { try { v = JSON.parse(v) } catch { return v } }
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return JSON.stringify(v ?? null)
+  return JSON.stringify(Object.fromEntries(Object.keys(v).filter(k => !PROSE_ARGS.has(k)).sort().map(k => [k, v[k]])))
+}
+
+/** The canvas turn a harness request belongs to, or null when it is the
+ *  person's own (another turn of the same session) or no canvas is watching. */
+function canvasTurnOf(agent) {
+  const entry = canvasTurns.get(agent?.id)
+  if (!entry || entry.turn === null || entry.current() !== entry.turn) return null
+  return entry
+}
 
 function installApprovalAnswerer(ctx) {
   ctx.on('approval/request', async function (req, next) {
-    const entry = canvasTurns.get(req?.agent?.id)
-    if (!entry) return next()
     // an approval raised by another turn of the same session (the person's
     // own tool call, running before or after ours) stays with the harness UI
-    if (entry.turn === null || entry.current() !== entry.turn) return next()
+    const entry = canvasTurnOf(req?.agent)
+    if (!entry) return next()
+    const sessionId = req.agent.id
     const id = 'td-' + randomUUID()
     const call = req.callId !== undefined ? entry.calls.get(req.callId) : undefined
     const name = call?.name ?? req.toolName
+    const args = typeof call?.arguments === 'string' ? call.arguments : (call?.arguments ? JSON.stringify(call.arguments) : null)
+    const query = call ? toolQuery(name, call.arguments) : ''
+    // a standing allowance covers exactly this step: same tool, same arguments
+    const rule = call ? `harness:${name}:${stepKey(call.arguments)}` : null
+    if (rule && sessionRules.get(sessionId)?.has(rule)) {
+      entry.emit({ approvalDecided: { id, outcome: 'allowed-session', auto: true, name, query, rule } })
+      return 'allowed-once'
+    }
     entry.emit({ approval: {
       id, toolName: req.toolName, callId: req.callId ?? null, reason: req.reason ?? null,
-      name, query: call ? toolQuery(name, call.arguments) : '', arguments: typeof call?.arguments === 'string' ? call.arguments : (call?.arguments ? JSON.stringify(call.arguments) : null),
+      name, query, arguments: args, ...(rule ? { rule } : {}),
     } })
-    let clear
-    const decision = new Promise(resolve => { pendingApprovals.set(id, { resolve, sessionId: req.agent.id }) })
-    const closed = new Promise(resolve => { const t = setInterval(() => { if (entry.isClosed()) { clearInterval(t); resolve('closed') } }, 500); clear = () => clearInterval(t) })
-    const aborted = new Promise(resolve => {
-      if (!req.signal) return
-      if (req.signal.aborted) resolve('aborted')
-      else req.signal.addEventListener('abort', () => resolve('aborted'), { once: true })
-    })
-    const r = await Promise.race([decision, closed, aborted])
-    pendingApprovals.delete(id)
-    clear?.()
+    const r = await personDecides(id, sessionId, entry, req.signal, 'approval')
     if (r === 'closed') return next()
     const outcome = r === 'aborted' ? 'cancelled' : r
-    entry.emit({ approvalDecided: { id, outcome } })
-    return outcome
+    if (outcome === 'allowed-session' && rule) {
+      if (!sessionRules.has(sessionId)) sessionRules.set(sessionId, new Set())
+      sessionRules.get(sessionId).add(rule)
+    }
+    entry.emit({ approvalDecided: { id, outcome, ...(outcome === 'allowed-session' && rule ? { rule } : {}) } })
+    return outcome === 'allowed-session' ? 'allowed-once' : outcome
   }, true)
+
+  // the agent's own questions (ask_user_question, and plan review on leaving
+  // plan mode): one form on the node, the answers back in the harness's
+  // vocabulary — a skip answers every question with nothing picked
+  ctx.on('user-questions/request', async function (req, next) {
+    const entry = canvasTurnOf(req?.agent)
+    if (!entry) return next()
+    const questions = (Array.isArray(req.questions) ? req.questions : []).filter(q => q && typeof q.id === 'string').map(q => ({
+      id: q.id, question: String(q.question ?? ''),
+      ...(typeof q.header === 'string' ? { header: q.header } : {}),
+      ...(typeof q.detail === 'string' ? { detail: q.detail } : {}),
+      options: (Array.isArray(q.options) ? q.options : []).filter(o => o && typeof o.label === 'string').map(o => ({ label: o.label, ...(typeof o.description === 'string' ? { description: o.description } : {}) })),
+      multiSelect: !!q.multiSelect, custom: true,
+    }))
+    if (questions.length === 0) return next()
+    const id = 'td-' + randomUUID()
+    entry.emit({ approval: {
+      id, kind: 'form', toolName: 'ask_user_question', callId: req.callId ?? null, reason: null,
+      name: 'ask_user_question', query: questions.map(q => q.question).join('\n'), arguments: null, questions,
+    } })
+    const r = await personDecides(id, req.agent.id, entry, req.signal, 'form')
+    if (r === 'closed') return next()
+    if (r === 'aborted') { entry.emit({ approvalDecided: { id, outcome: 'cancelled' } }); throw new Error('the question was withdrawn') }
+    const given = r !== 'cancelled' && Array.isArray(r?.answers) ? r.answers : []
+    const answers = questions.map((q) => {
+      const a = given.find(x => x && x.id === q.id)
+      const selected = Array.isArray(a?.selected) ? a.selected.filter(x => typeof x === 'string' && q.options.some(o => o.label === x)) : []
+      const custom = typeof a?.custom === 'string' && a.custom.trim() ? a.custom.trim() : undefined
+      return { id: q.id, selected, ...(custom !== undefined ? { custom } : {}) }
+    })
+    const shown = answers.filter(a => a.selected.length || a.custom).map(a => `${questions.find(q => q.id === a.id)?.header ?? a.id} → ${[...a.selected, ...(a.custom ? [a.custom] : [])].join(', ')}`).join('; ')
+    entry.emit({ approvalDecided: { id, outcome: given.length ? 'answered' : 'cancelled', value: shown || null } })
+    return { answers }
+  }, true)
+}
+
+// ── the canvas's permission mode, for the turns it starts ───────────────
+// The canvas has one switch for every agent it runs (ask / auto / allow).
+// Here it maps onto the harness's own permission presets: 'auto' is its
+// Auto review (present when the person installed that integration),
+// 'allow' is full access; 'ask' leaves the session as the person set it.
+// The preset is switched for the canvas's turn only and switched back when
+// the turn ends, so the session keeps its own setting in the harness.
+const CANVAS_PRESETS = { auto: 'auto', allow: 'danger-full-access' }
+let permissionPresets = null
+
+/** Apply the canvas's mode to one turn; returns the undo, or null. */
+function canvasPermission(ctx, agent, mode, emit) {
+  const want = CANVAS_PRESETS[mode]
+  if (!want) return null
+  const presets = permissionPresets
+  const session = agent?.session
+  const report = (applied, reason) => emit({ permission: { mode, applied, ...(reason ? { reason } : {}) } })
+  if (!presets || !session) { report(false, 'unavailable'); return null }
+  try {
+    if (!presets.names.includes(want)) { report(false, 'unavailable'); return null }
+    const before = presets.current(session)
+    if (before === want) { report(true); return null }
+    // a hand-tuned mix of sandbox and approval has no preset to come back to
+    if (before === 'custom') { report(false, 'custom'); return null }
+    const set = (name) => presets.apply(session, name, (policy) => ctx.approval.setPolicy(agent, policy))
+    set(want)
+    report(true)
+    return () => { try { if (presets.current(session) === want) set(before) } catch { /* the session closed */ } }
+  } catch (error) {
+    report(false, 'failed')
+    return null
+  }
 }
 
 /** Run one question through the harness's agent loop, continuing a mirrored
@@ -849,6 +1140,7 @@ async function runAgentTurn(ctx, body, emit, isClosed, { answerApprovals = true 
   const picked = agentTargetOf(body?.model)
   if (picked && !hasImages) await ctx.sessionController.selectModel({ sessionId, provider: picked.provider, model: picked.model }).catch(() => {})
   const agent = await agentOf(ctx, sessionId)
+  const restorePermission = canvasPermission(ctx, agent, body?.harness?.permission, emit)
   let sawChunk = false      // text deltas reached us live
   let sawReasoning = false  // reasoning deltas reached us live
   let fullText = ''
@@ -947,6 +1239,7 @@ async function runAgentTurn(ctx, body, emit, isClosed, { answerApprovals = true 
     if (typeof off === 'function') off()
     if (typeof offStream === 'function') offStream()
     if (canvasTurns.get(sessionId) === turnEntry) canvasTurns.delete(sessionId)
+    restorePermission?.()
   }
   return { sessionId, text: fullText }
 }
@@ -1217,6 +1510,22 @@ export async function apply(ctx, config) {
         const body = req.method === 'POST' ? await readJson(req, MAX_WRITE_BODY_BYTES).catch(() => null) : null
         if (await agentsHttp().handle(req, res, path, body)) return
       }
+      // ── the canvas's local backup, written by THIS host (#66) ──
+      // The File System Access API needs a directory handle, and Chromium's own
+      // picker never returns inside the harness frame on Windows, so the canvas
+      // cannot write the file itself there. It keeps the absolute path the
+      // harness's own picker handed it and asks this endpoint to write instead.
+      // The path rules live in runtime/backup-write.cjs so they can be tested
+      // without a harness: scripts/test-backup-write.mjs.
+      if (path === '/backup' && req.method === 'POST') {
+        const body = await readJson(req, MAX_WRITE_BODY_BYTES).catch(() => null)
+        try {
+          return sendJson(res, 200, { file: await writeBackup(body) })
+        } catch (error) {
+          if (error instanceof BackupRequestError) return sendJson(res, 400, { error: error.message })
+          return sendJson(res, 500, { error: 'could not write the backup: ' + (error instanceof Error ? error.message : String(error)) })
+        }
+      }
       // ── model connection (the SPA's proxy protocol, on the harness's providers) ──
       if (path === '/models' && req.method === 'GET') return sendJson(res, 200, await modelsPayload(ctx, registeredProviders))
       // the canvas registers its browser-stored interfaces at boot (and after a change): the list answers with them in it
@@ -1246,12 +1555,24 @@ export async function apply(ctx, config) {
         registeredProviders = ownProvidersOf(body?.providers)
         return sendJson(res, 200, await modelsPayload(ctx, registeredProviders))
       }
+      // which of the canvas's permission modes this host can honour for its own agent
+      if (path === '/permission-modes' && req.method === 'GET') {
+        let names = []
+        try { names = permissionPresets ? [...permissionPresets.names] : [] } catch { /* the service went away */ }
+        return sendJson(res, 200, { auto: names.includes(CANVAS_PRESETS.auto), allow: names.includes(CANVAS_PRESETS.allow) })
+      }
       const approvalRoute = /^\/approvals\/([^/]+)$/.exec(path)
       if (approvalRoute !== null && req.method === 'POST') {
         const id = decodeURIComponent(approvalRoute[1])
         const body = await readJson(req, MAX_WRITE_BODY_BYTES)
         const pending = pendingApprovals.get(id)
         if (!pending) return sendJson(res, 404, { error: 'no such pending approval' })
+        if (pending.kind === 'form') {
+          // a form takes its answers, or a skip
+          if (Array.isArray(body?.answers)) { pending.resolve({ answers: body.answers }); return sendJson(res, 200, { id, outcome: 'answered' }) }
+          pending.resolve('cancelled')
+          return sendJson(res, 200, { id, outcome: 'cancelled' })
+        }
         const outcome = APPROVAL_OUTCOMES.has(body?.outcome) ? body.outcome : 'rejected'
         pending.resolve(outcome)
         return sendJson(res, 200, { id, outcome })
@@ -1278,7 +1599,17 @@ export async function apply(ctx, config) {
         // the person's own interface, when the model is one of theirs
         const own = ownTargetOf(body?.model, ownProvidersOf(body?.providers), registeredProviders)
         if (own) {
-          if (path === '/claude') return sendJson(res, 200, { text: await ownCall(own, body), model: own.model })
+          if (path === '/claude') {
+            // a caller that gave up (a background call's deadline, a closed page) stops the interface with it
+            const left = new AbortController()
+            res.on('close', () => { if (!res.writableFinished) left.abort() })
+            try {
+              return sendJson(res, 200, { text: await ownCall(own, body, left.signal), model: own.model })
+            } catch (error) {
+              if (left.signal.aborted) return
+              throw error
+            }
+          }
           res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' })
           let closed = false
           req.on('close', () => { closed = true })
@@ -1302,11 +1633,8 @@ export async function apply(ctx, config) {
         let closed = false
         req.on('close', () => { closed = true })
         try {
-          for await (const chunk of ctx.llm.stream(options)) {
-            if (closed) break
-            if (chunk.type === 'text-delta' && chunk.text) res.write(`data: ${JSON.stringify({ text: chunk.text })}\n\n`)
-            else if (chunk.type === 'reasoning-delta' && chunk.text) res.write(`data: ${JSON.stringify({ reasoning: chunk.text })}\n\n`)
-          }
+          const search = body?.webSearch === true && typeof ctx.web?.search === 'function'
+          await harnessStream(ctx, target, options, search, frame => { if (!closed) res.write(`data: ${JSON.stringify(frame)}\n\n`) }, () => closed)
           if (!closed) res.write('data: [DONE]\n\n')
         } catch (error) {
           if (!closed) res.write(`data: ${JSON.stringify({ error: error instanceof Error ? error.message : String(error) })}\n\n`)
@@ -1388,5 +1716,11 @@ export async function apply(ctx, config) {
   ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path: prefix, handler: staticHandler }), 'thoughtdag: static')
   ctx.logger.info('[dsh-thoughtdag] ThoughtDAG mounted at ' + prefix + '/')
   installApprovalAnswerer(ctx)
+  // the permission presets service is optional: hosts without it keep the canvas's 'ask'
+  ctx.inject(['permissionPresets'], (pctx) => {
+    const svc = pctx.permissionPresets
+    permissionPresets = svc
+    pctx.effect(() => () => { if (permissionPresets === svc) permissionPresets = null }, 'thoughtdag: permission presets')
+  })
   await installWhyLayer(ctx, config)
 }

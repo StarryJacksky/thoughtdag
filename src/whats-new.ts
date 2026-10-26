@@ -39,6 +39,158 @@ const DOCS = 'https://chenxiachan.github.io/thoughtdag/docs';
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    // a quiet release: the 0.5.21 entry stays the announcement, this one is history only
+    version: '0.5.26',
+    date: '2026-10-25',
+    announce: false,
+    lead: {
+      zh: '追问、探索、合并或重新生成时只摆放新节点，你拖好的卡片留在原处；想整体对齐时点「一键排版」。高亮和探索标记不再写进代码块，选区跨过代码块时只高亮正文部分。PDF 阅读器里的对话气泡移到页面右侧空白处，不再挡住文字。',
+      en: 'Asking a follow-up, exploring, merging or regenerating places only the new node, and the cards you arranged stay where they are; Tidy layout rearranges the whole canvas when you want it. Highlights and explore marks no longer go into code blocks, and a selection that crosses a code block highlights its text part. The conversation bubble in the PDF reader sits in the page margin and no longer covers text.',
+    },
+    items: [],
+  },
+  {
+    // a quiet release: the 0.5.21 entry stays the announcement, this one is history only
+    version: '0.5.25',
+    date: '2026-10-24',
+    announce: false,
+    lead: {
+      zh: '文件和链接在画布缩小时保持原来的卡片，和拖入的 md 文档一样，高度不再随缩放变化，内容在阅读器里看。便签缩小后仍显示摘要。识别过的 PDF 不会再在节点上露出页码标记。',
+      en: 'Files and links keep their card when you zoom out, as a dropped .md file always did, so their height no longer changes with the zoom; their text is read in the reader. Notes still turn into a summary when zoomed out. A recognized PDF no longer shows its page markers on the node.',
+    },
+    items: [],
+  },
+  {
+    // a quiet release: the 0.5.21 entry stays the announcement, this one is history only
+    version: '0.5.24',
+    date: '2026-10-22',
+    announce: false,
+    lead: {
+      zh: 'Agent 回答的节点重新有了摘要和类型标记。摘要、材料标签、记忆这类后台调用统一挑模型：不交给 Agent，一个模型出错就换下一个，接口不接受关闭思考时改发普通请求。所有模型都没有回应时会提示一次，右键节点选「更新节点摘要」可以重试；批量更新连续三个节点没有回应会停下并说明原因。识图和 PDF 识字只用普通模型，并设了超时。缩放摘要不再把小标题和表格行当成句子。',
+      en: 'Nodes answered by an agent get their summaries and move badges again. Background calls such as summaries, material labels and memory pick models one way: never an agent, the next model when one fails, and an ordinary request when an interface does not take the switch that turns thinking off. When no model answers you hear it once, and right-click, Update node summary, tries again; a batch update stops after three nodes in a row without an answer and says why. Image text and PDF pages are read by ordinary models only, with a time limit. Zoom summaries no longer take headings and table rows for sentences.',
+    },
+    items: [],
+  },
+  {
+    // a quiet release: the 0.5.21 entry stays the announcement, this one is history only
+    version: '0.5.23',
+    date: '2026-10-22',
+    announce: false,
+    lead: {
+      zh: '可以把 .ipynb 拖进画布当材料。阅读器的原版视图按单元格显示文字、代码、保存的输出和图；提取文本视图是模型读到的内容。保存的输出作为作者上次运行的记录交给模型，问到改参数再跑时，模型会说明该怎么跑。图随上下文发给能看图的模型，也可以切换为仅文本。',
+      en: 'Drop a .ipynb on the canvas as material. The reader\'s original view shows its cells as the author left them: text, code, saved outputs and figures; the text view shows what the model reads. Saved outputs reach the model as a record of the author\'s last run, so asked to change a parameter and run again, it says what to run. Figures go along to models that can see images, or switch to text only.',
+    },
+    items: [],
+  },
+  {
+    // a quiet release: the 0.5.21 entry stays the announcement, this one is history only
+    version: '0.5.22',
+    date: '2026-10-21',
+    announce: false,
+    lead: {
+      zh: '撤销和重做按步进行：撤销一步再重做，画布回到原样；输入框里的 Cmd/Ctrl+Z 只撤销刚打的字；拖动、调整大小、分区框和折叠各算一步；正在生成的节点不会被撤销删掉（#79）。关闭窗口不再中断正在生成的回答：Mac 上关窗口改为隐藏，Windows 和 Linux 可以在画布菜单里选择关闭时留在托盘（#77）。没有手动调过大小的长便签，正文到回答框的高度为止，超出部分滚动。已归档的节点不再进入摘要读到的上下文，也不再被重算（#51）。',
+      en: 'Undo and redo go step by step: undoing a step and redoing it returns the canvas as it was; Cmd/Ctrl+Z in a text field takes back only the typing; moves, resizes, frames and folds are steps of their own; a node still generating is never removed by an undo (#79). Closing the window no longer stops an answer in progress: on macOS the window hides, and on Windows and Linux the canvas menu can keep the app in the tray (#77). A long note that was never resized stops at the answer box\'s height and scrolls. Archived steps stay out of what the summariser reads and out of replay (#51).',
+    },
+    items: [],
+  },
+  {
+    version: '0.5.21',
+    date: '2026-10-20',
+    announce: true,
+    lead: {
+      zh: '💬 Agent 的问题在节点上回答，权限用一个开关设定。Harness 插件里的模型也能联网搜索了。',
+      en: '💬 Answer an agent\'s questions on its node, and set its permissions with one switch. Models inside the Harness plugin can now search the web.',
+    },
+    items: [
+      {
+        title: { zh: '💬 在节点上回答 Agent 的问题', en: '💬 Answer the agent on its node' },
+        body: {
+          zh: 'Harness、Claude Code 和 Codex 向你提问时，问题以一张表单出现在节点上：可以单选或多选，能看到每个选项的说明，也可以自己写答案；审阅计划时，计划全文也在卡片里。有问题在等你时，工具栏显示「N 个问题在等你」，点一下回到那个节点；画布缩小时，这个节点保持展开；窗口在后台时会发系统通知。',
+          en: 'When Harness, Claude Code or Codex asks you something, the questions arrive on the node as one form: pick one or several, read what each option means, or write your own answer; a plan under review shows in full on the card. While a question waits, the toolbar shows how many are waiting and takes you to the node in one click; the node stays open when you zoom out, and a system notification appears when the window is in the background.',
+        },
+      },
+      {
+        title: { zh: '🛡 一个权限开关', en: '🛡 One permission switch' },
+        body: {
+          zh: '选了 Agent 模型后，工作目录旁边多了「权限」：每次询问、自动审查、全部放行，每张画布各自记住。菜单写明每一档对当前 Agent 的含义：Claude Code 和 Codex 用它们自己的自动审查；Harness 的设置只对画布发起的那一轮生效，这一轮结束后会话恢复原来的设置。Harness 的审批也可以选「本对话一直允许」，只对完全相同的操作生效。',
+          en: 'With an agent model picked, a Permissions switch sits beside the working directory: Ask, Auto review or Allow all, remembered per canvas. The menu says what each choice means for the agent you picked: Claude Code and Codex use their own auto review; for Harness the choice applies to the turn the canvas starts, and the session returns to its own setting afterwards. A Harness approval can now be allowed for the rest of the session, for that exact step only.',
+        },
+      },
+      {
+        title: { zh: '🔎 联网搜索', en: '🔎 Web search' },
+        body: {
+          zh: 'Harness 插件里，打开联网开关后，Harness 自带的模型通过 Harness 的网页搜索查资料，来源按编号引用；在 Harness 的网页搜索设置里打开新版 Web 搜索 API，每条结果会带摘要。桌面版的搜索引擎可以选 DeepSeek 搜索，用你 DeepSeek 接口的 key，按成功的搜索次数计费。DeepSeek 的 Flash 模型改用新名 deepseek-flash，它可以看图；固定在旧名上的节点会自动改用新名。',
+          en: 'Inside the Harness plugin, with the web switch on, Harness\'s own models search through Harness\'s web search and cite their sources by number; turning on the new Web Search API in Harness\'s web search settings adds an excerpt to each result. The desktop app can use DeepSeek Search as its engine, with your DeepSeek interface\'s key, billed per successful search. DeepSeek\'s Flash model now goes by deepseek-flash and reads images; nodes pinned to the old name move to the new one.',
+        },
+      },
+    ],
+  },
+  {
+    // a quiet release: the 0.5.19 entry stays the announcement, this one is history only
+    version: '0.5.20',
+    date: '2026-10-19',
+    announce: false,
+    lead: {
+      zh: '回答里的 mermaid 代码块在侧栏、阅读器和全屏查看里画成图；画布上的节点卡显示固定高度的占位，卡片高度不变（#76）。导入的 Agent 会话里，工具调用记录改成一块执行记录交给模型，写明那一轮已经执行过、本对话没有工具，普通模型不再接着写工具调用标记或编造执行结果；回答里仍有写成文字的调用时，折成一行说明，插件里可以交给同一模型的 Agent 重跑（#74）。',
+      en: 'Mermaid code blocks in an answer draw as diagrams in the side panel, the reader and the full-screen view; canvas cards show a fixed-height stand-in and keep their height (#76). In imported agent sessions, tool steps reach the model as one execution record that says the turn already ran and this conversation has no tools, so a plain model no longer writes the next tool call as markup or makes up its results; a call still written as text folds to one line, and inside the plugin the node can be rerun as the same model\'s agent (#74).',
+    },
+    items: [],
+  },
+  {
+    version: '0.5.19',
+    date: '2026-10-14',
+    announce: true,
+    lead: {
+      zh: '🧭 Harness 插件：ThoughtDAG 进了宿主侧栏。开关不再浮在顶条上，侧栏「插件」下面一行 ThoughtDAG，点开画布在主栏，三端一样。',
+      en: '🧭 Harness plugin: ThoughtDAG moves into the host\'s sidebar. No floating switch over the top strip any more; a ThoughtDAG row under Plugins opens the canvas in the main column, the same on every platform.',
+    },
+    items: [
+      {
+        title: { zh: '🧭 侧栏入口', en: '🧭 The sidebar entry' },
+        body: {
+          zh: '插件用的是宿主给「插件」「自动化任务」的同一套机制：侧栏一行 ThoughtDAG，画布在主栏打开，回对话点侧栏里的任一会话。标签随宿主语言，样式随宿主主题，右侧文档预览可以和画布并排，侧栏收起画布跟着扩。画布里那对「对话 | 思维图」按钮去掉了。需要 Harness 0.2.0-rc.2 或更新，老版本宿主退回原来的浮动开关。感谢 @yoczhang、@orphiczhou、@Archiloss 在 #55、#61、#63、#73 里把浮动开关的每一处碰撞都量了出来。',
+          en: 'The plugin now uses the mechanism the host gives its own Plugins and Scheduled tasks pages: a ThoughtDAG row in the sidebar, the canvas in the main column, and any session in the sidebar to return to the chat. The label follows the host\'s language and the row its theme; the right-side document preview sits beside the canvas, and the canvas widens when the sidebar collapses. The Chat | Thought graph pair inside the canvas is gone. Needs Harness 0.2.0-rc.2 or later; older hosts fall back to the floating switch. Thanks to @yoczhang, @orphiczhou and @Archiloss for measuring every collision of the floating switch in #55, #61, #63 and #73.',
+        },
+      },
+    ],
+  },
+  {
+    // a quiet release: the 0.5.17 entry stays the announcement, this one is history only
+    version: '0.5.18',
+    date: '2026-10-12',
+    announce: false,
+    lead: {
+      zh: 'Harness 插件的一批修正。本地自动备份在插件里改由宿主写文件：文件夹用 Harness 自己的对话框选，Windows 桌面端不再选完没反应（@Heizaillica469 的 PR #67）；之前在 Harness 里用浏览器授权启用过备份的，更新后请重选一次文件夹。桌面端 0.2 的 v4 会话里，从画布带入上下文提问或注入消息不再让那一轮失败（#69）。插件注入的样式表标明归属，不再被宿主误认领给别的插件后删掉，画布浮层不再塌掉（#70）。插件里的能力面板不再显示宿主用不了的搜索引擎下拉和 AnySearch key 入口（#72）。',
+      en: 'A batch of harness plugin corrections. Inside the plugin the local backup is now written by the host: the folder comes from Harness\'s own dialog, and the Windows desktop no longer goes silent after picking one (@Heizaillica469\'s PR #67); if you had enabled the backup inside Harness through the browser\'s own permission, pick the folder once more after updating. In the desktop 0.2 app\'s v4 sessions, asking from the canvas with inherited context or injecting a message no longer kills that turn (#69). The plugin\'s style sheet now names its owner, so the host\'s loader no longer hands it to another plugin and drops it, which collapsed the canvas overlay (#70). The capabilities panel inside the plugin no longer shows the engine picker or the AnySearch key the host cannot use (#72).',
+    },
+    items: [],
+  },
+  {
+    version: '0.5.17',
+    date: '2026-10-07',
+    announce: true,
+    lead: {
+      zh: '📖 阅读器停靠在画布左侧：原文常驻，画布和节点面板在旁边照常工作。',
+      en: '📖 The reader docks on the canvas\'s left: the text stays, the canvas and the node panel keep working beside it.',
+    },
+    items: [
+      {
+        title: { zh: '📖 阅读器停靠', en: '📖 The docked reader' },
+        body: {
+          zh: '双击材料，阅读器现在停靠在画布左侧，宽度可拖，画布和右侧节点面板照常操作。在阅读器里提问，回答显示在原文下方的线索带里，画布不会跳走。标题带下拉可以切换材料；在画布上选中一份材料，阅读器跟着切过去；选中带页码的问题，原文滚到那一页。右上角可以展开成以前的全屏形态，再切回来；窗口太窄时自动用全屏。',
+          en: 'Double-click a material and the reader now docks on the canvas\'s left, as wide as you drag it, with the canvas and the node panel live beside it. Ask from the reader and the answer reads in a thread band under the text; the canvas stays put. The title\'s dropdown switches materials; selecting a material on the canvas switches the reader too, and selecting a page-anchored question scrolls the text to that page. The top-right button expands to the former full-screen view and back; a narrow window uses full screen on its own.',
+        },
+      },
+      {
+        title: { zh: '⬚ 分区框不再自己长大', en: '⬚ Frames stay where you drew them' },
+        body: {
+          zh: '自动布局不再移动或改动分区框。以前框会按成员的新位置重新包一圈，同一棵对话树上的两个框会互相吞并（#64）。布局后跑到框外的节点，拖动分区框重新包住即可；拖框带节点的行为不变。',
+          en: 'Auto layout no longer moves or resizes a frame. It used to re-wrap a frame around its members\' new positions, and two frames on one conversation tree would swallow each other (#64). Nodes that layout moves out of a frame are yours to re-frame by dragging the frame; dragging a frame still carries its nodes.',
+        },
+      },
+    ],
+  },
+  {
     // a quiet release: the 0.5.12 entry stays the announcement, this one is history only
     version: '0.5.16',
     date: '2026-10-03',

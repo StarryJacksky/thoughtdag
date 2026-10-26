@@ -3,7 +3,7 @@ import { createTarget, templateFor } from '../../lib/agents/target-model';
 import type { ThoughtNode, ThoughtEdge } from '../../types';
 import { generateId, countTokens } from '../../utils';
 import { COLORS } from '../../lib/constants';
-import { healLegacyNoteEdges, autoLayout, estimateNodeHeight, nodeHeight } from '../../lib/layout';
+import { healLegacyNoteEdges, autoLayout, placeNewNodes, estimateNodeHeight, nodeHeight } from '../../lib/layout';
 import { getDescendantIds, walkUpAncestors } from '../../lib/graph';
 import { closesLoop, latestFinished } from '../../lib/feedback';
 import { referenceBlockContent, buildContext } from '../context-builder';
@@ -101,6 +101,8 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
   toggleCollapse: (nodeId: string) => {
     const node = get().nodes.find((n) => n.id === nodeId);
     if (!node) return;
+    // folding moves everything below it: one step of its own
+    get().pushHistory();
 
     // Current height is measured; the post-toggle height must be estimated
     const oldHeight = nodeHeight(node);
@@ -123,6 +125,7 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
         return n;
       }),
     }));
+    get().pushHistory();
   },
 
   setEditing: (nodeId: string, editing: boolean) => {
@@ -170,7 +173,7 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
       target: id,
     } : null;
     const newEdges = newEdge ? [...get().edges, newEdge] : get().edges;
-    const newNodes = autoLayout([...get().nodes, newNode], newEdges);
+    const newNodes = placeNewNodes([...get().nodes, newNode], newEdges, [id]);
     set({ nodes: newNodes, edges: newEdges, selectedNodeId: id });
     get().pushHistory();
   },
@@ -401,8 +404,6 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
         };
       }),
     }));
-    // Solid lines obey the arrow grammar — re-run the column tree
-    set((state) => ({ nodes: autoLayout(state.nodes, state.edges) }));
     get().pushHistory();
   },
 
@@ -423,6 +424,8 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
   },
 
   navigateVersion: (nodeId: string, direction: 'prev' | 'next') => {
+    // the version shown is the one downstream reads: switching is a step
+    get().pushHistory();
     set((state) => ({
       nodes: state.nodes.map((n) => {
         if (n.id !== nodeId) return n;
@@ -438,6 +441,7 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
         };
       }),
     }));
+    get().pushHistory();
   },
 
   deleteVersion: (nodeId: string, versionIndex: number) => {

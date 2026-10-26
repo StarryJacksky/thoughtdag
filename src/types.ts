@@ -33,8 +33,11 @@ export interface Attachment {
   extractedText?: string; // companion text (PDF extraction / image auto-understanding)
   extractedBy?: string; // which model produced extractedText (extraction provenance)
   pageImages?: string[]; // rendered page images as base64 PNG (PDF)
+  /** a notebook's figures, in output order — the image channel of a .ipynb
+      (its extractedText names them [figure N]) */
+  figures?: { data: string; mimeType: string }[];
   numPages?: number; // PDF page count
-  renderMode?: 'full' | 'text-only'; // PDF: include page images or text only
+  renderMode?: 'full' | 'text-only'; // PDF, image or notebook: include the pictures or text only
   isExtracting?: boolean; // PDF extraction in progress
   digest?: string; // reader's guided digest (markdown, with (p.N) anchors)
   digestBy?: string; // model that wrote the digest
@@ -86,9 +89,12 @@ export type AgentRuntime = 'pi' | 'codex' | 'claude-code';
     shown on the node while the turn waits. */
 export interface ApprovalRequest {
   id: string;
-  /** what is being asked: a yes/no (the default), a pick, a line, a text */
-  kind?: 'confirm' | 'select' | 'input' | 'editor';
+  /** what is being asked: a yes/no (the default), a pick, a line, a text, or
+      a form of several questions answered together */
+  kind?: 'confirm' | 'select' | 'input' | 'editor' | 'form';
   options?: string[];
+  /** the form's questions (kind 'form') */
+  questions?: FormQuestion[];
   placeholder?: string | null;
   prefill?: string | null;
   /** the tool the runtime is deciding about (its own name) */
@@ -117,6 +123,35 @@ export interface ApprovalRequest {
   /** the runtime decided from a standing rule of this conversation; nobody was asked */
   auto?: boolean;
 }
+
+/** One question of an agent's form: options to pick (one, or several when
+    `multiSelect`), each with an optional explanation, and a line of the
+    person's own words where the runtime takes one. No options = text only. */
+export interface FormQuestion {
+  id: string;
+  question: string;
+  /** a short label above the question */
+  header?: string;
+  /** what the question is about at length, e.g. a plan under review */
+  detail?: string;
+  options: { label: string; description?: string }[];
+  multiSelect?: boolean;
+  /** the runtime accepts an answer in the person's own words */
+  custom?: boolean;
+  /** the answer is a secret (masked while typed, kept out of the record) */
+  secret?: boolean;
+}
+
+/** The person's answer to one form question: the picked labels, and/or their own words. */
+export interface FormAnswer {
+  id: string;
+  selected: string[];
+  custom?: string;
+}
+
+/** How freely the agents a canvas starts may act: ask before risky steps,
+    let the runtime's own review decide, or ask nothing. */
+export type AgentPermissionMode = 'ask' | 'auto' | 'allow';
 
 /** One tool call of a running agent turn, as the node shows it live. */
 /** One thing recall brought into a node's context: a turn of some agent's
@@ -188,7 +223,7 @@ export type ApprovalOutcome = 'allowed-once' | 'allowed-session' | 'rejected' | 
 export interface ApprovalRecord extends ApprovalRequest {
   outcome: ApprovalOutcome;
   decidedAt: string;
-  /** the pick or the text, for select/input/editor */
+  /** the pick or the text, for select/input/editor; a form's answers in one line */
   value?: string;
 }
 

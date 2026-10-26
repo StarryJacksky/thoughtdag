@@ -58,6 +58,8 @@ let handle: DirHandle | null = null;
 let hostDir: string | null = null;
 let timer: ReturnType<typeof setTimeout> | null = null;
 let dirty = false;
+/** the toast saying the automatic backup failed: shown once, until a backup is written again */
+let failedToast: string | null = null;
 
 /** What the file should contain and be called — shared by both modes. */
 async function backupPayload(): Promise<{ name: string; isMirror: boolean; json: string } | null> {
@@ -126,8 +128,15 @@ function schedule(): void {
   timer = setTimeout(() => {
     if (!dirty) return;
     dirty = false;
-    void backupActiveProject().catch((err) => {
+    void backupActiveProject().then(() => {
+      if (failedToast) useUiStore.getState().dismissToast(failedToast);
+      failedToast = null;
+    }, (err) => {
       console.warn('[thoughtdag] auto-backup write failed:', err);
+      // the file in the folder is still the last backup written (both modes replace it only once the new one
+      // is whole); say so until one is written again, and try again in a while even if the canvas does not change
+      failedToast ??= toast('error', t('backup.failed'), 0);
+      schedule();
     });
   }, DEBOUNCE_MS);
 }

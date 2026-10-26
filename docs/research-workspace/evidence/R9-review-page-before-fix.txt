@@ -1,0 +1,109 @@
+# vitest run tests/unit/review-round9-page.test.ts on the code of 00760bf (the reviewed merge; no fix applied), with the final tests
+
+ RUN  v5.0.3 <repo>
+
+stderr | tests/unit/review-round9-page.test.ts > [R9-01] the automatic backup > [R9-01] says once that a backup could not be written, tries again without another change, and moves the time of the last backup only when one is written
+[thoughtdag] auto-backup write failed: Error: ENOSPC: the disk is full
+    at Object.<anonymous> (<repo>/tests/unit/review-round9-page.test.ts:91:34)
+    at Object.Mock [as backupJson] (file://<repo>/node_modules/vitest/dist/chunks/spy.DgMTfhrK.js:323:40)
+    at backupActiveProject (<repo>/src/lib/local-backup.ts:110:21)
+
+ ❯ tests/unit/review-round9-page.test.ts (5 tests | 4 failed) 15ms
+   ❯ [R9-01] the automatic backup (1)
+     × [R9-01] says once that a backup could not be written, tries again without another change, and moves the time of the last backup only when one is written 8ms
+   ❯ [R9-04] undoing a switch of a task's AI (4)
+     × [R9-04] a task with only a model picked, switched to another AI and the switch undone, goes back to the model it had 2ms
+     × [R9-04] a task bound to A, switched to B: undo and redo carry the target and its model together, and so does each send 1ms
+     × [R9-04] from an API model to an agent and back: runtime, effort and run mode all come back with the model 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/review-round9-page.test.ts > [R9-01] the automatic backup > [R9-01] says once that a backup could not be written, tries again without another change, and moves the time of the last backup only when one is written
+AssertionError: the failure is said where the person sees it: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ tests/unit/review-round9-page.test.ts:102:70
+    100|     await flush();
+    101|     expect(backupJson).toHaveBeenCalledTimes(1);
+    102|     expect(errors(), 'the failure is said where the person sees it').t…
+       |                                                                      ^
+    103|     expect(useUiStore.getState().lastAutoBackupAt, 'nothing was writte…
+    104|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  tests/unit/review-round9-page.test.ts > [R9-04] undoing a switch of a task's AI > [R9-04] a task with only a model picked, switched to another AI and the switch undone, goes back to the model it had
+AssertionError: the model goes back with the target: expected { model: 'synthetic-b/model-b', …(3) } to deeply equal { model: 'synthetic-a/model-a', …(3) }
+
+- Expected
++ Received
+
+  {
+    "effort": undefined,
+-   "model": "synthetic-a/model-a",
++   "model": "synthetic-b/model-b",
+    "policy": undefined,
+    "targetModel": undefined,
+  }
+
+ ❯ tests/unit/review-round9-page.test.ts:176:62
+    174|     expect(state(id)).toMatchObject({ model: API_B, targetModel: API_B…
+    175|     undo();
+    176|     expect(state(id), 'the model goes back with the target').toEqual({…
+       |                                                              ^
+    177|     expect(await sendOf(id), 'and the next send goes to it').toBe(`api…
+    178|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  tests/unit/review-round9-page.test.ts > [R9-04] undoing a switch of a task's AI > [R9-04] a task bound to A, switched to B: undo and redo carry the target and its model together, and so does each send
+AssertionError: expected 'synthetic-b/model-b' to be 'synthetic-a/model-a' // Object.is equality
+
+Expected: "synthetic-a/model-a"
+Received: "synthetic-b/model-b"
+
+ ❯ tests/unit/review-round9-page.test.ts:190:33
+    188|     undo();
+    189|     expect(node(id).data.target).toEqual(a);
+    190|     expect(node(id).data.model).toBe(API_A);
+       |                                 ^
+    191|     redo();
+    192|     expect(node(id).data.target).toEqual(b);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  tests/unit/review-round9-page.test.ts > [R9-04] undoing a switch of a task's AI > [R9-04] from an API model to an agent and back: runtime, effort and run mode all come back with the model
+AssertionError: expected { model: 'codex/gpt-synthetic', …(3) } to deeply equal { model: 'synthetic-a/model-a', …(3) }
+
+- Expected
++ Received
+
+  {
+    "effort": null,
+-   "model": "synthetic-a/model-a",
++   "model": "codex/gpt-synthetic",
+    "policy": "default",
+    "targetModel": "synthetic-a/model-a",
+  }
+
+ ❯ tests/unit/review-round9-page.test.ts:218:23
+    216|     expect(state(id)).toEqual(atWork);
+    217|     undo(); // the switch to the agent
+    218|     expect(state(id)).toEqual(onApi);
+       |                       ^
+    219|     expect(state(id)).toMatchObject({ model: API_A, targetModel: API_A…
+    220|     redo();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 1 passed (5)
+   Start at  23:14:16
+   Duration  723ms (transform 49%, environment 40%, import 8%, tests 2%, setup 1%)
+

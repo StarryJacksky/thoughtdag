@@ -131,6 +131,8 @@ function restoreData(target: ThoughtData, live: ThoughtData | undefined): Though
   const data = { ...target } as Record<string, unknown>;
   const cur = live as unknown as Record<string, unknown>;
   for (const k of [...TRANSIENT, ...SETTINGS]) data[k] = cur[k];
+  // a task's model is its target's (lib/agents/targets): a step that changed the target takes the model back with it
+  if (!same(target.target, live.target)) data.model = target.model;
   if (target.question === live.question && target.response === live.response && same(target.responses, live.responses)) {
     for (const k of DERIVED) data[k] = cur[k];
   }

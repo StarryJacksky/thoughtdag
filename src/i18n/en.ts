@@ -300,6 +300,7 @@ export const en = {
   'backup.reauth': 'Auto-backup is waiting: confirm folder permission once after a browser restart',
   'backup.reauthBtn': 'Re-authorize & keep backing up',
   'backup.now': 'Back up this canvas now',
+  'backup.failed': 'Auto-backup could not write the file; the last backup in the folder is kept. It will try again in a minute.',
   'viewer.badge': 'Read-only view',
   'viewer.shareDialogTitle': 'Share link',
   'viewer.shareNote': 'Anyone opening the link can browse — zoom, read the panel, flip through files — but cannot change anything.',

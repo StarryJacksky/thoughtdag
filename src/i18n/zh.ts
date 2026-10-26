@@ -300,6 +300,7 @@ export const zh: Record<keyof typeof en, string> = {
   'backup.reauth': '自动备份等待授权：浏览器重启后需要确认一次文件夹权限',
   'backup.reauthBtn': '重新授权，继续备份',
   'backup.now': '立即备份当前画布',
+  'backup.failed': '自动备份没能写入文件，文件夹里上一份备份保持不变。约 1 分钟后会再试。',
   'viewer.badge': '只读视图',
   'viewer.shareDialogTitle': '分享链接',
   'viewer.shareNote': '打开链接的人只能浏览：可以缩放、读侧栏、翻文件，不能改任何内容。',

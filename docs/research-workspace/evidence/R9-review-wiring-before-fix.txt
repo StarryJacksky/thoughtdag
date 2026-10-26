@@ -1,0 +1,158 @@
+# vitest run tests/unit/review-round9-wiring.test.ts tests/unit/contracts.test.ts on the code of 00760bf (the reviewed merge; no fix applied), with the final tests and contract samples
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/contracts.test.ts (197 tests | 2 failed) 50ms
+   ❯ contract samples (91)
+     × RunEnvelope: run envelope whose message renders seve… 3ms
+     × RunEnvelope: run envelope whose message names severa… 2ms
+ ❯ tests/unit/review-round9-wiring.test.ts (4 tests | 4 failed) 28ms
+   ❯ [R9-02] a turn's tool records, rendered into one message (4)
+     × [R9-02] two records: the envelope, its held bytes, the message's ties and the preview name both 6ms
+     × [R9-02] one record and three records alike 2ms
+     × [R9-02] a record left out is not an input; a record repeated is one input; a record beside an ordinary file keeps both 1ms
+     × [R9-02] an agent run below the turn gets every record on disk, as the envelope names them 17ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/contracts.test.ts > contract samples > RunEnvelope: run envelope whose message renders seve…
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/unit/contracts.test.ts:30:23
+     28|     const before = JSON.stringify(sample.value);
+     29|     const result = validateDTO(sample.kind, sample.value);
+     30|     expect(result.ok).toBe(sample.valid);
+       |                       ^
+     31|     if (!result.ok) {
+     32|       expect(sample.error, 'an invalid sample names the error it expec…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  tests/unit/contracts.test.ts > contract samples > RunEnvelope: run envelope whose message names severa…
+AssertionError: expected [ { …(3) }, { …(3) } ] to deep equally contain ObjectContaining{…}
+
+- Expected:
+ObjectContaining {
+  "keyword": "minItems",
+  "path": "/messages/0/source/inputIds",
+}
+
++ Received:
+[
+  {
+    "keyword": "additionalProperties",
+    "message": "is not an allowed field",
+    "path": "/messages/0/source/attachmentIds",
+  },
+  {
+    "keyword": "additionalProperties",
+    "message": "is not an allowed field",
+    "path": "/messages/0/source/inputIds",
+  },
+]
+
+ ❯ tests/unit/contracts.test.ts:33:29
+     31|     if (!result.ok) {
+     32|       expect(sample.error, 'an invalid sample names the error it expec…
+     33|       expect(result.errors).toContainEqual(expect.objectContaining(sam…
+       |                             ^
+     34|     }
+     35|     // validation reports; it never repairs: no field is dropped or fi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  tests/unit/review-round9-wiring.test.ts > [R9-02] a turn's tool records, rendered into one message > [R9-02] two records: the envelope, its held bytes, the message's ties and the preview name both
+AssertionError: every attachment rendered is an input of the run: expected [ 'one' ] to deeply equal [ 'one', 'two' ]
+
+- Expected
++ Received
+
+  [
+    "one",
+-   "two",
+  ]
+
+ ❯ expectEveryRecord tests/unit/review-round9-wiring.test.ts:93:146
+     91|   const ids = expected.map((a) => a.id);
+     92|   const inputs = env.inputs.filter((i) => i.source.kind === 'attachmen…
+     93|   expect(inputs.map((i) => (i.source.kind === 'attachment' ? i.source.…
+       |                                                                                                                                                  ^
+     94|   const held = envelopeHeld(env);
+     95|   for (const [i, att] of expected.entries()) {
+ ❯ tests/unit/review-round9-wiring.test.ts:115:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  tests/unit/review-round9-wiring.test.ts > [R9-02] a turn's tool records, rendered into one message > [R9-02] one record and three records alike
+AssertionError: the envelope as made keeps to the shared contract: expected [ { …(3) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "keyword": "additionalProperties",
++     "message": "is not an allowed field",
++     "path": "/messages/0/source/attachmentIds",
++   },
++ ]
+
+ ❯ expectEveryRecord tests/unit/review-round9-wiring.test.ts:104:97
+    102|   expect(new Set(tied)).toEqual(new Set(inputs.map((i) => i.inputId)));
+    103|   const verdict = validateRunDTO('RunEnvelope', env);
+    104|   expect(verdict.ok ? [] : verdict.errors, 'the envelope as made keeps…
+       |                                                                                                 ^
+    105|   const { nodes, edges } = useStore.getState();
+    106|   expect(previewRun(task, nodes, edges).inputs.filter((i) => i.nodeId …
+ ❯ tests/unit/review-round9-wiring.test.ts:126:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  tests/unit/review-round9-wiring.test.ts > [R9-02] a turn's tool records, rendered into one message > [R9-02] a record left out is not an input; a record repeated is one input; a record beside an ordinary file keeps both
+AssertionError: every attachment rendered is an input of the run: expected [ 'notes', 'r1' ] to deeply equal [ 'notes', 'r1', 'r3' ]
+
+- Expected
++ Received
+
+  [
+    "notes",
+    "r1",
+-   "r3",
+  ]
+
+ ❯ expectEveryRecord tests/unit/review-round9-wiring.test.ts:93:146
+     91|   const ids = expected.map((a) => a.id);
+     92|   const inputs = env.inputs.filter((i) => i.source.kind === 'attachmen…
+     93|   expect(inputs.map((i) => (i.source.kind === 'attachment' ? i.source.…
+       |                                                                                                                                                  ^
+     94|   const held = envelopeHeld(env);
+     95|   for (const [i, att] of expected.entries()) {
+ ❯ tests/unit/review-round9-wiring.test.ts:141:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  tests/unit/review-round9-wiring.test.ts > [R9-02] a turn's tool records, rendered into one message > [R9-02] an agent run below the turn gets every record on disk, as the envelope names them
+AssertionError: and so is the second: expected [ Array(1) ] to include '[call] {"command":"cat two.txt"}\n[re…'
+ ❯ tests/unit/review-round9-wiring.test.ts:156:44
+    154|     const onDisk = desktop.readableFileContents();
+    155|     expect(onDisk, 'the first record is written for the agent').toCont…
+    156|     expect(onDisk, 'and so is the second').toContain(two.content);
+       |                                            ^
+    157|   });
+    158| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  6 failed | 195 passed (201)
+   Start at  23:14:15
+   Duration  751ms (environment 48%, transform 34%, import 9%, tests 7%, setup 2%)
+

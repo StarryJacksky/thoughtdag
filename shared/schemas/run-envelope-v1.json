@@ -9,7 +9,7 @@
     "AgentRuntime": { "enum": ["codex", "claude-code", "pi"] },
 
     "MessageSource": {
-      "description": "Where one message came from, as the context compiler reports it. `inputId` ties a rendered material to its frozen input.",
+      "description": "Where one message came from, as the context compiler reports it. `inputId` ties a rendered material to its frozen input. A message several attachments render into together (a turn's execution record) lists them in `attachmentIds` (`attachmentId` is the first) and is tied to each of their inputs by `inputIds` (`inputId` is the first).",
       "type": "object",
       "required": ["layer"],
       "additionalProperties": false,
@@ -18,8 +18,10 @@
         "part": { "enum": ["role", "attachment", "question", "response", "reference", "passage"] },
         "nodeId": { "type": "string", "minLength": 1 },
         "attachmentId": { "type": "string", "minLength": 1 },
+        "attachmentIds": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
         "refSourceId": { "type": "string", "minLength": 1 },
-        "inputId": { "type": "string", "minLength": 1 }
+        "inputId": { "type": "string", "minLength": 1 },
+        "inputIds": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
       }
     },
 

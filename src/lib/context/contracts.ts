@@ -15,11 +15,13 @@ import { validateDTO, type Capability, type ContentHash, type ResourceRef, type 
 export const RUN_SCHEMA_VERSION = '1.1';
 
 /** A context message with where it came from. `inputId` ties a rendered
- *  material to its frozen input. */
+ *  material to its frozen input; a message several attachments render into
+ *  (a turn's execution record) is tied to each of them by `inputIds`, in
+ *  the order of `attachmentIds`, `inputId` being the first. */
 export interface EnvelopeMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
-  source: MessageSource & { inputId?: string };
+  source: MessageSource & { inputId?: string; inputIds?: string[] };
 }
 
 /** What a frozen input was taken from. */

@@ -188,13 +188,16 @@ export function previewRun(taskNodeId: string, nodes: ThoughtNode[], edges: Thou
     if (!n || !att) return null;
     return { nodeId, attachmentId: att.id, name: n.data.resourceHint?.name ?? att.name, part: n.data.resourceRef?.selector.kind === 'text' ? 'passage' : 'whole', bytes: att.size ?? 0 };
   };
-  const from = [...built.sources, ...built.imageSources.map((src) => ({ ...src, layer: 'material' as const }))];
+  const from: MessageSource[] = [...built.sources, ...built.imageSources.map((src) => ({ ...src, layer: 'material' as const }))];
   for (const src of from) {
-    if (!src?.nodeId || !(src.layer === 'material' || ('part' in src && src.part === 'attachment'))) continue;
-    const item = itemOf(src.nodeId, 'attachmentId' in src ? src.attachmentId : undefined);
-    if (!item || seen.has(`${item.nodeId}:${item.attachmentId}`)) continue;
-    seen.add(`${item.nodeId}:${item.attachmentId}`);
-    inputs.push(item);
+    if (!src?.nodeId || !(src.layer === 'material' || src.part === 'attachment')) continue;
+    // a message several attachments render into (a turn's execution record) reads each of them
+    for (const attachmentId of src.attachmentIds ?? [src.attachmentId]) {
+      const item = itemOf(src.nodeId, attachmentId);
+      if (!item || seen.has(`${item.nodeId}:${item.attachmentId}`)) continue;
+      seen.add(`${item.nodeId}:${item.attachmentId}`);
+      inputs.push(item);
+    }
   }
   const excluded = leftOut(task, nodes, edges).map(({ nodeId, attachmentId }) => itemOf(nodeId, attachmentId)).filter((x): x is RunPreviewItem => x !== null);
   return { inputs, excluded };
@@ -265,8 +268,14 @@ export async function prepareRun(request: PrepareRunRequest): Promise<RunEnvelop
       ? Object.fromEntries(Object.entries(raw).filter(([, v]) => v !== undefined)) as MessageSource
       : i === context.messages.length - 1 && m.role === 'user' ? { layer: 'chain', part: 'question', nodeId: request.targetNodeId } : { layer: m.role === 'system' ? 'system' : 'chain' };
     if (raw?.nodeId && (raw.attachmentId || frozen.byNode.has(raw.nodeId)) && (raw.layer === 'material' || raw.part === 'attachment')) {
-      const input = await attachmentInput(raw.nodeId, raw.attachmentId ?? nodeOf(raw.nodeId)?.data.attachments?.[0]?.id ?? '');
-      if (input) source.inputId = input.inputId;
+      // a message several attachments render into (a turn's execution record) is tied to the input of each
+      const inputIds: string[] = [];
+      for (const attachmentId of raw.attachmentIds ?? [raw.attachmentId ?? nodeOf(raw.nodeId)?.data.attachments?.[0]?.id ?? '']) {
+        const input = await attachmentInput(raw.nodeId, attachmentId);
+        if (input && !inputIds.includes(input.inputId)) inputIds.push(input.inputId);
+      }
+      if (inputIds.length > 0) source.inputId = inputIds[0];
+      if (raw.attachmentIds && inputIds.length > 0) source.inputIds = inputIds;
     }
     messages.push({ role: m.role, content: m.content, source });
   }

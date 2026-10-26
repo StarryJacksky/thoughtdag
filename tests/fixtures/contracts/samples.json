@@ -186,6 +186,44 @@
         "inputDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
         "executionDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       } },
+    { "name": "run envelope whose message renders several attachments (a turn's tool records)", "kind": "RunEnvelope", "valid": true,
+      "value": {
+        "schemaVersion": "1.1", "runId": "run_2", "targetId": "target_x", "targetRevision": "rev_1", "taskNodeId": "n2", "graphId": "canvas_1",
+        "graphRevision": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "mode": "workspace",
+        "messages": [
+          { "role": "user", "content": "[Execution record]\n- bash: cat one.txt\n  result:\n    FIRST\n- bash: cat two.txt\n  result:\n    SECOND", "source": { "layer": "chain", "part": "attachment", "nodeId": "n1", "attachmentId": "att-one", "attachmentIds": ["att-one", "att-two"], "inputId": "in_1", "inputIds": ["in_1", "in_2"] } },
+          { "role": "user", "content": "What did the checks find?", "source": { "layer": "chain", "part": "question", "nodeId": "n2" } }
+        ],
+        "inputs": [
+          { "inputId": "in_1", "source": { "kind": "attachment", "nodeId": "n1", "attachmentId": "att-one" }, "snapshotId": "node:1", "contentHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "payload": "text", "displayName": "tool: bash", "size": { "bytes": 40, "textChars": 40 }, "reason": "attached" },
+          { "inputId": "in_2", "source": { "kind": "attachment", "nodeId": "n1", "attachmentId": "att-two" }, "snapshotId": "node:2", "contentHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "payload": "text", "displayName": "tool: bash", "size": { "bytes": 41, "textChars": 41 }, "reason": "attached" }
+        ],
+        "excluded": [],
+        "policy": {
+          "read": { "scope": "inputs-only", "inputIds": ["in_1", "in_2"] },
+          "write": { "scope": "none" },
+          "tools": { "allow": [], "mcpServers": [] },
+          "network": "off", "recall": "off",
+          "budget": { "maxInputTokens": 120000, "reservedOutputTokens": 8000, "maxToolCalls": 40, "maxWallTimeSeconds": 900 }
+        },
+        "runtime": { "kind": "agent", "runtime": "codex", "connectionRef": "conn_codex", "model": "gpt-synthetic", "effort": null, "capabilityVersion": null },
+        "inputDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "executionDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      } },
+    { "name": "run envelope whose message names several attachments but no input", "kind": "RunEnvelope", "valid": false,
+      "error": { "path": "/messages/0/source/inputIds", "keyword": "minItems" },
+      "value": {
+        "schemaVersion": "1.1", "runId": "run_3", "targetId": "target_x", "targetRevision": "rev_1", "taskNodeId": "n2", "graphId": "canvas_1",
+        "graphRevision": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "mode": "workspace",
+        "messages": [
+          { "role": "user", "content": "[Execution record]", "source": { "layer": "chain", "part": "attachment", "nodeId": "n1", "attachmentId": "att-one", "attachmentIds": ["att-one", "att-two"], "inputIds": [] } }
+        ],
+        "inputs": [], "excluded": [],
+        "policy": { "read": { "scope": "inputs-only", "inputIds": [] }, "write": { "scope": "none" }, "tools": { "allow": [], "mcpServers": [] }, "network": "off", "recall": "off", "budget": { "maxInputTokens": 120000, "reservedOutputTokens": 8000, "maxToolCalls": 40, "maxWallTimeSeconds": 900 } },
+        "runtime": { "kind": "agent", "runtime": "codex", "connectionRef": "conn_codex", "model": "gpt-synthetic", "effort": null, "capabilityVersion": null },
+        "inputDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "executionDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      } },
     { "name": "run envelope of a newer major version", "kind": "RunEnvelope", "valid": false,
       "error": { "path": "/schemaVersion", "keyword": "const" },
       "value": {

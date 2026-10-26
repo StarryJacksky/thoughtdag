@@ -1,0 +1,328 @@
+# The desktop test "an edit by another program shows up in the node that references the file"
+# (tests/e2e-desktop/workspace-ui.spec.ts) timing out now and then, and "words that stand twice in a Word
+# document ... the reader follows the file when it is replaced" in the same spec: before the fix, on 00760bf.
+# macOS 26.5.2 (APFS), 18 cores, node v22.23.1, Electron 43.3.0.
+
+## 1. Ten runs of the spec with temporary logging (not committed): the folder watcher's raw events, its
+##    signals, start and close; the service's subscriptions, rescans and announcements; the shell's push;
+##    the page's subscriptions, the events it heard and its node refreshes. The test wrote a line just
+##    before its edit (`test WRITE a.md`). All 10 runs passed this test; runs 7-9 overlapped earlier versions
+##    of the probe in section 3, so the machine (and fseventsd) was under load then. Run 8 failed another test (a frame
+##    dragged by its title bar moved -60 instead of -150), not looked into.
+
+# In every run the page let the folder go and took it again just before the edit: the test before it
+# closes a document view, `shown` in useWorkspaceSync changes, and the effect that subscribes runs again
+# (unsubscribe: the last listener, the shell closes the watcher; subscribe: the shell starts a new one).
+run  1: old watcher closed   8 ms and new one opened   8 ms before the write; watcher reported the write: yes, +2 ms; node showed it 215 ms after the write
+run  2: old watcher closed   9 ms and new one opened   8 ms before the write; watcher reported the write: yes, +1 ms; node showed it 215 ms after the write
+run  3: old watcher closed   9 ms and new one opened   8 ms before the write; watcher reported the write: yes, +2 ms; node showed it 215 ms after the write
+run  4: old watcher closed   9 ms and new one opened   8 ms before the write; watcher reported the write: yes, +2 ms; node showed it 215 ms after the write
+run  5: old watcher closed   9 ms and new one opened   8 ms before the write; watcher reported the write: yes, +2 ms; node showed it 216 ms after the write
+run  6: old watcher closed   9 ms and new one opened   9 ms before the write; watcher reported the write: yes, +1 ms; node showed it 213 ms after the write
+run  7: old watcher closed   8 ms and new one opened   7 ms before the write; watcher reported the write: yes, +342 ms; node showed it 558 ms after the write
+run  8: old watcher closed   9 ms and new one opened   8 ms before the write; watcher reported the write: NO; node showed it 2250 ms after the write
+run  9: old watcher closed   9 ms and new one opened   8 ms before the write; watcher reported the write: only 7031 ms later; node showed it 7248 ms after the write
+run 10: old watcher closed   8 ms and new one opened   7 ms before the write; watcher reported the write: yes, +3 ms; node showed it 216 ms after the write
+
+# Run 1: the new watcher heard the edit 2 ms after it was made. The 200 ms after that are the quiet window.
+    -9 ms  main hub.release ws_<id>
+    -9 ms  main service.unsubscribe 0
+    -8 ms  main watch.close <tmp>/research-project
+    -8 ms  page [trace] page.bridge.unsubscribe
+    -8 ms  main hub.subscribe ws_<id> false
+    -8 ms  main service.subscribe 1 false
+    -8 ms  main watch.open <tmp>/research-project
+    -7 ms  page [trace] page.bridge.subscribe
+    +0 ms  test WRITE a.md
+    +2 ms  main watch.raw rename notes/a.md false
+  +204 ms  main watch.signal <tmp>/research-project false
+  +204 ms  main rescan.start
+  +210 ms  main rescan.end [["notes/a.md","content"]]
+  +210 ms  main emit notes/a.md content sha256:c null 1
+  +211 ms  main push notes/a.md content true
+  +212 ms  page [trace] page.dispatch true notes/a.md content 1
+  +213 ms  page [trace] page.applyRecord notes/a.md ready sha256:c sha256:0
+  +213 ms  page [trace] page.refresh.start node-<t>-0 2
+  +215 ms  page [trace] page.refresh.read node-<t>-0 2 sha256:c true
+  +215 ms  page [trace] page.refresh.done node-<t>-0 2 sha256:c
+  +314 ms  main emit notes/Untitled-001.md moved sha256:a op_a3fa2a3d-a648-46fd-a04a-89b773c13bfb 1
+  +314 ms  main push notes/Untitled-001.md moved true
+  +314 ms  page [trace] page.dispatch true notes/Untitled-001.md moved 1
+  +315 ms  page [trace] page.applyRecord notes/Untitled-001.md ready sha256:a sha256:a
+
+# Run 8: the new watcher never reported the edit (the next event naming notes/a.md is the deletion two tests
+# later). What put it on the node was a rescan that an unrelated event set off: the application's own save
+# of Graph Files/Untitled-001.md, made 869 ms before the edit and reported 2036 ms after it. With no such
+# event, nothing looks again and the test's 20 s run out, which is the failure that was reported.
+   -10 ms  main hub.release ws_<id>
+    -9 ms  main service.unsubscribe 0
+    -9 ms  main watch.close <tmp>/research-project
+    -9 ms  page [trace] page.bridge.unsubscribe
+    -9 ms  main hub.subscribe ws_<id> false
+    -9 ms  main service.subscribe 1 false
+    -8 ms  main watch.open <tmp>/research-project
+    -8 ms  page [trace] page.bridge.subscribe
+    +0 ms  test WRITE a.md
+ +2036 ms  main watch.raw rename Graph Files/.Untitled-001.md.tdag-save-533633fd true
+ +2037 ms  main watch.raw rename Graph Files/Untitled-001.md false
+ +2037 ms  main watch.raw rename Graph Files/Untitled-001.md false
+ +2237 ms  main watch.signal <tmp>/research-project false
+ +2237 ms  main rescan.start
+ +2245 ms  main rescan.end [["notes/a.md","content"]]
+ +2245 ms  main emit notes/a.md content sha256:c null 1
+ +2245 ms  main push notes/a.md content true
+ +2247 ms  page [trace] page.dispatch true notes/a.md content 1
+ +2248 ms  page [trace] page.applyRecord notes/a.md ready sha256:c sha256:0
+ +2248 ms  page [trace] page.refresh.start node-<t>-0 2
+ +2249 ms  page [trace] page.refresh.read node-<t>-0 2 sha256:c true
+ +2250 ms  page [trace] page.refresh.done node-<t>-0 2 sha256:c
+
+## 2. The Word test, same runs. The quote button puts a node on the canvas, `referenced` changes, and the
+##    page lets the folder go and takes it again before the test replaces twice.docx.
+run 1: the watcher was started anew 58 ms before the replacement was reported
+run 2: the watcher was started anew 338 ms before the replacement was reported
+run 3: the watcher was started anew 60 ms before the replacement was reported
+run 4: the watcher was started anew 58 ms before the replacement was reported
+run 5: the watcher was started anew 59 ms before the replacement was reported
+run 6: the watcher was started anew 57 ms before the replacement was reported
+run 7: the replacement was never reported by the watcher (below)
+run 8: the watcher was started anew 519 ms before the replacement was reported
+run 9: the replacement was never reported by the watcher; found the same way as in run 7
+run 10: the watcher was started anew 148 ms before the replacement was reported
+
+# Run 7, up to the rescan that found the replacement: the watcher was started anew twice, and what set off
+# that rescan was the application's own save of paper.tex in an earlier test, made 6799 ms before the rescan
+# and reported 6.6 s after it was made. (Run 9: a save of analysis.py, reported 8.1 s after it was made.)
+ -4548 ms  main hub.release ws_<id>
+ -4548 ms  main service.unsubscribe 0
+ -4548 ms  main watch.close <tmp>/editors-project
+ -4499 ms  main hub.subscribe ws_<id> false
+ -4499 ms  main service.subscribe 1 false
+ -4499 ms  main watch.open <tmp>/editors-project
+ -4367 ms  main hub.release ws_<id>
+ -4366 ms  main service.unsubscribe 0
+ -4366 ms  main watch.close <tmp>/editors-project
+ -4361 ms  main hub.subscribe ws_<id> false
+ -4361 ms  main service.subscribe 1 false
+ -4361 ms  main watch.open <tmp>/editors-project
+  -209 ms  main watch.raw rename .paper.tex.tdag-save-a464dbef true
+  -209 ms  main watch.raw rename paper.tex false
+  -209 ms  main watch.raw rename paper.tex false
+    -8 ms  main watch.signal <tmp>/editors-project false
+    -8 ms  main rescan.start
+    +0 ms  main rescan.end [["twice.docx","content"]]
+    +0 ms  main emit twice.docx content sha256:5 null 1
+    +0 ms  main push twice.docx content true
+
+## 3. The platform, on its own: node's recursive fs.watch on macOS, in a process of its own, on a quiet
+##    machine. One watcher on folder A; before each of 60 writes into A: nothing (control); a watcher
+##    started on another folder B just before the write; a watcher on B (started 300 ms earlier) closed
+##    just after the write; or A's own watcher closed and started again just before the write. A write
+##    counts as missed when A's watcher has not named it by the time it is closed. Three rounds:
+##    control 0/180, B starts 3/180, B stops 7/180, A restarts 3/180.
+##    node watch-probe.cjs (the script is below the results)
+
+node v22.23.1, darwin
+control         missed  0 of 60
+another starts  missed  0 of 60
+another stops   missed  3 of 60  (writes 21, 27, 39)
+it restarts     missed  0 of 60
+node v22.23.1, darwin
+control         missed  0 of 60
+another starts  missed  2 of 60  (writes 14, 32)
+another stops   missed  2 of 60  (writes 3, 36)
+it restarts     missed  2 of 60  (writes 10, 27)
+node v22.23.1, darwin
+control         missed  0 of 60
+another starts  missed  1 of 60  (writes 37)
+another stops   missed  2 of 60  (writes 1, 5)
+it restarts     missed  1 of 60  (writes 12)
+
+// Does a recursive fs.watch on macOS miss writes made the moment it, or another watcher of the same process, starts or stops?
+// One watcher on folder A; before each write into A: nothing (control); a watcher started on folder B just before the write
+// (closed 300 ms later); a watcher on B closed just after the write (it was started 300 ms before); or A's own watcher closed
+// and started again just before the write. A write counts as missed when A's watcher has not named it by the time it is closed
+// (at least 300 ms later, and 0.8 s after the last write); a write reported later than that counts as missed too.
+const fs = require('node:fs'); const path = require('node:path'); const os = require('node:os');
+const base = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'watch-probe-')));
+const A = path.join(base, 'A'), B = path.join(base, 'B'); fs.mkdirSync(A); fs.mkdirSync(B);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function trial(mode, n) {
+  const seen = new Set();
+  const watchA = () => fs.watch(A, { recursive: true }, (_e, f) => seen.add(String(f)));
+  let wa = watchA();
+  await sleep(300);
+  for (let i = 0; i < n; i++) {
+    const name = `${mode}-${i}.txt`;
+    const write = () => fs.writeFileSync(path.join(A, name), 'x');
+    const watchB = () => fs.watch(B, { recursive: true }, () => {});
+    if (mode === 'another starts') { const wb = watchB(); write(); await sleep(300); wb.close(); }
+    else if (mode === 'another stops') { const wb = watchB(); await sleep(300); write(); wb.close(); }
+    else if (mode === 'it restarts') { wa.close(); wa = watchA(); write(); }
+    else write();
+    await sleep(300); // long enough for the news to arrive before anything is closed again
+  }
+  await sleep(500); wa.close();
+  const missed = []; for (let i = 0; i < n; i++) if (!seen.has(`${mode}-${i}.txt`)) missed.push(i);
+  console.log(`${mode.padEnd(15)} missed ${String(missed.length).padStart(2)} of ${n}${missed.length ? `  (writes ${missed.join(', ')})` : ''}`);
+}
+(async () => {
+  console.log(`node ${process.version}, ${process.platform}`);
+  for (const mode of ['control', 'another starts', 'another stops', 'it restarts']) await trial(mode, 60);
+  fs.rmSync(base, { recursive: true, force: true });
+})();
+
+## 4. The new tests on the code before the fix (the tests as committed with the fix; runtime/ and src/ as on 00760bf)
+
+### node --test tests/host/reconcile.test.cjs, 6 runs: the tests that failed in each, and the counts
+run 1: 22 23 24 28 | # pass 24 # fail 4 
+run 2: 22 23 24 28 | # pass 24 # fail 4 
+run 3: 22 23 24 28 | # pass 24 # fail 4 
+run 4: 22 23 24 | # pass 25 # fail 3 
+run 5: 22 23 24 | # pass 25 # fail 3 
+run 6: 22 23 24 28 | # pass 24 # fail 4 
+# 22 a watcher looks at its folder once it has started
+# 23 every watcher still running looks at its folder again when another one starts or stops
+# 24 an edit made while nothing watched the folder, after one subscriber left and before the next came, is announced to the next
+# 28 the real watcher hears of an edit made the moment it is started again, every time
+#    (the restarts, of 30, after which the edit was never announced: run 1 [28], run 2 [28], run 3 [2, 29], run 6 [24])
+
+# the failures, from run 1
+not ok 22 - a watcher looks at its folder once it has started: it has heard nothing of what happened before it listened
+  ---
+  duration_ms: 62.901167
+  type: 'test'
+  location: '<repo>/tests/host/reconcile.test.cjs:308:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    0 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/reconcile.test.cjs:312:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+not ok 23 - every watcher still running looks at its folder again when another one starts or stops
+  ---
+  duration_ms: 123.34425
+  type: 'test'
+  location: '<repo>/tests/host/reconcile.test.cjs:318:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    another one started
+    
+    0 !== 1
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/reconcile.test.cjs:330:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+not ok 24 - an edit made while nothing watched the folder, after one subscriber left and before the next came, is announced to the next
+  ---
+  duration_ms: 2321.158125
+  type: 'test'
+  location: '<repo>/tests/host/reconcile.test.cjs:347:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + []
+    - [
+    -   [
+    -     'content',
+    -     'notes/a.md',
+    -     'ready',
+    -     null
+    -   ]
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0:
+      0: 'content'
+      1: 'notes/a.md'
+      2: 'ready'
+      3: ~
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/reconcile.test.cjs:355:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+not ok 28 - the real watcher hears of an edit made the moment it is started again, every time
+  ---
+  duration_ms: 9563.237792
+  type: 'test'
+  location: '<repo>/tests/host/reconcile.test.cjs:405:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    the restarts after which the edit was never announced
+    + actual - expected
+    
+    + [
+    +   28
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 28
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/reconcile.test.cjs:431:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+
+### npx vitest run tests/unit/workspace-session.test.ts
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/workspace-session.test.ts (18 tests | 1 failed) 124ms
+   ❯ what a canvas listens to (3)
+     × goes on hearing its folder while views of its files open and close and nodes of them are added: the shell is neither told to stop nor asked again 56ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/workspace-session.test.ts > what a canvas listens to > goes on hearing its folder while views of its files open and close and nodes of them are added: the shell is neither told to stop nor asked again
+AssertionError: asked to watch once: expected 4 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 4
+
+ ❯ tests/unit/workspace-session.test.ts:138:64
+    136|       await during(async () => { await attachEntry('canvas-1', 'ws_1',…
+    137|       await settled();
+    138|       expect(calls('subscribe').length, 'asked to watch once').toBe(1);
+       |                                                                ^
+    139|       expect(calls('unsubscribe'), 'and never told to stop').toEqual([…
+    140|     } finally {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 17 passed (18)
+   Start at  21:41:15
+   Duration  827ms (transform 43%, environment 29%, tests 16%, import 10%, setup 1%)

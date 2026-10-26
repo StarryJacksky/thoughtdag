@@ -305,6 +305,57 @@ test('a burst of events is one signal, and noise is none', async () => {
   assert.equal(signals, 1);
 });
 
+test('a watcher looks at its folder once it has started: it has heard nothing of what happened before it listened', async () => {
+  let signals = 0;
+  const watcher = watchWorkspace({ rootPath: base, onSignal: () => { signals++; }, quietMs: 15, watchFn: () => ({ close: () => {}, on: () => {} }) });
+  await pause(60);
+  assert.equal(signals, 1);
+  await pause(60);
+  assert.equal(signals, 1, 'once');
+  watcher.close();
+});
+
+test('every watcher still running looks at its folder again when another one starts or stops', async () => {
+  // one watch function, as all of a process's fs.watch share one stream of news from macOS, made anew each time one starts or stops
+  const watchFn = () => ({ close: () => {}, on: () => {} });
+  const signals = { a: 0, b: 0, c: 0, d: 0 };
+  const watch = (name, fn = watchFn) => watchWorkspace({ rootPath: base, onSignal: () => { signals[name]++; }, quietMs: 15, watchFn: fn });
+  /** The signals since the last look. */
+  const take = () => { const seen = { ...signals }; for (const name of Object.keys(signals)) signals[name] = 0; return seen; };
+  const a = watch('a');
+  await pause(60);
+  take();
+  const b = watch('b');
+  await pause(60);
+  assert.equal(take().a, 1, 'another one started');
+  b.close();
+  await pause(60);
+  assert.deepEqual(take(), { a: 1, b: 0, c: 0, d: 0 }, 'another one stopped');
+  const c = watch('c', () => ({ close: () => {}, on: () => {} }));
+  await pause(60);
+  c.close();
+  await pause(60);
+  assert.equal(take().a, 0, 'a watcher made with another watch function shares nothing with these');
+  a.close();
+  const d = watch('d');
+  await pause(60);
+  d.close();
+  await pause(60);
+  assert.equal(take().a, 0, 'a watcher that was closed hears of no other');
+});
+
+test('an edit made while nothing watched the folder, after one subscriber left and before the next came, is announced to the next', async () => {
+  const { open, at, events, subscribe } = await setup();
+  await open('notes/a.md');
+  (await subscribe())();
+  fs.writeFileSync(at('notes/a.md'), 'EXTERNAL_EDIT_E6\n');
+  await subscribe(); // and the watcher reports nothing: it was not there
+  for (let waited = 0; waited < 2000 && events.length === 0; waited += 5) await pause(5);
+  await pause(60);
+  assert.deepEqual(brief(events), [['content', 'notes/a.md', 'ready', null]]);
+  assert.equal(events[0].observedRevision, sha('EXTERNAL_EDIT_E6\n'));
+});
+
 test('the watcher starts with the first subscriber and stops with the last, or when the workspace closes', async () => {
   const { service, workspace, subscribe, fakeWatch } = await setup();
   assert.equal(fakeWatch.started, 0);
@@ -340,15 +391,42 @@ test('the real watcher notices an edit by another program', async () => {
   const events = [];
   const unsubscribe = await service.subscribeWorkspace(workspace.workspaceId, (event) => events.push(event));
   try {
-    await pause(150); // the watcher is usually reporting by now
-    // when it starts to is the system's to say, and an edit made before then
-    // is never reported: the same edit is made again until one is heard of
-    for (let waited = 0; waited < 10000 && events.length === 0; waited += 100) {
-      if (waited % 1000 === 0) fs.writeFileSync(path.join(project, 'a.md'), 'EXTERNAL_EDIT_E6\n');
-      await pause(100);
-    }
+    // made at once: when the system starts to report to the watcher is the system's to say, and
+    // an edit made before then is never reported by it; the look the watcher takes once started finds it
+    fs.writeFileSync(path.join(project, 'a.md'), 'EXTERNAL_EDIT_E6\n');
+    for (let waited = 0; waited < 10000 && events.length === 0; waited += 50) await pause(50);
+    await pause(150);
     assert.deepEqual(events.map((e) => [e.change, e.observedRevision]), [['content', sha('EXTERNAL_EDIT_E6\n')]]);
   } finally {
     unsubscribe();
   }
+});
+
+test('the real watcher hears of an edit made the moment it is started again, every time', async () => {
+  // a folder let go and taken again at once (the folders a page hears from changed, the page was loaded
+  // anew): the watcher stops and another starts, and on macOS an edit made just then reaches neither
+  const id = ++serial;
+  const project = path.join(base, `project-${id}`);
+  fs.mkdirSync(project);
+  fs.writeFileSync(path.join(project, 'a.md'), 'FIRST_TEXT_B3\n');
+  const service = createWorkspaceService({ stateDir: path.join(base, `state-${id}`), pickDirectory: async () => project, watch: { quietMs: 50 } });
+  const workspace = await service.chooseRoot();
+  const record = await service.registerEntry(workspace.workspaceId, entryIdOf('a.md'));
+  await service.readText(record.fileId);
+  const missed = [];
+  let unsubscribe = () => {};
+  try {
+    for (let i = 0; i < 30; i++) {
+      unsubscribe();
+      const events = [];
+      unsubscribe = await service.subscribeWorkspace(workspace.workspaceId, (event) => events.push(event));
+      const text = `EDIT_AFTER_RESTART_${i}\n`;
+      fs.writeFileSync(path.join(project, 'a.md'), text);
+      for (let waited = 0; waited < 3000 && !events.some((e) => e.observedRevision === sha(text)); waited += 25) await pause(25);
+      if (!events.some((e) => e.observedRevision === sha(text))) missed.push(i);
+    }
+  } finally {
+    unsubscribe();
+  }
+  assert.deepEqual(missed, [], 'the restarts after which the edit was never announced');
 });

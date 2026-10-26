@@ -64,13 +64,16 @@ export function useWorkspaceSync(): void {
     return () => window.removeEventListener('pagehide', leaving);
   }, []);
 
+  // What is heard from changes only when the set of workspaces does, not each time one more thing
+  // draws on a workspace already heard from (a view of a file opened or closed, a node added):
+  // letting a workspace go and taking it again at once stops the shell's watcher and starts another,
+  // and an edit made just then could reach neither (runtime/workspace/watch.cjs)
+  const heard = [...new Set([bound, ...referenced.split('\n'), ...shown.split('\n')].filter(Boolean))].sort().join('\n');
   useEffect(() => {
-    if (!workspaceAvailable()) return;
-    const ids = [...new Set([bound, ...referenced.split('\n'), ...shown.split('\n')].filter(Boolean))];
-    if (ids.length === 0) return;
+    if (!workspaceAvailable() || !heard) return;
     let stop: (() => void) | null = null;
     let gone = false;
-    void watchWorkspaces(ids).then((s) => { if (gone) s(); else stop = s; });
+    void watchWorkspaces(heard.split('\n')).then((s) => { if (gone) s(); else stop = s; });
     return () => { gone = true; stop?.(); };
-  }, [bound, referenced, shown]);
+  }, [heard]);
 }

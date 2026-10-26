@@ -5,6 +5,11 @@ import { attachEntry } from '../../src/lib/workspace/graph-resource';
 import { ensureWorkspace, pickWorkspaceFolder, restoreWorkspace, useWorkspacePanel, watchWorkspaces, watchedWorkspaceIds } from '../../src/lib/workspace/session';
 import { createInGraph, freeSpot } from '../../src/components/workspace/actions';
 import { fakeRevision, installFakeWorkspace, type FakeWorkspace } from '../helpers/fake-workspace';
+import { createElement } from 'react';
+import { useWorkspaceSync } from '../../src/components/workspace/useWorkspaceSync';
+import { closeSurface, openFileSurface, useSurfaces } from '../../src/lib/documents/surface-store';
+import { documents } from '../../src/lib/documents/document-service';
+import { during, mount } from '../helpers/render';
 
 // The folder a canvas works in, as the page holds it, against a stand-in
 // for the shell's workspace door: which folder a canvas gets, what it
@@ -108,6 +113,35 @@ describe('what a canvas listens to', () => {
     expect(useWorkspacePanel.getState().treeVersion).toBeGreaterThan(before);
     stop();
     expect(calls('unsubscribe').map((c) => c.args)).toEqual([['ws_1']]);
+  });
+
+  it('goes on hearing its folder while views of its files open and close and nodes of them are added: the shell is neither told to stop nor asked again', async () => {
+    // letting the folder go and taking it again at once stops the shell's watcher and starts another, and an edit made just then could reach neither
+    await pickWorkspaceFolder();
+    const entry = shell.seed('notes/a.md', 'FIRST_TEXT_B3\n');
+    const fileId = [...shell.files.values()].find((f) => f.relativePath === 'notes/a.md')!.fileId;
+    useSurfaces.setState({ surfaces: [], order: [], container: { width: 1200, height: 800 } });
+    const Sync = () => { useWorkspaceSync(); return null; };
+    const settled = () => during(() => new Promise((resolve) => setTimeout(resolve, 10)));
+    const tree = await mount(createElement(Sync));
+    try {
+      await settled();
+      expect(calls('subscribe').map((c) => c.args)).toEqual([['ws_1']]);
+      let surfaceId: string | null = null;
+      await during(async () => { surfaceId = await openFileSurface(fileId); });
+      await settled();
+      expect(useSurfaces.getState().surfaces.map((s) => s.workspaceId)).toEqual(['ws_1']);
+      await during(() => closeSurface(surfaceId!));
+      await settled();
+      await during(async () => { await attachEntry('canvas-1', 'ws_1', entry, { x: 0, y: 0 }); });
+      await settled();
+      expect(calls('subscribe').length, 'asked to watch once').toBe(1);
+      expect(calls('unsubscribe'), 'and never told to stop').toEqual([]);
+    } finally {
+      await tree.unmount();
+      await documents.dispose();
+    }
+    expect(calls('unsubscribe').map((c) => c.args), 'until the canvas is gone').toEqual([['ws_1']]);
   });
 });
 

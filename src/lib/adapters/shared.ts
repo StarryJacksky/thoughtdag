@@ -100,6 +100,10 @@ export const clipText = (s: string, limit: number): { text: string; truncated: b
 // self-reference is the only exception.
 const SELF_MARKS = ['<command-name>/thoughtdag</command-name>', '[[thoughtdag:command]]'];
 
+/** What a turn asks, as a card shows it. A turn may have no words: an input that was only an image, or a turn of tools alone. */
+export const questionOf = (turn: { question: string; nativeImages?: NativeImages }): string =>
+  turn.question || (turn.nativeImages === 'present' ? '(image-only turn)' : turn.nativeImages === 'unknown' ? '(input without words)' : '(tool-only turn)');
+
 export function dropSelfCommandTurns<T extends { question: string }>(turns: T[]): T[] {
   return turns.filter((t) => !SELF_MARKS.some((m) => t.question.includes(m)));
 }
@@ -204,7 +208,7 @@ export function turnsToBranch(
   const edges: ThoughtEdge[] = [];
   let prev: { id: string } = { id: anchorNode.id };
   for (const turn of turns) {
-    const node = makeNode(turn.question || '(tool-only turn)', turn.response, false);
+    const node = makeNode(questionOf(turn), turn.response, false);
     node.data.importSource = { runner, sessionId, itemIds: turn.itemIds, ...(cwd ? { cwd } : {}) };
     node.data.source = { question: node.data.question, response: node.data.response, images: turn.nativeImages ?? 'none' };
     node.data.attachments = toolAttachments(turn);

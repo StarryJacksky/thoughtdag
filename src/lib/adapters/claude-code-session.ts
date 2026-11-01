@@ -3,7 +3,7 @@ import { makeNode, type ImportableConversation } from '../import-chat';
 import { autoLayout } from '../layout';
 import { generateId } from '../../utils';
 import { toolScope, toolPaths, renderCall,
-  turnsToBranch, seedPlaque, toolAttachments, dropSelfCommandTurns, markImporterNote, toolOpOf, clipText,
+  turnsToBranch, seedPlaque, toolAttachments, dropSelfCommandTurns, questionOf, markImporterNote, toolOpOf, clipText,
   TOOL_CALL_LIMIT, ARTIFACT_CALL_LIMIT, TOOL_RESULT_LIMIT, type RunnerTool, attachSubagentBranches, adoptSubagentSessions, type SubagentRun, type SubagentSession
 } from './shared';
 
@@ -136,7 +136,6 @@ export class ClaudeSessionCollector {
   // decided by the first message line: what kind of file this is
   private mode: 'main' | 'sidechain' | null = null;
   // sent on a line of no words, before any turn: it goes with the turn that line opens
-  private imagesAhead: NativeImages = 'none';
 
   feedLine(raw: string): void {
     const t = raw.trim();
@@ -149,6 +148,8 @@ export class ClaudeSessionCollector {
   private flush(): void {
     const c = this.current;
     if (c && (c.question || c.response || c.tools.length)) this.turns.push(c);
+    // an input of no words that nothing answered makes no turn; the session still holds it, and goes on from there
+    else if (c?.nativeImages) { const prev = this.turns[this.turns.length - 1]; if (prev && prev.nativeImages !== 'present') prev.nativeImages = c.nativeImages; }
     this.current = null;
   }
 
@@ -201,9 +202,27 @@ export class ClaudeSessionCollector {
       }
       const images = imagesIn(content);
       const text = textParts(content);
+      const open = (question: string, ahead?: Turn): Turn => {
+        const opened: Turn = {
+          question, response: '', itemIds: [...(ahead?.itemIds ?? []), ...(line.uuid ? [line.uuid] : [])], tools: [],
+          parentItemId: ahead ? ahead.parentItemId : line.parentUuid ?? undefined,
+          ...(ahead?.at ? { at: ahead.at } : line.timestamp ? { at: line.timestamp } : {}),
+          ...(ahead?.compactionBefore ? { compactionBefore: ahead.compactionBefore } : {}),
+        };
+        if (this.pendingCompaction) {
+          opened.compactionBefore = this.pendingCompaction;
+          this.pendingCompaction = undefined;
+        }
+        return opened;
+      };
+      const c = this.current;
+      const unanswered = c && !c.response && !c.tools.length ? c : null;
       if (!text.trim()) {
-        if (images !== 'none' && this.current) { if (this.current.nativeImages !== 'present') this.current.nativeImages = images; }
-        else if (images !== 'none' && this.imagesAhead !== 'present') this.imagesAhead = images;
+        if (images === 'none') return;
+        // an input of no words belongs to the question still waiting for its answer; else it opens a turn of its own, and the answer that comes is that turn's
+        if (unanswered) { if (line.uuid) unanswered.itemIds.push(line.uuid); }
+        else { this.flush(); this.current = open(''); }
+        if (this.current!.nativeImages !== 'present') this.current!.nativeImages = images;
         return;
       }
       if (/^\s*<task-notification>/.test(text)) {
@@ -214,20 +233,13 @@ export class ClaudeSessionCollector {
         return;
       }
       {
-        this.flush();
+        // words after an input of no words that nothing answered: one question
+        const ahead = unanswered && !unanswered.question ? unanswered : undefined;
+        if (ahead) this.current = null; else this.flush();
         if (!this.firstQuestion) this.firstQuestion = text.trim();
-        this.current = {
-          question: text, response: '', itemIds: line.uuid ? [line.uuid] : [], tools: [],
-          parentItemId: line.parentUuid ?? undefined,
-          ...(line.timestamp ? { at: line.timestamp } : {}),
-        };
-        const sent = images === 'present' || this.imagesAhead === 'none' ? images : this.imagesAhead;
+        this.current = open(text, ahead);
+        const sent = images === 'present' || !ahead?.nativeImages ? images : ahead.nativeImages;
         if (sent !== 'none') this.current.nativeImages = sent;
-        this.imagesAhead = 'none';
-        if (this.pendingCompaction) {
-          this.current.compactionBefore = this.pendingCompaction;
-          this.pendingCompaction = undefined;
-        }
       }
       return;
     }
@@ -330,7 +342,7 @@ function buildGraphFromTurns(turns: Turn[], sessionId: string, cwd?: string): { 
       nodes.push(note);
       noteToWire = note;
     }
-    const node = makeNode(turn.question, turn.response, prev === null);
+    const node = makeNode(questionOf(turn), turn.response, prev === null);
     node.data.importSource = { runner: 'claude-code', sessionId, itemIds: turn.itemIds, ...origin };
     node.data.source = { question: node.data.question, response: node.data.response, images: turn.nativeImages ?? 'none' };
     seedPlaque(node);

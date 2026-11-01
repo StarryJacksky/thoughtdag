@@ -3,7 +3,7 @@ import { makeNode, type ImportableConversation } from '../import-chat';
 import { autoLayout } from '../layout';
 import { generateId } from '../../utils';
 import {
-  turnsToBranch, seedPlaque, toolAttachments, dropSelfCommandTurns, toolOpOf, clipText, attachSubagentBranches,
+  turnsToBranch, seedPlaque, toolAttachments, dropSelfCommandTurns, questionOf, toolOpOf, clipText, attachSubagentBranches,
   ARTIFACT_CALL_LIMIT, TOOL_CALL_LIMIT, TOOL_RESULT_LIMIT, type RunnerTool, type SubagentRun,
 } from './shared';
 
@@ -141,7 +141,6 @@ export class PiSessionCollector {
   private cwd: string | null = null;
   private firstQuestion: string | null = null;
   // sent in a message of no words, before any turn: it goes with the turn that message opens
-  private imagesAhead: NativeImages = 'none';
 
   feedLine(raw: string): void {
     const t = raw.trim();
@@ -154,6 +153,8 @@ export class PiSessionCollector {
   private flush(): void {
     const c = this.current;
     if (c && (c.question || c.response || c.tools.length)) this.turns.push(c);
+    // an input of no words that nothing answered makes no turn; the session still holds it, and goes on from there
+    else if (c?.nativeImages) { const prev = this.turns[this.turns.length - 1]; if (prev && prev.nativeImages !== 'present') prev.nativeImages = c.nativeImages; }
     this.current = null;
   }
 
@@ -178,21 +179,29 @@ export class PiSessionCollector {
     if (m.role === 'user') {
       const images = imagesIn(m.content);
       const text = textOf(m.content).trim();
+      const at = typeof e.timestamp === 'string' ? e.timestamp : typeof m.timestamp === 'number' ? new Date(m.timestamp).toISOString() : undefined;
+      const open = (question: string, ahead?: PiTurn): PiTurn => ({
+        question, response: '', itemIds: [...(ahead?.itemIds ?? []), ...(typeof e.id === 'string' ? [e.id] : [])], tools: [],
+        ...(ahead?.parentItemId ? { parentItemId: ahead.parentItemId } : typeof e.parentId === 'string' ? { parentItemId: e.parentId } : {}),
+        ...(ahead?.at ? { at: ahead.at } : at ? { at } : {}),
+      });
+      const c = this.current;
+      const unanswered = c && !c.response && !c.tools.length ? c : null;
       if (!text) {
-        if (images !== 'none' && this.current) { if (this.current.nativeImages !== 'present') this.current.nativeImages = images; }
-        else if (images !== 'none' && this.imagesAhead !== 'present') this.imagesAhead = images;
+        if (images === 'none') return;
+        // an input of no words belongs to the question still waiting for its answer; else it opens a turn of its own, and the answer that comes is that turn's
+        if (unanswered) { if (typeof e.id === 'string') unanswered.itemIds.push(e.id); }
+        else { this.flush(); this.current = open(''); }
+        if (this.current!.nativeImages !== 'present') this.current!.nativeImages = images;
         return;
       }
-      this.flush();
+      // words after an input of no words that nothing answered: one question
+      const ahead = unanswered && !unanswered.question ? unanswered : undefined;
+      if (ahead) this.current = null; else this.flush();
       if (!this.firstQuestion) this.firstQuestion = text.split('\n')[0].slice(0, 80);
-      const at = typeof e.timestamp === 'string' ? e.timestamp : typeof m.timestamp === 'number' ? new Date(m.timestamp).toISOString() : undefined;
-      this.current = {
-        question: text, response: '', itemIds: typeof e.id === 'string' ? [e.id] : [], tools: [],
-        ...(typeof e.parentId === 'string' ? { parentItemId: e.parentId } : {}), ...(at ? { at } : {}),
-      };
-      const sent = images === 'present' || this.imagesAhead === 'none' ? images : this.imagesAhead;
+      this.current = open(text, ahead);
+      const sent = images === 'present' || !ahead?.nativeImages ? images : ahead.nativeImages;
       if (sent !== 'none') this.current.nativeImages = sent;
-      this.imagesAhead = 'none';
       return;
     }
     if (m.role === 'assistant') {
@@ -265,7 +274,7 @@ export function buildGraphFromTurns(turns: PiTurn[], sessionId: string, cwd?: st
   const link = (a: ThoughtNode, b: ThoughtNode) => edges.push({ id: generateId(), source: a.id, target: b.id, type: 'smoothstep' } as ThoughtEdge);
   let prev: ThoughtNode | null = null;
   for (const turn of turns) {
-    const node = makeNode(turn.question || '(tool-only turn)', turn.response, prev === null);
+    const node = makeNode(questionOf(turn), turn.response, prev === null);
     node.data.importSource = { runner: 'pi', sessionId, itemIds: turn.itemIds, ...origin };
     node.data.source = { question: node.data.question, response: node.data.response, images: turn.nativeImages ?? 'none' };
     node.data.attachments = toolAttachments(turn);

@@ -1,0 +1,221 @@
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/review-round13-images.test.ts (33 tests | 14 failed) 39ms
+   ❯ [R13-03] claude-code: an input with no words (8)
+     × [R13-03] claude-code: only an image first, then an answer: the answer is its turn's, that turn holds an image, and the next question starts anew 3ms
+     × [R13-03] claude-code: something unknown first, then an answer: not known not to be an image 0ms
+     × [R13-03] claude-code: only an image first, then a tool, then an answer 0ms
+   ❯ [R13-03] pi: an input with no words (8)
+     × [R13-03] pi: only an image first, then an answer: the answer is its turn's, that turn holds an image, and the next question starts anew 2ms
+     × [R13-03] pi: something unknown first, then an answer: not known not to be an image 1ms
+     × [R13-03] pi: only an image first, then a tool, then an answer 1ms
+   ❯ [R13-03] codex: an input with no words (8)
+     × [R13-03] codex: only an image first, then an answer: the answer is its turn's, that turn holds an image, and the next question starts anew 1ms
+   ❯ [R13-03] claude-code: an input with no words keeps its place in the session's tree (3)
+     × [R13-03] claude-code: its id belongs to its turn, and what names it as parent hangs from that turn 1ms
+     × [R13-03] claude-code: an image in the middle is its own turn, not the turn before it: going on from before it is not held back by it 1ms
+     × [R13-03] claude-code: an input of only an image while a question waits for its answer belongs to that question 0ms
+   ❯ [R13-03] pi: an input with no words keeps its place in the session's tree (3)
+     × [R13-03] pi: its id belongs to its turn, and what names it as parent hangs from that turn 0ms
+     × [R13-03] pi: an image in the middle is its own turn, not the turn before it: going on from before it is not held back by it 0ms
+     × [R13-03] pi: an input of only an image while a question waits for its answer belongs to that question 0ms
+   ❯ [R13-03] codex app-server (3)
+     × [R13-03] only an image first, then an answer: that turn holds an image 0ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 14 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/review-round13-images.test.ts > [R13-03] claude-code: an input with no words > [R13-03] claude-code: only an image first, then an answer: the answer is its turn's, that turn holds an image, and the next question starts anew
+Error: the importer recognized nothing
+ ❯ importedFile tests/unit/review-round13-images.test.ts:81:20
+     79|   const def = FILES[runtime];
+     80|   const conv = await def.read(def.write(steps).map((l) => JSON.stringi…
+     81|   if (!conv) throw new Error('the importer recognized nothing');
+       |                    ^
+     82|   return { conv, built: conv.build() };
+     83| }
+ ❯ imported tests/unit/review-round13-images.test.ts:87:27
+ ❯ tests/unit/review-round13-images.test.ts:145:38
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/14]⎯
+
+ FAIL  tests/unit/review-round13-images.test.ts > [R13-03] claude-code: an input with no words > [R13-03] claude-code: something unknown first, then an answer: not known not to be an image
+Error: the importer recognized nothing
+ ❯ importedFile tests/unit/review-round13-images.test.ts:81:20
+     79|   const def = FILES[runtime];
+     80|   const conv = await def.read(def.write(steps).map((l) => JSON.stringi…
+     81|   if (!conv) throw new Error('the importer recognized nothing');
+       |                    ^
+     82|   return { conv, built: conv.build() };
+     83| }
+ ❯ imported tests/unit/review-round13-images.test.ts:87:27
+ ❯ tests/unit/review-round13-images.test.ts:154:31
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/14]⎯
+
+ FAIL  tests/unit/review-round13-images.test.ts > [R13-03] claude-code: an input with no words > [R13-03] claude-code: only an image first, then a tool, then an answer
+Error: the importer recognized nothing
+ ❯ importedFile tests/unit/review-round13-images.test.ts:81:20
+     79|   const def = FILES[runtime];
+     80|   const conv = await def.read(def.write(steps).map((l) => JSON.stringi…
+     81|   if (!conv) throw new Error('the importer recognized nothing');
+       |                    ^
+     82|   return { conv, built: conv.build() };
+     83| }
+ ❯ imported tests/unit/review-round13-images.test.ts:87:27
+ ❯ tests/unit/review-round13-images.test.ts:160:38
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/14]⎯
+
+ FAIL  tests/unit/review-round13-images.test.ts > [R13-03] pi: an input with no words > [R13-03] pi: only an image first, then an answer: the answer is its turn's, that turn holds an image, and the next question starts anew
+AssertionError: expected 'none' to be 'present' // Object.is equality
+
+Expected: "present"
+Received: "none"
+
+ ❯ tests/unit/review-round13-images.test.ts:148:40
+    146|       expect(nodes).toHaveLength(1);
+    147|       expect(tail.data.response).toBe('A blue square.');
+    148|       expect(tail.data.source?.images).toBe('present');
+       |                                        ^
+    149|       expect(tail.data.question).toBe('(image-only turn)');
+    150|       expect((await routeAt(model, tail.id))?.decision).toEqual(FRESH_…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/14]⎯
+
+ FAIL  tests/unit/review-round13-images.test.ts > [R13-03] pi: an input with no words > [R13-03] pi: something unknown first, then an answer: not known not to be an image
+AssertionError: expected 'none' to be 'unknown' // Object.is equality
+
+Expected: "unknown"
+Received: "none"
+
+ ❯ tests/unit/review-round13-images.test.ts:155:40
+    153|     it(`[R13-03] ${runtime}: something unknown first, then an answer: …
+    154|       const { tail, model } = await imported(runtime, [{ input: UNKNOW…
+    155|       expect(tail.data.source?.images).toBe('unknown');
+       |                                        ^
+    156|       expect((await routeAt(model, tail.id))?.decision).toEqual(FRESH_…
+    157|     });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/14]⎯
+
+ FAIL  tests/unit/review-round13-images.test.ts > [R13-03] pi: an input with no words > [R13-03] pi: only an image first, then a tool, then an answer
+AssertionError: expected 'none' to be 'present' // Object.is equality
+
+Expected: "present"
+Received: "none"
+
+ ❯ tests/unit/review-round13-images.test.ts:162:40
+    160|       const { nodes, tail, model } = await imported(runtime, [{ input:…
+    161|       expect(nodes).toHaveLength(1);
+    162|       expect(tail.data.source?.images).toBe('present');
+       |                                        ^
+    163|       expect((await routeAt(model, tail.id))?.decision).toEqual(FRESH_…
+    164|     });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/14]⎯
+
+ FAIL  tests/unit/review-round13-images.test.ts > [R13-03] codex: an input with no words > [R13-03] codex: only an image first, then an answer: the answer is its turn's, that turn holds an image, and the next question starts anew
+AssertionError: expected '(tool-only turn)' to be '(image-only turn)' // Object.is equality
+
+Expected: "(image-only turn)"
+Received: "(tool-only turn)"
+
+ ❯ tests/unit/review-round13-images.test.ts:149:34
+    147|       expect(tail.data.response).toBe('A blue square.');
+    148|       expect(tail.data.source?.images).toBe('present');
+    149|       expect(tail.data.question).toBe('(image-only turn)');
+       |                                  ^
+    150|       expect((await routeAt(model, tail.id))?.decision).toEqual(FRESH_…
+    151|     });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/14]⎯
+
+ FAIL  tests/unit/review-round13-images.test.ts > [R13-03] claude-code: an input with no words keeps its place in the session's tree > [R13-03] claude-code: its id belongs to its turn, and what names it as parent hangs from that turn
+AssertionError: expected [ { …(5) } ] to have a length of 2 but got 1
+
+- Expected
++ Received
+
+- 2
++ 1
+
+ ❯ tests/unit/review-round13-images.test.ts:209:21
+    207|       const conv = await def.read(rows.map((l) => JSON.stringify(l)).j…
+    208|       const { nodes, edges } = conv!.build();
+    209|       expect(nodes).toHaveLength(2);
+       |                     ^
+    210|       expect(nodes[0].data.importSource?.itemIds).toContain('i0');
+    211|       expect(nodes[0].data.importSource?.itemIds).toContain('i1');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/14]⎯
+
+ FAIL  tests/unit/review-round13-images.test.ts > [R13-03] claude-code: an input with no words keeps its place in the session's tree > [R13-03] claude-code: an image in the middle is its own turn, not the turn before it: going on from before it is not held back by it
+ FAIL  tests/unit/review-round13-images.test.ts > [R13-03] pi: an input with no words keeps its place in the session's tree > [R13-03] pi: an image in the middle is its own turn, not the turn before it: going on from before it is not held back by it
+AssertionError: expected [ 'present' ] to deeply equal [ 'none', 'present' ]
+
+- Expected
++ Received
+
+  [
+-   "none",
+    "present",
+  ]
+
+ ❯ tests/unit/review-round13-images.test.ts:217:55
+    215|     it(`[R13-03] ${runtime}: an image in the middle is its own turn, n…
+    216|       const { built: { nodes } } = await importedFile(runtime, [{ inpu…
+    217|       expect(nodes.map((n) => n.data.source?.images)).toEqual(['none',…
+       |                                                       ^
+    218|       expect(nodes.map((n) => n.data.response)).toEqual(['First.', 'A …
+    219|       expect(nodes[1].data.importSource?.itemIds).toContain('i2');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/14]⎯
+
+ FAIL  tests/unit/review-round13-images.test.ts > [R13-03] claude-code: an input with no words keeps its place in the session's tree > [R13-03] claude-code: an input of only an image while a question waits for its answer belongs to that question
+ FAIL  tests/unit/review-round13-images.test.ts > [R13-03] pi: an input with no words keeps its place in the session's tree > [R13-03] pi: an input of only an image while a question waits for its answer belongs to that question
+AssertionError: expected [ 'i0', 'i2' ] to include 'i1'
+ ❯ tests/unit/review-round13-images.test.ts:226:51
+    224|       expect(nodes).toHaveLength(1);
+    225|       expect(nodes[0].data.source?.images).toBe('present');
+    226|       expect(nodes[0].data.importSource?.itemIds).toContain('i1');
+       |                                                   ^
+    227|     });
+    228|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/14]⎯
+
+ FAIL  tests/unit/review-round13-images.test.ts > [R13-03] pi: an input with no words keeps its place in the session's tree > [R13-03] pi: its id belongs to its turn, and what names it as parent hangs from that turn
+AssertionError: expected [ 'i1' ] to include 'i0'
+ ❯ tests/unit/review-round13-images.test.ts:210:51
+    208|       const { nodes, edges } = conv!.build();
+    209|       expect(nodes).toHaveLength(2);
+    210|       expect(nodes[0].data.importSource?.itemIds).toContain('i0');
+       |                                                   ^
+    211|       expect(nodes[0].data.importSource?.itemIds).toContain('i1');
+    212|       expect(edges.map((e) => [e.source, e.target])).toEqual([[nodes[0…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/14]⎯
+
+ FAIL  tests/unit/review-round13-images.test.ts > [R13-03] codex app-server > [R13-03] only an image first, then an answer: that turn holds an image
+AssertionError: expected '(tool-only turn)' to be '(image-only turn)' // Object.is equality
+
+Expected: "(image-only turn)"
+Received: "(tool-only turn)"
+
+ ❯ tests/unit/review-round13-images.test.ts:240:36
+    238|     expect(nodes).toHaveLength(1);
+    239|     expect(nodes[0].data.source?.images).toBe('present');
+    240|     expect(nodes[0].data.question).toBe('(image-only turn)');
+       |                                    ^
+    241|   });
+    242|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/14]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  14 failed | 19 passed (33)
+   Start at  23:41:27
+   Duration  849ms (transform 50%, environment 35%, import 8%, tests 5%, setup 1%)
+

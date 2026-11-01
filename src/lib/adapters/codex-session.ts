@@ -3,7 +3,7 @@ import { makeNode, type ImportableConversation } from '../import-chat';
 import { autoLayout } from '../layout';
 import { generateId } from '../../utils';
 import {
-  turnsToBranch, seedPlaque, toolAttachments, dropSelfCommandTurns, markImporterNote, toolOpOf, clipText,
+  turnsToBranch, seedPlaque, toolAttachments, dropSelfCommandTurns, questionOf, markImporterNote, toolOpOf, clipText,
   TOOL_CALL_LIMIT, ARTIFACT_CALL_LIMIT, TOOL_RESULT_LIMIT, type RunnerTool, attachSubagentBranches, adoptSubagentSessions, type SubagentRun, type SubagentSession
 } from './shared';
 
@@ -309,7 +309,7 @@ export function buildGraphFromTurns(turns: CodexTurn[], sessionId: string, cwd?:
       nodes.push(note);
       noteToWire = note;
     }
-    const node = makeNode(turn.question || '(tool-only turn)', turn.response, prev === null);
+    const node = makeNode(questionOf(turn), turn.response, prev === null);
     node.data.importSource = { runner: 'codex', sessionId, itemIds: turn.itemIds, ...origin };
     node.data.source = { question: node.data.question, response: node.data.response, images: turn.nativeImages ?? 'none' };
     node.data.attachments = toolAttachments(turn);

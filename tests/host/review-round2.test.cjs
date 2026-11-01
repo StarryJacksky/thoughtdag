@@ -130,10 +130,13 @@ test('[R2-07] a creation cut short before it had the name does not take the file
   const held = heldAt('link', (_from, to) => takingTheName(to));
   const heldOpen = heldAt('open', (file, flags) => flags === 'wx' && takingTheName(file));
   const io = { ...fs.promises, link: held.io.link, open: heldOpen.io.open };
-  const { service, start, request, at, notes } = await setup({ io });
+  const { service, start, request, at, notes, workspace } = await setup({ io });
+  // B comes from another process of the same folder: within one, the name's lock keeps it behind A
+  const elsewhere = start({ io: fs.promises });
+  await elsewhere.listRecovery(workspace.workspaceId);
   void service.createFile(request('op-A', { parentId: notes })).catch(() => {});
   await Promise.race([held.reached, heldOpen.reached]);
-  const b = await service.createFile(request('op-B', { parentId: notes }));
+  const b = await elsewhere.createFile(request('op-B', { parentId: notes }));
   assert.equal(b.relativePath, 'notes/Untitled-001.md');
   // the process ends here: A never gets further
 

@@ -13,7 +13,9 @@
 // record names, and only those older than a grace period, so that a run
 // that has frozen its files and not yet recorded them does not lose them
 // (a snapshot frozen again is new again). When any record cannot be read,
-// nothing is removed: what it names cannot be known.
+// nothing is removed: what it names cannot be known. The caller keeps
+// freezing, recording and cleaning up from coming between each other, and says
+// what the runs it knows of have frozen and not recorded (file-ops.cjs).
 'use strict';
 
 const fs = require('node:fs');
@@ -128,10 +130,10 @@ async function reconcileRuns(rootPath, io = fs.promises) {
 
 /**
  * Remove the snapshots no record names that are older than `graceMs` (at least an hour). A
- * snapshot a record names is kept however old it is. Answers `{ removed, refused }`; `refused`
- * says why nothing was removed.
+ * snapshot a record names is kept however old it is, and so is one in `heldNow`. Answers
+ * `{ removed, refused }`; `refused` says why nothing was removed.
  */
-async function collectSnapshots(rootPath, { graceMs = DEFAULT_GRACE_MS, now = Date.now() } = {}, io = fs.promises) {
+async function collectSnapshots(rootPath, { graceMs = DEFAULT_GRACE_MS, now = Date.now(), heldNow = new Set() } = {}, io = fs.promises) {
   const { records, unreadable } = await readRecords(rootPath, io);
   if (unreadable.length > 0) return { removed: [], refused: 'unreadable-record' };
   const held = new Set(records.flatMap(heldBy));
@@ -140,7 +142,7 @@ async function collectSnapshots(rootPath, { graceMs = DEFAULT_GRACE_MS, now = Da
   const names = (await io.readdir(dir).catch((e) => { if (e.code === 'ENOENT') return []; throw e; })).filter((n) => /^[0-9a-f]{64}$/.test(n)).sort();
   const removed = [];
   for (const hex of names) {
-    if (held.has(`snap_${hex}`)) continue;
+    if (held.has(`snap_${hex}`) || heldNow.has(`snap_${hex}`)) continue;
     const st = await io.stat(path.join(dir, hex)).catch(() => null);
     if (!st || now - st.mtimeMs <= grace) continue;
     await io.rm(path.join(dir, hex), { force: true });

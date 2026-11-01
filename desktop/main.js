@@ -990,6 +990,8 @@ function setupWorkspace() {
   // A run's inputs written for its agent, from the run's envelope: the files of a workspace are read
   // back from the snapshots the run names (or, in a folder opened read-only, as they are, if they still
   // are what was frozen), so what the agent reads is what was frozen and nothing the page says instead.
+  // a run that was given materials is over: from now on they may be cleaned up
+  handle('agents:run-ended', async (_e, cwd, runId) => agentOps.endRun(cwd, runId));
   handle('agents:materialize', async (_e, cwd, envelope, provided) => agentOps.materializeRun(cwd, envelope, provided, {
     readSnapshotOfFile: async (fileId, snapshotId) => {
       const record = await service.resourceRecord(String(fileId));

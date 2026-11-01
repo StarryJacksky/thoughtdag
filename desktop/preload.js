@@ -57,6 +57,7 @@ contextBridge.exposeInMainWorld('desktopAgents', {
   guardWrite: (cwd, config) => ipcRenderer.invoke('agents:guard-write', cwd, config),
   pickCwd: () => ipcRenderer.invoke('agents:pick-cwd'),
   materialize: (cwd, envelope, provided) => ipcRenderer.invoke('agents:materialize', cwd, envelope, provided),
+  runEnded: (cwd, runId) => ipcRenderer.invoke('agents:run-ended', cwd, runId),
   onEvent: (cb) => { ipcRenderer.on('agents:event', (_e, payload) => cb(payload)); },
 });
 

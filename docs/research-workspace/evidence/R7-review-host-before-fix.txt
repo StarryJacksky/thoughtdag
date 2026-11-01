@@ -1,0 +1,85 @@
+# R7 host regression tests on 13bb264, the commit R7 reviewed.
+# git archive 13bb264, node_modules linked, tests/host/review-r7.test.cjs and the fixture helper copied in.
+✖ [R7-01] readText: another program saves twice while a read is under way, and the second save is announced from what the read found
+✖ [R7-01] readBytes: another program saves twice while a read is under way, and the second save is announced from what the read found
+✖ [R7-01] freezeFile: another program saves twice while a read is under way, and the second save is announced from what the read found
+✔ [R7-01] the other order: a read that found B comes back after C is registered: nothing goes back to B, and nothing false is said
+✔ [R7-01] the other order, with this application's own save: a read that found the old content comes back after the save, and the save stands
+✔ [R7-01] one version found by a read and a look at the file together is announced once
+✔ [R7-01] a first look says nothing changed, also when the read comes back after another look
+✖ [R7-01] a file trashed while a read is under way stays lost: what the read found is not put on its record
+✔ [R7-01] a file moved while a read is under way: what is at its new place is what its record comes to say, not the old path's
+✔ [R7-01] a folder moved while a read is under way: the record follows the folder, and the look is at the new place
+ℹ tests 10
+ℹ suites 0
+ℹ pass 6
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 408.629875
+✖ failing tests:
+test at tests/host/review-r7.test.cjs:63:3
+✖ [R7-01] readText: another program saves twice while a read is under way, and the second save is announced from what the read found
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  + 'sha256:c0cde77fa8fef97d476c10aad3d2d54fcc2f336140d073651c2dcccf1e379fd6'
+  - 'sha256:12f37a8a84034d3e623d726fe10e5031f4df997ac13f4d5571b5a90c41fb84fe'
+      at TestContext.<anonymous> (<repo>/tests/host/review-r7.test.cjs:73:12)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'sha256:c0cde77fa8fef97d476c10aad3d2d54fcc2f336140d073651c2dcccf1e379fd6',
+    expected: 'sha256:12f37a8a84034d3e623d726fe10e5031f4df997ac13f4d5571b5a90c41fb84fe',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+test at tests/host/review-r7.test.cjs:63:3
+✖ [R7-01] readBytes: another program saves twice while a read is under way, and the second save is announced from what the read found
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  + 'sha256:c0cde77fa8fef97d476c10aad3d2d54fcc2f336140d073651c2dcccf1e379fd6'
+  - 'sha256:12f37a8a84034d3e623d726fe10e5031f4df997ac13f4d5571b5a90c41fb84fe'
+      at TestContext.<anonymous> (<repo>/tests/host/review-r7.test.cjs:73:12)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'sha256:c0cde77fa8fef97d476c10aad3d2d54fcc2f336140d073651c2dcccf1e379fd6',
+    expected: 'sha256:12f37a8a84034d3e623d726fe10e5031f4df997ac13f4d5571b5a90c41fb84fe',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+test at tests/host/review-r7.test.cjs:63:3
+✖ [R7-01] freezeFile: another program saves twice while a read is under way, and the second save is announced from what the read found
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  + 'sha256:c0cde77fa8fef97d476c10aad3d2d54fcc2f336140d073651c2dcccf1e379fd6'
+  - 'sha256:12f37a8a84034d3e623d726fe10e5031f4df997ac13f4d5571b5a90c41fb84fe'
+      at TestContext.<anonymous> (<repo>/tests/host/review-r7.test.cjs:73:12)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'sha256:c0cde77fa8fef97d476c10aad3d2d54fcc2f336140d073651c2dcccf1e379fd6',
+    expected: 'sha256:12f37a8a84034d3e623d726fe10e5031f4df997ac13f4d5571b5a90c41fb84fe',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+test at tests/host/review-r7.test.cjs:138:1
+✖ [R7-01] a file trashed while a read is under way stays lost: what the read found is not put on its record
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  + 'sha256:c0cde77fa8fef97d476c10aad3d2d54fcc2f336140d073651c2dcccf1e379fd6'
+  - 'sha256:077ec45fba0d8f49306f9005ef733935b0bb5552e5c0ebf79965f78081bf0afa'
+      at TestContext.<anonymous> (<repo>/tests/host/review-r7.test.cjs:148:10)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'sha256:c0cde77fa8fef97d476c10aad3d2d54fcc2f336140d073651c2dcccf1e379fd6',
+    expected: 'sha256:077ec45fba0d8f49306f9005ef733935b0bb5552e5c0ebf79965f78081bf0afa',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

@@ -1,0 +1,326 @@
+# R6 host regression tests on a974308, the commit R6 reviewed.
+# git archive a974308, node_modules linked, tests/host/review-r6.test.cjs and the fixture helper copied in.
+✔ [R6-01] the materials of a run that ended (completed) and that are exactly what they were written as go; its record stays
+✔ [R6-01] the materials of a run that ended (failed) and that are exactly what they were written as go; its record stays
+✔ [R6-01] the materials of a run that ended (cancelled) and that are exactly what they were written as go; its record stays
+✖ [R6-01] the materials of a run whose record says prepared stay: it may still be reading them
+✖ [R6-01] the materials of a run whose record says starting stay: it may still be reading them
+✖ [R6-01] the materials of a run whose record says running stay: it may still be reading them
+✖ [R6-01] the materials of a run whose record says awaiting-approval stay: it may still be reading them
+✖ [R6-01] the materials of a run whose record says cancelling stay: it may still be reading them
+✖ [R6-01] the materials of a run whose record says unknown stay: it may still be reading them
+✖ [R6-01] the materials of a run with no record, or a record that cannot be read as one, stay: nothing says it ended
+✖ [R6-01] a run that keeps no record beside its materials: they stay until the shell is told it is over, and then they go
+✖ [R6-01] the materials of a run that ended stay when they have its content rewritten under the same name
+✖ [R6-01] the materials of a run that ended stay when they have its file replaced by another under the same name
+✔ [R6-01] the materials of a run that ended stay when they have a file added beside it
+✔ [R6-01] the materials of a run that ended stay when they have its file taken away
+✖ [R6-01] the materials of a run that ended stay when they have its file replaced by a folder
+✔ [R6-01] the materials of a run that ended stay when they have its file replaced by a link
+✖ [R6-01] materials rewritten at the very moment they are being taken away stay
+✖ [R6-01] the materials of a run are not lost through a link put where they are
+✖ [R6-01] the report's case: the 21st run started leaves a running run's edited materials alone, through the door every run goes by
+✔ [R6-06] a snapshot frozen again and recorded while it is being cleaned up (listed) stays, for the new run and the old
+✔ [R6-06] a snapshot frozen again and recorded while it is being cleaned up (before-stat) stays, for the new run and the old
+✖ [R6-06] a snapshot frozen again and recorded while it is being cleaned up (after-stat) stays, for the new run and the old
+✖ [R6-06] a snapshot frozen again and recorded while it is being cleaned up (before-rm) stays, for the new run and the old
+✖ [R6-06] a snapshot frozen long before and recorded only now, during the clean-up, is not taken from the run that froze it
+✔ [R6-06] once a run has recorded what it froze, nothing but its record holds it: a snapshot no record names goes when it is old enough
+✔ [R6-06] a record that cannot be read still stops the clean-up
+ℹ tests 27
+ℹ suites 0
+ℹ pass 10
+ℹ fail 17
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 367.528833
+✖ failing tests:
+test at tests/host/review-r6.test.cjs:63:3
+✖ [R6-01] the materials of a run whose record says prepared stay: it may still be reading them
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  + [
+  +   'run_old'
+  + ]
+  - []
+      at TestContext.<anonymous> (<repo>/tests/host/review-r6.test.cjs:67:12)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'run_old' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+test at tests/host/review-r6.test.cjs:63:3
+✖ [R6-01] the materials of a run whose record says starting stay: it may still be reading them
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  + [
+  +   'run_old'
+  + ]
+  - []
+      at TestContext.<anonymous> (<repo>/tests/host/review-r6.test.cjs:67:12)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'run_old' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+test at tests/host/review-r6.test.cjs:63:3
+✖ [R6-01] the materials of a run whose record says running stay: it may still be reading them
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  + [
+  +   'run_old'
+  + ]
+  - []
+      at TestContext.<anonymous> (<repo>/tests/host/review-r6.test.cjs:67:12)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'run_old' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+test at tests/host/review-r6.test.cjs:63:3
+✖ [R6-01] the materials of a run whose record says awaiting-approval stay: it may still be reading them
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  + [
+  +   'run_old'
+  + ]
+  - []
+      at TestContext.<anonymous> (<repo>/tests/host/review-r6.test.cjs:67:12)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'run_old' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+test at tests/host/review-r6.test.cjs:63:3
+✖ [R6-01] the materials of a run whose record says cancelling stay: it may still be reading them
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  + [
+  +   'run_old'
+  + ]
+  - []
+      at TestContext.<anonymous> (<repo>/tests/host/review-r6.test.cjs:67:12)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'run_old' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+test at tests/host/review-r6.test.cjs:63:3
+✖ [R6-01] the materials of a run whose record says unknown stay: it may still be reading them
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  + [
+  +   'run_old'
+  + ]
+  - []
+      at TestContext.<anonymous> (<repo>/tests/host/review-r6.test.cjs:67:12)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'run_old' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+test at tests/host/review-r6.test.cjs:72:1
+✖ [R6-01] the materials of a run with no record, or a record that cannot be read as one, stay: nothing says it ended
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  + [
+  +   'run_broken',
+  +   'run_other',
+  +   'run_none'
+  + ]
+  - []
+      at TestContext.<anonymous> (<repo>/tests/host/review-r6.test.cjs:80:10)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'run_broken', 'run_other', 'run_none' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+test at tests/host/review-r6.test.cjs:84:1
+✖ [R6-01] a run that keeps no record beside its materials: they stay until the shell is told it is over, and then they go
+  AssertionError [ERR_ASSERTION]: not told yet: it stays
+  + actual - expected
+  + [
+  +   'run_told'
+  + ]
+  - []
+      at TestContext.<anonymous> (<repo>/tests/host/review-r6.test.cjs:95:10)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [ 'run_told' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+test at tests/host/review-r6.test.cjs:115:3
+✖ [R6-01] the materials of a run that ended stay when they have its content rewritten under the same name
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  + [
+  +   'run_old'
+  + ]
+  - []
+      at TestContext.<anonymous> (<repo>/tests/host/review-r6.test.cjs:124:12)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'run_old' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+test at tests/host/review-r6.test.cjs:115:3
+✖ [R6-01] the materials of a run that ended stay when they have its file replaced by another under the same name
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  + [
+  +   'run_old'
+  + ]
+  - []
+      at TestContext.<anonymous> (<repo>/tests/host/review-r6.test.cjs:124:12)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'run_old' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+test at tests/host/review-r6.test.cjs:115:3
+✖ [R6-01] the materials of a run that ended stay when they have its file replaced by a folder
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  + [
+  +   'run_old'
+  + ]
+  - []
+      at TestContext.<anonymous> (<repo>/tests/host/review-r6.test.cjs:124:12)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'run_old' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+test at tests/host/review-r6.test.cjs:129:1
+✖ [R6-01] materials rewritten at the very moment they are being taken away stay
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  + [
+  +   'run_old'
+  + ]
+  - []
+      at TestContext.<anonymous> (<repo>/tests/host/review-r6.test.cjs:147:10)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'run_old' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+test at tests/host/review-r6.test.cjs:152:1
+✖ [R6-01] the materials of a run are not lost through a link put where they are
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  + [
+  +   'run_newest'
+  + ]
+  - []
+      at TestContext.<anonymous> (<repo>/tests/host/review-r6.test.cjs:160:10)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'run_newest' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+test at tests/host/review-r6.test.cjs:164:1
+✖ [R6-01] the report's case: the 21st run started leaves a running run's edited materials alone, through the door every run goes by
+  Error: ENOENT: no such file or directory, open '<tmp>/tdag-runs-6UJVB0/.thoughtdag/runs/run_0/materials/in_1-a.txt'
+      at Object.readFileSync (node:fs:440:20)
+      at TestContext.<anonymous> (<repo>/tests/host/review-r6.test.cjs:179:19)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    errno: -2,
+    code: 'ENOENT',
+    syscall: 'open',
+    path: '<tmp>/tdag-runs-6UJVB0/.thoughtdag/runs/run_0/materials/in_1-a.txt'
+  }
+test at tests/host/review-r6.test.cjs:214:3
+✖ [R6-06] a snapshot frozen again and recorded while it is being cleaned up (after-stat) stays, for the new run and the old
+  AssertionError [ERR_ASSERTION]: the snapshot the new run names is there
+      at TestContext.<anonymous> (<repo>/tests/host/review-r6.test.cjs:225:12)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+test at tests/host/review-r6.test.cjs:214:3
+✖ [R6-06] a snapshot frozen again and recorded while it is being cleaned up (before-rm) stays, for the new run and the old
+  AssertionError [ERR_ASSERTION]: the snapshot the new run names is there
+      at TestContext.<anonymous> (<repo>/tests/host/review-r6.test.cjs:225:12)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+test at tests/host/review-r6.test.cjs:231:1
+✖ [R6-06] a snapshot frozen long before and recorded only now, during the clean-up, is not taken from the run that froze it
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+    assert.ok(fs.existsSync(file))
+      at TestContext.<anonymous> (<repo>/tests/host/review-r6.test.cjs:239:10)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

@@ -227,14 +227,14 @@ test('[T12] old run directories go beyond the newest ones kept, except one somet
   fs.chmodSync(path.join(runs, 'run_1', 'materials'), 0o755);
   fs.writeFileSync(path.join(runs, 'run_1', 'materials', 'agent-wrote-this.txt'), 'x');
   fs.mkdirSync(path.join(runs, 'not-a-run'));
-  // a run's record beside its materials stays when the materials go
-  fs.writeFileSync(path.join(runs, 'run_2', 'record.json'), '{}');
+  // a run goes when it is known to be over (R6-01), and a record beside its materials stays when the materials go
+  for (const i of [0, 1, 2, 3, 4]) fs.writeFileSync(path.join(runs, `run_${i}`, 'record.json'), JSON.stringify({ runId: `run_${i}`, state: 'completed' }));
   for (let i = 0; i < 5; i++) {
     const at = new Date(Date.UTC(2026, 9, 16, 0, i));
     fs.utimesSync(path.join(runs, `run_${i}`, 'materials'), at, at);
   }
   const removed = await pruneRuns(runs, { keep: 2 });
   assert.deepEqual(removed.sort(), ['run_0', 'run_2']);
-  assert.deepEqual(fs.readdirSync(runs).sort(), ['not-a-run', 'run_1', 'run_2', 'run_3', 'run_4']);
+  assert.deepEqual(fs.readdirSync(runs).sort(), ['not-a-run', 'run_0', 'run_1', 'run_2', 'run_3', 'run_4']);
   assert.deepEqual(fs.readdirSync(path.join(runs, 'run_2')), ['record.json']);
 });

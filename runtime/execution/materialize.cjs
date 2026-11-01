@@ -14,7 +14,7 @@
 'use strict';
 const fsp = require('node:fs/promises');
 const path = require('node:path');
-const { createHash } = require('node:crypto');
+const { createHash, randomUUID } = require('node:crypto');
 
 /** What one run may be given on disk in all. One file read for a run is at most 8 MiB. */
 const MAX_MATERIAL_BYTES = 64 * 1024 * 1024;
@@ -26,6 +26,7 @@ const UNKEPT_ID = /^unkept:[0-9a-f]{64}$/;
 const HASH = /^sha256:[0-9a-f]{64}$/;
 const MANIFEST = 'materials/manifest.json';
 const RECORD = 'record.json';
+const ENDED_MARK = 'ended.json';
 
 class MaterializeError extends Error {
   constructor(code, message, inputId = null) {
@@ -186,30 +187,67 @@ async function materialize(envelope, runDirectory, { readSnapshotOfFile = null, 
   return { runId: envelope.runId, manifest: MANIFEST, entries, totalBytes: total };
 }
 
+/** The states a run's record can say it ended in. */
+const ENDED = new Set(['completed', 'failed', 'cancelled']);
+
+/** Whether a run is known to be over: its record says it ended, or the shell was told so. Anything else may still be reading its materials. */
+async function isOver(runDir, name) {
+  const told = await fsp.readFile(path.join(runDir, ENDED_MARK), 'utf8').then(() => true, () => false);
+  if (told) return true;
+  try {
+    const record = JSON.parse(await fsp.readFile(path.join(runDir, RECORD), 'utf8'));
+    return record?.runId === name && ENDED.has(record.state);
+  } catch { return false; }
+}
+
+/** Whether a materials folder is exactly what its manifest says was written: those files, as files, each with the bytes it was written with. */
+async function isAsWritten(dir) {
+  const stat = await fsp.lstat(dir);
+  if (!stat.isDirectory()) return false;
+  const manifest = JSON.parse(await fsp.readFile(path.join(dir, 'manifest.json'), 'utf8'));
+  const entries = manifest.inputs.map((i) => ({ name: String(i.path).replace(/^materials\//, ''), hash: i.writtenHash }));
+  const listed = new Set(['manifest.json', ...entries.map((e) => e.name)]);
+  const held = await fsp.readdir(dir);
+  if (listed.size !== entries.length + 1 || held.length !== listed.size || held.some((n) => !listed.has(n))) return false;
+  if (!(await fsp.lstat(path.join(dir, 'manifest.json'))).isFile()) return false;
+  for (const { name, hash } of entries) {
+    if (name.includes('/') || !(await fsp.lstat(path.join(dir, name))).isFile()) return false;
+    if (sha256(await fsp.readFile(path.join(dir, name))) !== hash) return false;
+  }
+  return true;
+}
+
 /**
- * Remove the materials of the oldest runs under `runsRoot` beyond the newest `keep`. Materials
- * are removed only when they are exactly what their manifest lists: ones anything else wrote
- * into are left alone. A run's record stays; a run directory left empty goes.
+ * Remove the materials of the oldest runs under `runsRoot` beyond the newest `keep`. Only those
+ * of a run known to be over, and only when they are exactly what their manifest lists: what
+ * cannot be shown to be both stays. They are taken out of use first, under a name nothing else
+ * reaches for, and checked once more there, so an edit that came just before is still seen. A
+ * run's record stays; a run directory left empty goes.
  */
 async function pruneRuns(runsRoot, { keep = 20 } = {}) {
   const names = (await fsp.readdir(runsRoot).catch(() => [])).filter((n) => RUN_ID.test(n));
   const dated = [];
   for (const name of names) {
-    const st = await fsp.stat(path.join(runsRoot, name, 'materials')).catch(() => null);
+    const st = await fsp.lstat(path.join(runsRoot, name, 'materials')).catch(() => null);
     if (st && st.isDirectory()) dated.push({ name, at: st.mtimeMs });
   }
   dated.sort((a, b) => b.at - a.at);
   const removed = [];
   for (const { name } of dated.slice(keep)) {
     const dir = path.join(runsRoot, name);
+    const materials = path.join(dir, 'materials');
     try {
       const top = await fsp.readdir(dir);
-      if (top.some((n) => n !== 'materials' && n !== RECORD)) continue;
-      const manifest = JSON.parse(await fsp.readFile(path.join(dir, MANIFEST), 'utf8'));
-      const listed = new Set(['manifest.json', ...manifest.inputs.map((i) => String(i.path).replace(/^materials\//, ''))]);
-      const held = await fsp.readdir(path.join(dir, 'materials'));
-      if (held.length !== listed.size || held.some((n) => !listed.has(n))) continue;
-      await fsp.rm(path.join(dir, 'materials'), { recursive: true, force: true });
+      if (top.some((n) => n !== 'materials' && n !== RECORD && n !== ENDED_MARK)) continue;
+      if (!(await isOver(dir, name)) || !(await isAsWritten(materials))) continue;
+      const leaving = path.join(dir, `.materials.tdag-prune-${randomUUID().slice(0, 8)}`);
+      await fsp.rename(materials, leaving);
+      if (!(await isAsWritten(leaving).catch(() => false))) {
+        await fsp.rename(leaving, materials);
+        continue;
+      }
+      await fsp.rm(leaving, { recursive: true, force: true });
+      await fsp.rm(path.join(dir, ENDED_MARK), { force: true });
       if ((await fsp.readdir(dir)).length === 0) await fsp.rmdir(dir);
       removed.push(name);
     } catch { /* not a run directory as this module writes them: left alone */ }
@@ -217,4 +255,14 @@ async function pruneRuns(runsRoot, { keep = 20 } = {}) {
   return removed;
 }
 
-module.exports = { materialize, pruneRuns, locatePassage, safeName, MaterializeError, MAX_MATERIAL_BYTES, MANIFEST };
+/** Say that a run under `runsRoot` is over, for a run that keeps no record beside its materials. Nothing is written for a run with no materials here. */
+async function markRunEnded(runsRoot, runId) {
+  if (!RUN_ID.test(String(runId))) return false;
+  const dir = path.join(runsRoot, String(runId));
+  const st = await fsp.lstat(path.join(dir, 'materials')).catch(() => null);
+  if (!st || !st.isDirectory()) return false;
+  await fsp.writeFile(path.join(dir, ENDED_MARK), `${JSON.stringify({ endedAt: new Date().toISOString() })}\n`);
+  return true;
+}
+
+module.exports = { materialize, pruneRuns, markRunEnded, locatePassage, safeName, MaterializeError, MAX_MATERIAL_BYTES, MANIFEST };

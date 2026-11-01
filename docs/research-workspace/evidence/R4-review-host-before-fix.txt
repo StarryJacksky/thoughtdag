@@ -1,0 +1,228 @@
+# R4 host regression tests on 71af50d, the commit R4 reviewed (the source files they touch have not changed in those paths since).
+# git archive 71af50d, node_modules linked, tests/host/review-r4.test.cjs and the fixture helper copied in. --test-force-exit: some of the old code's cases leave work behind.
+✖ [R4-01] a copy to a name that a creation is taking on a volume without hard links is not overwritten by it
+✖ [R4-02] a look at a file a creation has just published finds the creation's identity, not one of its own
+✖ [R4-02] a look at a copy that has just been made finds the copy's identity
+✖ [R4-03] what a tool puts at a file's old name while the file is being moved away is kept, and is a file of its own
+✔ [R4-03] a move and a move the other way between two names do not wait on each other for ever
+✖ [R4-04] a put-back that cannot look at a file it brought back is not over: it does not leave the file lost for good
+✖ [R4-04] the same, settled the next time the workspace is opened
+✖ [R4-05] a put-back whose last note cannot be written has still happened: it says what came back, and its own note stays until it is settled
+✖ [R4-05] a put-back finished at start whose last note cannot be written tries again next time, knowing what it brought back
+✖ [R4-18] a read that comes back short is read on: a part is as long as was asked, and ends between two characters
+✖ [R4-18] a part ends after the last whole character that fits, not one before it
+✖ [R4-18] a part asked for from inside a character starts at that character, and says so
+✖ [R4-18] a part too short to hold one character still holds one: a reader always moves on
+✖ [R4-18] bytes that are not UTF-8 are still read past: a reader always moves on
+✖ [R4-18] a file that shrinks after its size was read ends a reader, instead of holding it at one offset for ever
+ℹ tests 15
+ℹ suites 0
+ℹ pass 1
+ℹ fail 14
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 609.994417
+✖ failing tests:
+test at tests/host/review-r4.test.cjs:27:1
+✖ [R4-01] a copy to a name that a creation is taking on a volume without hard links is not overwritten by it
+  AssertionError [ERR_ASSERTION]: the copy finds the name taken: it did not write under a creation that then replaced it
+  + actual - expected
+  + undefined
+  - 'exists'
+      at TestContext.<anonymous> (<repo>/tests/host/review-r4.test.cjs:46:10)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: 'exists',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+test at tests/host/review-r4.test.cjs:51:1
+✖ [R4-02] a look at a file a creation has just published finds the creation's identity, not one of its own
+  AssertionError [ERR_ASSERTION]: one file, one identity
+  + actual - expected
+  + 'file_bd9f0d3b-070e-425f-bf1b-091a139d8786'
+  - 'file_9622f0b9-502c-49f4-9fa7-946ccd982148'
+      at TestContext.<anonymous> (<repo>/tests/host/review-r4.test.cjs:66:10)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'file_bd9f0d3b-070e-425f-bf1b-091a139d8786',
+    expected: 'file_9622f0b9-502c-49f4-9fa7-946ccd982148',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+test at tests/host/review-r4.test.cjs:71:1
+✖ [R4-02] a look at a copy that has just been made finds the copy's identity
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  + 'file_7c62c25f-a020-411f-805c-bdf64706e7ae'
+  - 'file_a3087161-cc21-43cd-ba08-916db7d10658'
+      at TestContext.<anonymous> (<repo>/tests/host/review-r4.test.cjs:86:10)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'file_7c62c25f-a020-411f-805c-bdf64706e7ae',
+    expected: 'file_a3087161-cc21-43cd-ba08-916db7d10658',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+test at tests/host/review-r4.test.cjs:90:1
+✖ [R4-03] what a tool puts at a file's old name while the file is being moved away is kept, and is a file of its own
+  Error: ENOENT: no such file or directory, open '<tmp>/tdag-review-r4-jzdB3F/project-4/notes/a.md'
+      at Object.readFileSync (node:fs:440:20)
+      at TestContext.<anonymous> (<repo>/tests/host/review-r4.test.cjs:108:19)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    errno: -2,
+    code: 'ENOENT',
+    syscall: 'open',
+    path: '<tmp>/tdag-review-r4-jzdB3F/project-4/notes/a.md'
+  }
+test at tests/host/review-r4.test.cjs:138:1
+✖ [R4-04] a put-back that cannot look at a file it brought back is not over: it does not leave the file lost for good
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (<repo>/tests/host/review-r4.test.cjs:147:3)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: { code: 'EIO' },
+    operator: 'rejects',
+    diff: 'simple'
+  }
+test at tests/host/review-r4.test.cjs:155:1
+✖ [R4-04] the same, settled the next time the workspace is opened
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (<repo>/tests/host/review-r4.test.cjs:164:3)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: { code: 'EIO' },
+    operator: 'rejects',
+    diff: 'simple'
+  }
+test at tests/host/review-r4.test.cjs:189:1
+✖ [R4-05] a put-back whose last note cannot be written has still happened: it says what came back, and its own note stays until it is settled
+  Error: ENOSPC: injected
+      at errno (<repo>/tests/host/review-r4.test.cjs:18:39)
+      at handle.writeFile (<repo>/tests/host/review-r4.test.cjs:179:62)
+      at <repo>/runtime/workspace/journal.cjs:84:24 {
+    code: 'ENOSPC'
+  }
+test at tests/host/review-r4.test.cjs:207:1
+✖ [R4-05] a put-back finished at start whose last note cannot be written tries again next time, knowing what it brought back
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (<repo>/tests/host/review-r4.test.cjs:215:3)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: { code: 'EIO' },
+    operator: 'rejects',
+    diff: 'simple'
+  }
+test at tests/host/review-r4.test.cjs:241:1
+✖ [R4-18] a read that comes back short is read on: a part is as long as was asked, and ends between two characters
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  3 !== 3000
+      at TestContext.<anonymous> (<repo>/tests/host/review-r4.test.cjs:246:10)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 3,
+    expected: 3000,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+test at tests/host/review-r4.test.cjs:250:1
+✖ [R4-18] a part ends after the last whole character that fits, not one before it
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+    [
+  +   '漢',
+  +   3
+  -   '漢漢',
+  -   6
+    ]
+      at TestContext.<anonymous> (<repo>/tests/host/review-r4.test.cjs:254:10)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ '漢', 3 ],
+    expected: [ '漢漢', 6 ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+test at tests/host/review-r4.test.cjs:258:1
+✖ [R4-18] a part asked for from inside a character starts at that character, and says so
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  2 !== 1
+      at TestContext.<anonymous> (<repo>/tests/host/review-r4.test.cjs:263:10)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 2,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+test at tests/host/review-r4.test.cjs:268:1
+✖ [R4-18] a part too short to hold one character still holds one: a reader always moves on
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+    [
+  +   '�',
+  +   1
+  -   '𝒳',
+  -   4
+    ]
+      at TestContext.<anonymous> (<repo>/tests/host/review-r4.test.cjs:273:10)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ '�', 1 ],
+    expected: [ '𝒳', 4 ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+test at tests/host/review-r4.test.cjs:276:1
+✖ [R4-18] bytes that are not UTF-8 are still read past: a reader always moves on
+  AssertionError [ERR_ASSERTION]: at most three bytes are stepped back over
+  8 !== 5
+      at TestContext.<anonymous> (<repo>/tests/host/review-r4.test.cjs:281:10)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 8,
+    expected: 5,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+test at tests/host/review-r4.test.cjs:285:1
+✖ [R4-18] a file that shrinks after its size was read ends a reader, instead of holding it at one offset for ever
+  AssertionError [ERR_ASSERTION]: done: next 200, size 5000
+      at TestContext.<anonymous> (<repo>/tests/host/review-r4.test.cjs:301:10)
+      at async Test.run (node:internal/test_runner/test:1054:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:744:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

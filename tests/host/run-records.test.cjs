@@ -87,11 +87,13 @@ test('[T13] after a crash, the records and the snapshots are checked against eac
 });
 
 test('[T13] cleaning up keeps every snapshot a record holds, however old, and what is too new to be sure of', async () => {
-  const { service, workspace, project, kept } = await frozen({ 'held.md': 'HELD\n', 'loose.md': 'LOOSE\n', 'new.md': 'NEW\n' });
+  const { service, workspace, project, kept, start } = await frozen({ 'held.md': 'HELD\n', 'loose.md': 'LOOSE\n', 'new.md': 'NEW\n' });
   await service.recordRun(workspace.workspaceId, recordOf('run_1', [kept['held.md']], { state: 'completed' }));
   age(snapshotFile(project, kept['held.md'].snapshotId), 90 * 24 * HOUR);
   age(snapshotFile(project, kept['loose.md'].snapshotId), 90 * 24 * HOUR);
-  const result = await service.collectSnapshots(workspace.workspaceId, { graceMs: 24 * HOUR });
+  // this process remembers what its runs froze and have not recorded yet (R6-06); after a restart only the age is left to go by
+  assert.deepEqual(await service.collectSnapshots(workspace.workspaceId, { graceMs: 24 * HOUR }), { removed: [], refused: null });
+  const result = await start({ io: fs.promises }).collectSnapshots(workspace.workspaceId, { graceMs: 24 * HOUR });
   assert.deepEqual(result, { removed: [kept['loose.md'].snapshotId], refused: null });
   assert.ok(fs.existsSync(snapshotFile(project, kept['held.md'].snapshotId)));
   assert.ok(fs.existsSync(snapshotFile(project, kept['new.md'].snapshotId)));
@@ -138,5 +140,9 @@ test('[T13] the page records runs and asks for them back at the door, and cannot
   age(snapshotFile(made.project, made.kept['loose.md'].snapshotId), HOUR / 2);
   assert.deepEqual(await ask('collect-snapshots', id, { graceMs: 0 }), { removed: [], refused: null });
   age(snapshotFile(made.project, made.kept['loose.md'].snapshotId), 2 * HOUR);
+  // what a run of this process froze and has not recorded stays, however old (R6-06); recorded and forgotten, its age is what counts
+  assert.deepEqual(await ask('collect-snapshots', id, { graceMs: 0 }), { removed: [], refused: null });
+  await ask('record-run', id, recordOf('run_gone', [made.kept['loose.md']], { state: 'completed' }));
+  fs.rmSync(path.dirname(recordFile(made.project, 'run_gone')), { recursive: true });
   assert.deepEqual(await ask('collect-snapshots', id, { graceMs: 0 }), { removed: [made.kept['loose.md'].snapshotId], refused: null });
 });

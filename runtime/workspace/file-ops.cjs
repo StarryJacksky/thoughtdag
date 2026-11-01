@@ -46,6 +46,8 @@ const TRY_AGAIN = new Set(['EIO', 'EAGAIN', 'EBUSY', 'EINTR', 'EMFILE', 'ENFILE'
 const MAX_EDITABLE_BYTES = 8 * 1024 * 1024;
 /** A text too large to open for editing is read this much at a time, at most. */
 const MAX_RANGE_BYTES = 1024 * 1024;
+/** The most bytes one UTF-8 character takes. */
+const MAX_UTF8_BYTES = 4;
 /** Where files created from the graph land, at the workspace root. */
 const GRAPH_FILES_DIR = 'Graph Files';
 const UTF8_BOM = Buffer.from([0xef, 0xbb, 0xbf]);
@@ -87,6 +89,37 @@ function decodeText(bytes) {
   return { text, encoding: bom ? 'utf-8-bom' : 'utf-8', newline: crlf && lf ? 'mixed' : crlf ? 'crlf' : 'lf' };
 }
 
+/** How many of `bytes` are whole characters: a character that does not fit is left out, one that does is kept. Bytes that are not UTF-8 are all kept. */
+function wholeCharacters(bytes) {
+  for (let back = 1; back <= Math.min(MAX_UTF8_BYTES, bytes.length); back++) {
+    const byte = bytes[bytes.length - back];
+    if ((byte & 0xc0) === 0x80) continue;
+    const needs = byte >= 0xf0 ? 4 : byte >= 0xe0 ? 3 : byte >= 0xc0 ? 2 : 1;
+    return needs > back && bytes.length > back ? bytes.length - back : bytes.length;
+  }
+  return bytes.length;
+}
+
+/** Fill `buffer` from `position`, however short each read comes back. Resolves with how much there was. */
+async function readFully(handle, buffer, position) {
+  let got = 0;
+  while (got < buffer.length) {
+    const { bytesRead } = await handle.read(buffer, got, buffer.length - got, position + got);
+    if (bytesRead === 0) break;
+    got += bytesRead;
+  }
+  return got;
+}
+
+/** `offset`, or the start of the character it stands inside: at most three bytes back, which is the longest a character goes on. */
+async function startOfCharacter(handle, offset) {
+  const one = Buffer.alloc(1);
+  for (let at = offset; at > 0 && at > offset - MAX_UTF8_BYTES; at--) {
+    if (await readFully(handle, one, at) === 0 || (one[0] & 0xc0) !== 0x80) return at;
+  }
+  return Math.max(0, offset - MAX_UTF8_BYTES + 1);
+}
+
 /**
  * The file operations of one workspace.
  *   grant     { rootGrantId, rootPath, workspaceId, readOnly }
@@ -110,6 +143,16 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
     return run;
   };
   const atPath = (relativePath, fn) => locked(`path:${relativePath.toLowerCase()}`, fn);
+  // Keeping a snapshot, writing the record that names one and cleaning them up take turns: what cleaning up
+  // finds to be held by nobody is still so when it removes it. `frozenNotRecorded` is what a run of this
+  // process has frozen and no record names yet: held by that run, however long it takes to get there.
+  const inStepWithSnapshots = (fn) => locked('snapshots', fn);
+  const frozenNotRecorded = new Set();
+  /** Both names of a move held, always in one order, so that two moves between the same names cannot wait on each other. */
+  const atPaths = (a, b, fn) => {
+    const [first, second] = [a.toLowerCase(), b.toLowerCase()].sort();
+    return first === second ? atPath(first, fn) : atPath(first, () => atPath(second, fn));
+  };
 
   // A folder that is moved or trashed takes every file in it along. While
   // that happens nothing else changes the workspace: whatever was under way
@@ -203,9 +246,12 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
    * `aboutToTry(relativePath, mine)` is called, and awaited, before a name
    * is tried; `mine` is `{ temp, dev, ino }`: the operation's own file and
    * its file-system identity, which is what proves later whose file is at
-   * that name.
+   * that name. `published(target, stat)` is called, and its answer returned,
+   * once the file has its name, with the name's lock still held: until it
+   * has said what the file is, this application's other looks at that name
+   * and copies to it wait.
    */
-  async function createExclusive(parent, candidates, bytes, mode, aboutToTry = async () => {}) {
+  async function createExclusive(parent, candidates, bytes, mode, aboutToTry, published) {
     let own = null; // { file, stat }: the content, written and flushed, not yet under its name
     const writeOwn = async (dir) => {
       const file = path.join(dir, `.new.tdag-create-${newId().slice(0, 8)}`);
@@ -221,31 +267,32 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
         await handle.close().catch(() => {});
       }
     };
+    const NAME_TAKEN = Symbol('name taken');
     try {
       for (const name of candidates) {
-        const target = await assertAllowedPath(grant, 'create', join(parent, name));
-        if (target.exists) continue;
-        own ??= await writeOwn(path.dirname(target.absolute));
-        await aboutToTry(target.relativePath, { temp: path.basename(own.file), dev: own.stat.dev, ino: own.stat.ino });
-        try { await io.link(own.file, target.absolute); } catch (e) {
-          if (e.code === 'EEXIST') continue; // another creator took the name first
-          if (!NO_HARD_LINKS.has(e.code)) throw e;
-          // no hard links on this volume: the name is taken with a rename, which would replace whatever is
-          // there. Looking and renaming happen under the name's lock, which every creation, move and put-back
-          // of this application to that name takes: none of them can come between the two.
-          const took = await atPath(target.relativePath, async () => {
-            if (await io.stat(target.absolute).then(() => true, () => false)) return false;
+        const wanted = await assertAllowedPath(grant, 'create', join(parent, name));
+        const outcome = await atPath(wanted.relativePath, async () => {
+          const target = await assertAllowedPath(grant, 'create', join(parent, name));
+          if (target.exists) return NAME_TAKEN;
+          own ??= await writeOwn(path.dirname(target.absolute));
+          await aboutToTry(target.relativePath, { temp: path.basename(own.file), dev: own.stat.dev, ino: own.stat.ino });
+          try {
+            await io.link(own.file, target.absolute);
+            // the file has its name; the operation's own name for it goes
+            await io.unlink(own.file).catch(() => {});
+          } catch (e) {
+            if (e.code === 'EEXIST') return NAME_TAKEN; // another creator took the name first
+            if (!NO_HARD_LINKS.has(e.code)) throw e;
+            // no hard links on this volume: the name is taken with a rename, which would replace whatever is
+            // there. Looking and renaming happen under the name's lock, which every creation, copy, move and
+            // put-back of this application to that name takes: none of them can come between the two.
+            if (await io.stat(target.absolute).then(() => true, () => false)) return NAME_TAKEN;
             await io.rename(own.file, target.absolute);
-            return true;
-          });
-          if (!took) continue;
+          }
           own = null;
-          return { target, stat: await io.stat(target.absolute) };
-        }
-        // the file has its name; the operation's own name for it goes
-        await io.unlink(own.file).catch(() => {});
-        own = null;
-        return { target, stat: await io.stat(target.absolute) };
+          return published(target, await io.stat(target.absolute));
+        });
+        if (outcome !== NAME_TAKEN) return outcome;
       }
     } finally {
       if (own) await io.rm(own.file, { force: true }).catch(() => {});
@@ -266,17 +313,32 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
   const readOnly = async () => grant.readOnly || (await registry.access()) !== 'read-write';
   const refuseReadOnly = async () => { if (await readOnly()) throw new WorkspaceAccessError('read-only', 'this workspace is read-only'); };
 
-  /** A read that finds content the record does not have: note it, and say so when it is a change rather than a first look. */
+  /**
+   * A read that finds content the record does not have: note it, and say so
+   * when it is a change rather than a first look. In step with every other
+   * look at this file and any move of its folder. A record that moved on while
+   * the read was under way was changed by one of them, which says nothing of
+   * what the read found: it may be older than that, or newer. So the file is
+   * looked at again where its record now says it is, and the record is brought
+   * to what is there.
+   */
   async function noteRead(record, revision, stat) {
     if (record.revision === revision || await readOnly()) return;
-    // in step with every other look at this file: a record that moved on while this read was under
-    // way was changed by one of them, and that one has said so
-    await locked(record.fileId, async () => {
-      if ((await registry.get(record.fileId).catch(() => null))?.revision !== record.revision) return;
-      const updated = await registry.update(record.fileId, { revision }, observedOf(stat)).catch(() => null);
+    await changing(() => locked(record.fileId, async () => {
+      const now = await registry.get(record.fileId).catch(() => null);
+      if (!now || isLost(now)) return;
+      let seen = { revision, stat };
+      if (now.revision !== record.revision || now.relativePath !== record.relativePath) {
+        const target = await assertAllowedPath(grant, 'read', now.relativePath).catch(() => null);
+        const there = target ? await readChecked(target.absolute).catch(() => null) : null;
+        if (!there) return;
+        seen = { revision: hashOf(there.bytes), stat: there.stat };
+        if (seen.revision === now.revision) return;
+      }
+      const updated = await registry.update(record.fileId, { revision: seen.revision }, observedOf(seen.stat)).catch(() => null);
       // everyone who refers to the file hears of a change, whoever happened to read it first
-      if (updated && record.revision !== null) { try { notify(updated, 'content'); } catch { /* the listener's own problem */ } }
-    });
+      if (updated && now.revision !== null) { try { notify(updated, 'content'); } catch { /* the listener's own problem */ } }
+    }));
   }
 
   /**
@@ -318,7 +380,8 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
     for (const f of Array.isArray(note?.files) ? note.files : []) if (typeof f?.fileId === 'string' && typeof f.relativePath === 'string') wanted.set(f.fileId, f.relativePath);
     const there = new Map();
     for (const [fileId, relativePath] of wanted) {
-      const stat = await io.stat(path.join(grant.rootPath, ...relativePath.split('/'))).catch(() => null);
+      // gone is gone; a disk that cannot say is not an answer: the put-back stays unfinished, and is finished by the next try
+      const stat = await io.stat(path.join(grant.rootPath, ...relativePath.split('/'))).catch((e) => { if (e.code === 'ENOENT' || e.code === 'ENOTDIR') return null; throw e; });
       if (stat?.isFile()) there.set(fileId, { relativePath, stat });
     }
     const live = (await readOnly()) ? 'readonly' : 'ready';
@@ -429,8 +492,9 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
     if (!back || stillKept) return null;
     const note = await recoveryNoteOf(intent.receiptId);
     const restored = note ? await backFromRecovery(note, note) : [];
-    await clearRecoveryReceipt(grant.rootPath, intent.receiptId, io);
+    // the note goes last: a try that cannot say it is over can still be finished by the next, which needs it
     await journal.append({ opId, kind: 'restore', phase: 'done', to: intent.to, itemKind: intent.itemKind });
+    await clearRecoveryReceipt(grant.rootPath, intent.receiptId, io);
     return restored;
   }
 
@@ -453,8 +517,11 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
      */
     registerExisting: (relativePath, origin = 'workspace') => changing(async () => {
       const target = await assertAllowedPath(grant, 'read', relativePath);
-      const stat = await io.stat(target.absolute);
-      return registry.register({ relativePath: target.relativePath, mediaType: mediaTypeOf(target.relativePath), origin, observed: observedOf(stat) });
+      // a file being made there has its identity given it under this lock: it is that one, not a second
+      return atPath(target.relativePath, async () => {
+        const stat = await io.stat(target.absolute);
+        return registry.register({ relativePath: target.relativePath, mediaType: mediaTypeOf(target.relativePath), origin, observed: observedOf(stat) });
+      });
     }),
 
     /**
@@ -529,25 +596,27 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
         await journal.append({ opId: idempotencyKey, kind: 'create', phase: 'intent', parent, extension, origin, recordOrigin, revision, ...(importedFrom ? { importedFrom } : {}) });
 
         const candidates = name !== null ? named(name, extension) : numbered(extension.toLowerCase() === 'tdmap' ? 'Mindmap' : 'Untitled', extension);
-        let created;
+        let isThere = false;
         try {
-          created = await createExclusive(parent, candidates, bytes, 0o644, (relativePath, mine) => journal.append({ opId: idempotencyKey, kind: 'create', phase: 'attempt', relativePath, ...mine }));
+          return await createExclusive(parent, candidates, bytes, 0o644, (relativePath, mine) => journal.append({ opId: idempotencyKey, kind: 'create', phase: 'attempt', relativePath, ...mine }), async (target, stat) => {
+            // from here the file exists: whatever fails next, it is kept and found again
+            isThere = true;
+            await journal.append({ opId: idempotencyKey, kind: 'create', phase: 'created', relativePath: target.relativePath, origin: recordOrigin, revision, ...(importedFrom ? { importedFrom } : {}) });
+            const record = await registry.create({
+              relativePath: target.relativePath,
+              mediaType: mediaTypeOf(target.relativePath),
+              origin: recordOrigin,
+              observed: observedOf(stat),
+              revision,
+              ...(importedFrom ? { importedFrom } : {}),
+            });
+            await journal.append({ opId: idempotencyKey, kind: 'create', phase: 'done', fileId: record.fileId });
+            return record;
+          });
         } catch (e) {
-          await journal.append({ opId: idempotencyKey, kind: 'create', phase: 'failed' });
+          if (!isThere) await journal.append({ opId: idempotencyKey, kind: 'create', phase: 'failed' });
           throw e;
         }
-        // from here the file exists: whatever fails next, it is kept and found again
-        await journal.append({ opId: idempotencyKey, kind: 'create', phase: 'created', relativePath: created.target.relativePath, origin: recordOrigin, revision, ...(importedFrom ? { importedFrom } : {}) });
-        const record = await registry.create({
-          relativePath: created.target.relativePath,
-          mediaType: mediaTypeOf(created.target.relativePath),
-          origin: recordOrigin,
-          observed: observedOf(created.stat),
-          revision,
-          ...(importedFrom ? { importedFrom } : {}),
-        });
-        await journal.append({ opId: idempotencyKey, kind: 'create', phase: 'done', fileId: record.fileId });
-        return record;
       }));
     },
 
@@ -589,7 +658,11 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
       await noteRead(record, revision, stat);
       // a read-only folder is not written to: its snapshots are kept nowhere, and the run is told so
       if (await readOnly()) return { bytes, contentHash: revision, snapshotId: null };
-      const kept = await keepSnapshot(grant.rootPath, bytes, io);
+      const kept = await inStepWithSnapshots(async () => {
+        const snapshot = await keepSnapshot(grant.rootPath, bytes, io);
+        frozenNotRecorded.add(snapshot.snapshotId);
+        return snapshot;
+      });
       return { bytes, contentHash: kept.contentHash, snapshotId: kept.snapshotId };
     },
 
@@ -599,7 +672,10 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
     /** Write a run's record here, in place of any earlier record of the run (run-records.cjs). A read-only folder keeps none. */
     async recordRun(record) {
       await refuseReadOnly();
-      await runRecords.writeRecord(grant.rootPath, record, io);
+      await inStepWithSnapshots(async () => {
+        await runRecords.writeRecord(grant.rootPath, record, io);
+        for (const input of record.inputs) frozenNotRecorded.delete(input.snapshotId);
+      });
     },
     /** Every run record of this workspace that can be read. */
     readRuns: async () => (await runRecords.readRecords(grant.rootPath, io)).records,
@@ -608,7 +684,7 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
     /** Remove the snapshots no run record names, once they are old enough. */
     async collectSnapshots(options) {
       await refuseReadOnly();
-      return runRecords.collectSnapshots(grant.rootPath, options, io);
+      return inStepWithSnapshots(() => runRecords.collectSnapshots(grant.rootPath, { ...options, heldNow: frozenNotRecorded }, io));
     },
 
     /**
@@ -629,23 +705,20 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
         if (!stat.isFile()) throw new WorkspaceAccessError('not-a-file', 'only a regular file can be read');
         const stamp = `${stat.size}:${stat.mtimeMs}`;
         if (offset >= stat.size) return { text: '', offset, nextOffset: stat.size, size: stat.size, stamp };
-        const want = Math.min(length, MAX_RANGE_BYTES, stat.size - offset);
+        const start = await startOfCharacter(handle, offset);
+        // room for one character, however little was asked for: a reader always moves on
+        const want = Math.min(Math.max(length, MAX_UTF8_BYTES), MAX_RANGE_BYTES, stat.size - start);
         const buffer = Buffer.alloc(want);
-        const { bytesRead } = await handle.read(buffer, 0, want, offset);
-        let bytes = buffer.subarray(0, bytesRead);
-        if (offset + bytes.length < stat.size) {
+        const got = await readFully(handle, buffer, start);
+        // less than the size promised: the file has ended here since. Said so, the reader is done
+        const size = got < want ? start + got : stat.size;
+        let bytes = buffer.subarray(0, got);
+        if (start + bytes.length < size) {
           // end at the end of a line; a line longer than the part ends between two characters
           const newline = bytes.lastIndexOf(0x0a);
-          if (newline >= 0) bytes = bytes.subarray(0, newline + 1);
-          else {
-            let end = bytes.length;
-            // step back over the continuation bytes of a character that does not fit whole, and its lead byte
-            while (end > 0 && (bytes[end - 1] & 0xc0) === 0x80) end--;
-            if (end > 0 && bytes[end - 1] >= 0xc0) end--;
-            if (end > 0) bytes = bytes.subarray(0, end);
-          }
+          bytes = bytes.subarray(0, newline >= 0 ? newline + 1 : wholeCharacters(bytes));
         }
-        return { text: new TextDecoder('utf-8').decode(bytes), offset, nextOffset: offset + bytes.length, size: stat.size, stamp };
+        return { text: new TextDecoder('utf-8').decode(bytes), offset: start, nextOffset: start + bytes.length, size, stamp };
       } finally {
         await handle.close();
       }
@@ -706,8 +779,9 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
       const record = await liveRecordOf(fileId);
       const source = await assertAllowedPath(grant, 'move-from', record.relativePath);
       const wanted = await assertAllowedPath(grant, 'move-to', join(targetParentRelativePath, newName));
-      // from the look at the name to the file being there, nothing else of this application reaches for that name
-      return atPath(wanted.relativePath, async () => {
+      // from the look at the name to the file being there and no longer at the old name, nothing else of this
+      // application reaches for either: what a tool puts at the old name meanwhile would go with it
+      return atPaths(source.relativePath, wanted.relativePath, async () => {
         const destination = await assertAllowedPath(grant, 'move-to', join(targetParentRelativePath, newName));
         let caseOnly = false;
         if (destination.exists) {
@@ -735,17 +809,22 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
       if (done) return recordOf(done.fileId);
       const record = await liveRecordOf(fileId);
       const source = await assertAllowedPath(grant, 'read', record.relativePath);
-      const destination = await assertAllowedPath(grant, 'create', join(targetParentRelativePath, newName));
-      if (destination.exists) throw new WorkspaceAccessError('exists', 'something is already at that name');
-      await journal.append({ opId, kind: 'copy', phase: 'intent', fileId, to: destination.relativePath });
-      try { await io.copyFile(source.absolute, destination.absolute, fs.constants.COPYFILE_EXCL); } catch (e) {
-        await journal.append({ opId, kind: 'copy', phase: 'failed' });
-        throw e.code === 'EEXIST' ? new WorkspaceAccessError('exists', 'something is already at that name') : e;
-      }
-      const { bytes, stat } = await readChecked(destination.absolute);
-      const copy = await registry.create({ relativePath: destination.relativePath, mediaType: mediaTypeOf(destination.relativePath), origin: 'workspace', observed: observedOf(stat), revision: hashOf(bytes) });
-      await journal.append({ opId, kind: 'copy', phase: 'done', fileId: copy.fileId });
-      return copy;
+      const wanted = await assertAllowedPath(grant, 'create', join(targetParentRelativePath, newName));
+      // from the look at the name until the copy has its identity, nothing else of this application reaches for
+      // that name: a creation on a volume without hard links would put its file over this one
+      return atPath(wanted.relativePath, async () => {
+        const destination = await assertAllowedPath(grant, 'create', join(targetParentRelativePath, newName));
+        if (destination.exists) throw new WorkspaceAccessError('exists', 'something is already at that name');
+        await journal.append({ opId, kind: 'copy', phase: 'intent', fileId, to: destination.relativePath });
+        try { await io.copyFile(source.absolute, destination.absolute, fs.constants.COPYFILE_EXCL); } catch (e) {
+          await journal.append({ opId, kind: 'copy', phase: 'failed' });
+          throw e.code === 'EEXIST' ? new WorkspaceAccessError('exists', 'something is already at that name') : e;
+        }
+        const { bytes, stat } = await readChecked(destination.absolute);
+        const copy = await registry.create({ relativePath: destination.relativePath, mediaType: mediaTypeOf(destination.relativePath), origin: 'workspace', observed: observedOf(stat), revision: hashOf(bytes) });
+        await journal.append({ opId, kind: 'copy', phase: 'done', fileId: copy.fileId });
+        return copy;
+      });
     })),
 
     /**
@@ -944,8 +1023,10 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
           throw e;
         }
         const restored = await backFromRecovery(item, entry.note);
-        await clearRecoveryReceipt(grant.rootPath, receiptId, io);
-        await journal.append({ opId, kind: 'restore', phase: 'done', to: target.relativePath, itemKind: item.kind });
+        // it has happened, and what came back is said, whether or not this last note can be written. Not
+        // written, the operation stays open and its note with it: the next start finds it and finishes it.
+        const noted = await journal.append({ opId, kind: 'restore', phase: 'done', to: target.relativePath, itemKind: item.kind }).then(() => true, () => false);
+        if (noted) await clearRecoveryReceipt(grant.rootPath, receiptId, io);
         return { relativePath: target.relativePath, kind: item.kind, restored };
       });
     }),

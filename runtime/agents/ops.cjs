@@ -5,7 +5,7 @@
 'use strict';
 const path = require('node:path');
 const fsp = require('node:fs/promises');
-const { materialize, pruneRuns, MaterializeError } = require('../execution/materialize.cjs');
+const { materialize, pruneRuns, markRunEnded, MaterializeError } = require('../execution/materialize.cjs');
 const { verifyPolicy } = require('../execution/policy.cjs');
 
 const WORKSPACE_ID = /^[\w.-]{1,80}$/;
@@ -31,8 +31,8 @@ async function workspaceFor(root, canvasId) {
  * given anything. `readers` read the workspace's frozen files; `provided`
  * holds what the canvas holds, by input id. Answers `{ ok, dir, receipt }`
  * (`dir` relative to `cwd`), or `{ ok: false, code, message, inputId }`.
- * The oldest run directories beyond the newest 20 are removed, each only if
- * it holds exactly what its manifest lists.
+ * The materials of the oldest runs beyond the newest 20 are removed, each only
+ * if the run is known to be over and they are exactly what its manifest lists.
  */
 async function materializeRun(cwd, envelope, provided, readers = {}) {
   const refused = (code, message, more = {}) => ({ ok: false, code, message, inputId: null, ...more });
@@ -53,6 +53,15 @@ async function materializeRun(cwd, envelope, provided, readers = {}) {
   }
 }
 
+/**
+ * A run that was given materials in `cwd` is over: from now on they may be cleaned up. Its record,
+ * when it keeps one, is in the workspace whose files it read, which need not be this folder.
+ */
+async function endRun(cwd, runId) {
+  if (typeof cwd !== 'string' || !path.isAbsolute(cwd)) return { ok: false };
+  return { ok: await markRunEnded(path.join(cwd, '.thoughtdag', 'runs'), runId).catch(() => false) };
+}
+
 /** The guard's tuning for a working directory: <cwd>/.thoughtdag/guard.json */
 async function writeGuard(cwd, config) {
   if (typeof cwd !== 'string' || !path.isAbsolute(cwd)) return false;
@@ -64,4 +73,4 @@ async function writeGuard(cwd, config) {
   return true;
 }
 
-module.exports = { workspaceFor, materializeRun, writeGuard };
+module.exports = { workspaceFor, materializeRun, endRun, writeGuard };

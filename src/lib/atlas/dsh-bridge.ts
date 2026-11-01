@@ -20,6 +20,7 @@ import type { StoreApi } from 'zustand';
 import type { StoreState } from '../../store/types';
 import { liveTailPlan } from './live-log';
 import { useUiStore } from '../ui-store';
+import { HARNESS_AGENT_MODEL, isHarnessAgentModel } from '../agents/harness-agent';
 
 type Bridge = NonNullable<Window['desktopSessions']>;
 type Root = Awaited<ReturnType<Bridge['roots']>>[number];
@@ -316,9 +317,7 @@ export function installDshSessionsBridge(apiBase: string): void {
 // everywhere but inside the embedded harness, so the send path stays
 // byte-identical elsewhere.
 
-export const HARNESS_AGENT_MODEL = 'harness/agent';
-/** The bare entry or one of its per-model forms ('harness/agent/<provider>/<model>'). */
-export const isHarnessAgentModel = (id: string | undefined | null): boolean => !!id && (id === HARNESS_AGENT_MODEL || id.startsWith(HARNESS_AGENT_MODEL + '/'));
+export { HARNESS_AGENT_MODEL, isHarnessAgentModel };
 
 /** The working directory a fresh agent turn should run in: the project the
  *  active canvas mirrors, else the session the harness chat currently shows. */

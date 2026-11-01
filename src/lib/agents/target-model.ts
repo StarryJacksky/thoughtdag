@@ -12,7 +12,7 @@
 import { validateRunDTO, type ExecutionTarget } from '../context/contracts';
 import type { ModelInfo } from '../use-models';
 import { useUiStore } from '../ui-store';
-import { AGENT_RUNTIMES, agentTarget, runtimeOf } from './agent-runtime';
+import { AGENT_RUNTIMES, agentTarget, runtimeOf, actsAsAgent, HARNESS_AGENT_MODEL, isHarnessAgentModel } from './agent-runtime';
 
 /**
  * The policy of a target set to research: its runs are given their inputs and their question and
@@ -24,6 +24,12 @@ export type RunMode = 'research' | 'workspace';
 export const runModeOf = (target: Pick<ExecutionTarget, 'policyId'> | undefined): RunMode => (target?.policyId === RESEARCH_POLICY ? 'research' : 'workspace');
 
 /**
+ * What a target comes to. What its model is reached by says so, over what its record says: a target
+ * bound to the harness's agent before that was told apart says it is a provider's.
+ */
+export const kindOf = (target: Pick<ExecutionTarget, 'kind' | 'model'>): ExecutionTarget['kind'] => (actsAsAgent(target.model) ? 'agent' : target.kind);
+
+/**
  * Whether a task's runs may change files: an agent at work runs in its folder with tools that write.
  * Such a run is never set off on its own (by a replay, by an automatic rerun when something upstream
  * changed): the person starts it, having seen what it is to write. A task bound to nothing runs on
@@ -32,8 +38,8 @@ export const runModeOf = (target: Pick<ExecutionTarget, 'policyId'> | undefined)
  * (`mayStart` in store/streaming).
  */
 export function writesFiles(task: { target?: ExecutionTarget; model?: string }): boolean {
-  if (task.target) return task.target.kind === 'agent' && runModeOf(task.target) === 'workspace';
-  return runtimeOf(task.model ?? useUiStore.getState().selectedModel) !== null;
+  if (task.target) return kindOf(task.target) === 'agent' && runModeOf(task.target) === 'workspace';
+  return actsAsAgent(task.model ?? useUiStore.getState().selectedModel);
 }
 
 /** What of a target makes it the AI it is: two targets with the same settings are the same revision. */
@@ -65,6 +71,10 @@ export interface TargetDescription {
  * is never given the agent's name.
  */
 export function describeTarget(target: Pick<ExecutionTarget, 'model' | 'effort' | 'kind' | 'runtime'>): TargetDescription {
+  if (isHarnessAgentModel(target.model)) {
+    const model = target.model === HARNESS_AGENT_MODEL ? '' : target.model.split('/').pop() || '';
+    return { group: 'agent', runtime: 'Agent', model, effort: target.effort, label: ['Agent', model, target.effort].filter(Boolean).join(' · ') };
+  }
   const agent = target.kind === 'agent' ? agentTarget(target.model) : null;
   if (agent) {
     const runtime = AGENT_RUNTIMES[agent.runtime].label;
@@ -83,16 +93,16 @@ export function templateFor(model?: string | null, more: { effort?: string | nul
   const id = model ?? useUiStore.getState().selectedModel ?? '';
   if (!id) throw new Error('there is no model to make a target for');
   const runtime = runtimeOf(id);
-  const kind: ExecutionTarget['kind'] = runtime ? 'agent' : 'provider';
-  // effort is a setting of the agent runtimes; a model reached through an API has none here
-  const effort = kind === 'agent' ? (more.effort !== undefined ? more.effort : (useUiStore.getState().agentEffort || null)) : null;
+  const kind: ExecutionTarget['kind'] = actsAsAgent(id) ? 'agent' : 'provider';
+  // effort is a setting of the agent runtimes; a model reached through an API has none here, and neither does the harness's agent
+  const effort = runtime ? (more.effort !== undefined ? more.effort : (useUiStore.getState().agentEffort || null)) : null;
   const template: ExecutionTarget = {
     targetId: 'template',
     revision: '',
     label: '',
     kind,
     runtime,
-    connectionRef: runtime ? `runtime:${runtime}` : `provider:${id.includes('/') ? id.slice(0, id.indexOf('/')) : 'default'}`,
+    connectionRef: runtime ? `runtime:${runtime}` : isHarnessAgentModel(id) ? 'runtime:harness' : `provider:${id.includes('/') ? id.slice(0, id.indexOf('/')) : 'default'}`,
     model: id,
     effort: effort || null,
     roleRef: null,
@@ -129,6 +139,6 @@ export function checkSend(task: { target?: ExecutionTarget; model?: string }, kn
   const model = task.target?.model ?? task.model ?? useUiStore.getState().selectedModel ?? known.serverDefault;
   if (!model) return { ok: false, reason: 'no-model' };
   const bound = task.target;
-  if (bound && bound.kind === 'provider' && known.models.length > 0 && !known.models.some((m) => m.id === bound.model)) return { ok: false, reason: 'unavailable', model: bound.model };
+  if (bound && kindOf(bound) === 'provider' && known.models.length > 0 && !known.models.some((m) => m.id === bound.model)) return { ok: false, reason: 'unavailable', model: bound.model };
   return { ok: true };
 }

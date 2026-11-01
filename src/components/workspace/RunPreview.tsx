@@ -5,7 +5,8 @@ import { useUiStore } from '../../lib/ui-store';
 import { fmt, useT } from '../../i18n';
 import { isViewerMode } from '../../lib/viewer';
 import { isTask, runModeOf, setRunMode, type RunMode } from '../../lib/agents/targets';
-import { AGENT_RUNTIMES, runtimeOf } from '../../lib/agents/agent-runtime';
+import { actsAsAgent, AGENT_RUNTIMES, runtimeOf } from '../../lib/agents/agent-runtime';
+import { kindOf } from '../../lib/agents/target-model';
 import { previewRun } from '../../lib/context/prepare-run';
 import { capabilitiesOf, verifyPolicy } from '../../lib/context/policy';
 import StaleSection from './StaleSection';
@@ -34,7 +35,7 @@ export default function RunPreview({ nodeId }: { nodeId: string }) {
   const target = node.data.target;
   const mode = runModeOf(target);
   const runtime = target ? target.runtime : runtimeOf(node.data.model ?? selectedModel ?? '');
-  const agent = target ? target.kind === 'agent' : runtime !== null;
+  const agent = target ? kindOf(target) === 'agent' : actsAsAgent(node.data.model ?? selectedModel);
   // what the verdict will be when it is sent: the policy's shape is all the check reads of it
   const verdict = verifyPolicy({
     mode,

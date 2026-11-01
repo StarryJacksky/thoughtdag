@@ -21,6 +21,7 @@ import type { ContextMessage, ImageAttachment, StreamCallbacks } from '../api';
 import type { ModelInfo } from '../use-models';
 import type { AgentRuntime, AgentPermissionMode } from '../../types';
 import { useUiStore } from '../ui-store';
+import { HARNESS_AGENT_MODEL, isHarnessAgentModel } from './harness-agent';
 import { useStore } from '../../store';
 
 /** The runtimes the shell can run, keyed by the prefix of their picker ids. */
@@ -42,6 +43,10 @@ export const runtimeOf = (id: string | undefined | null): AgentRuntime | null =>
   return null;
 };
 export const isAgentModel = (id: string | undefined | null): boolean => runtimeOf(id) !== null;
+
+export { HARNESS_AGENT_MODEL, isHarnessAgentModel };
+/** Whether a model id comes to an agent at work in a folder with tools of its own, whichever way it is reached, rather than a model called through an API. */
+export const actsAsAgent = (id: string | undefined | null): boolean => isAgentModel(id) || isHarnessAgentModel(id);
 
 /** `<runtime prefix><provider>/<model>` → the runtime and its own coordinates, or null. */
 export function agentTarget(id: string): { runtime: AgentRuntime; provider: string; id: string } | null {

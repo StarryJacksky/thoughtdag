@@ -5,12 +5,12 @@ import { upstreamFingerprint, upstreamParts, recordParts, recordsForAgent, recor
 import { sha256Hex, canonicalStringify } from '../lib/context-bundle';
 import { pruneHighlights } from '../lib/highlight-match';
 import { llmCallStream, declaresTools, type ContextMessage, type ImageAttachment } from '../lib/api';
-import { harnessOutbound, claimHarnessTurn, stampHarnessTurn, isHarnessAgentModel } from '../lib/atlas/dsh-bridge';
-import { agentOutbound, adoptAgentTurn, claimAgentTurn, isAgentModel } from '../lib/agents/agent-runtime';
+import { harnessOutbound, claimHarnessTurn, stampHarnessTurn } from '../lib/atlas/dsh-bridge';
+import { actsAsAgent, agentOutbound, adoptAgentTurn, claimAgentTurn, isAgentModel } from '../lib/agents/agent-runtime';
 import { countTokens, activeSummary } from '../utils';
 import { toast, useUiStore } from '../lib/ui-store';
 import { getModelsOnce, reconcileModelId, describeModel } from '../lib/use-models';
-import { checkSend, createTarget, describeTarget, RESEARCH_POLICY, templateFor, writesFiles } from '../lib/agents/target-model';
+import { checkSend, createTarget, describeTarget, kindOf, RESEARCH_POLICY, templateFor, writesFiles } from '../lib/agents/target-model';
 import { contextLengthFor } from '../lib/runtime-providers';
 import { memoryContextBlock, judgeMemory } from '../lib/memory';
 import { fetchRecallItems, recallContextBlock } from '../lib/recall';
@@ -496,7 +496,7 @@ export async function runNodeGeneration(
   })();
   // execution records tell a plain model it has no tools; an agent has them,
   // and a request that declares search tools has those
-  if (isAgentModel(requestedModel) || isHarnessAgentModel(requestedModel)) messages = recordsForAgent(messages);
+  if (actsAsAgent(requestedModel)) messages = recordsForAgent(messages);
   else if (declaresTools(requestedModel, toolPrefs)) messages = recordsWithTools(messages);
   const prep = await import('../lib/context/prepare-run');
   const frozen = frozenFor.get(nodeId);
@@ -509,7 +509,7 @@ export async function runNodeGeneration(
       question,
       mode: researching ? 'research' : 'workspace',
       runtimeSelection: {
-        kind: runTarget?.kind ?? (isAgentModel(requestedModel) ? 'agent' : 'provider'),
+        kind: runTarget ? kindOf(runTarget) : (actsAsAgent(requestedModel) ? 'agent' : 'provider'),
         runtime: runTarget?.runtime ?? null,
         connectionRef: runTarget?.connectionRef ?? 'default',
         model: pinnedModel ?? requestedModel ?? '',

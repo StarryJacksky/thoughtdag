@@ -1,0 +1,266 @@
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/review-round13-target.test.ts (29 tests | 25 failed) 2069ms
+   ❯ [R13-02] harness/agent: an automatic run does not set it off (13)
+     × [R13-02] no model, the toolbar on it: it waits for the person, and the task is left as it was 24ms
+     × [R13-02] pinned to it: it waits for the person, and the task is left as it was 2ms
+     × [R13-02] a pin that cannot be reached, the toolbar on it: it waits for the person, and the task is left as it was 2ms
+     × [R13-02] nothing on the toolbar, it is the server's default: it waits for the person, and the task is left as it was 1ms
+     × [R13-02] bound to it: it waits for the person, and the task is left as it was 1ms
+     × [R13-02] bound to it by a record that says provider: it waits for the person, and the task is left as it was 1ms
+     × [R13-02] the toolbar goes to it while the run waits for the list: it waits for the person 3ms
+     × [R13-02] a replay plans to ask the person first, and does not start it 1ms
+     × [R13-02] a change upstream does not set it off, and the person is told 1007ms
+     × [R13-02] there is one answer to what it is: the template, a record that says provider, and the question of writing agree 1ms
+     × [R13-02] it is not called a model reached through an API 1ms
+   ❯ [R13-02] harness/agent/synthetic-provider/model: an automatic run does not set it off (13)
+     × [R13-02] no model, the toolbar on it: it waits for the person, and the task is left as it was 1ms
+     × [R13-02] pinned to it: it waits for the person, and the task is left as it was 1ms
+     × [R13-02] a pin that cannot be reached, the toolbar on it: it waits for the person, and the task is left as it was 1ms
+     × [R13-02] nothing on the toolbar, it is the server's default: it waits for the person, and the task is left as it was 1ms
+     × [R13-02] bound to it: it waits for the person, and the task is left as it was 0ms
+     × [R13-02] bound to it by a record that says provider: it waits for the person, and the task is left as it was 0ms
+     × [R13-02] the toolbar goes to it while the run waits for the list: it waits for the person 2ms
+     × [R13-02] a replay plans to ask the person first, and does not start it 0ms
+     × [R13-02] a change upstream does not set it off, and the person is told 1002ms
+     × [R13-02] there is one answer to what it is: the template, a record that says provider, and the question of writing agree 1ms
+     × [R13-02] it is not called a model reached through an API 1ms
+   ❯ [R13-02] what a run says it may do (3)
+     × [R13-02] the envelope of a run of the harness's agent says it may write in the folder, even on a record that says provider 3ms
+     × [R13-02] control: a model called through an API is still that: an automatic run runs it, and it writes nothing 0ms
+     × [R13-02] control: a target the list no longer has: a provider's is held back, the harness's is the harness's to know 0ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 25 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/review-round13-target.test.ts > [R13-02] harness/agent: an automatic run does not set it off > [R13-02] no model, the toolbar on it: it waits for the person, and the task is left as it was
+AssertionError: expected { status: 'answered', versionIndex: 1 } to deeply equal { status: 'needs-approval' }
+
+- Expected
++ Received
+
+  {
+-   "status": "needs-approval",
++   "status": "answered",
++   "versionIndex": 1,
+  }
+
+ ❯ tests/unit/review-round13-target.test.ts:127:32
+    125|         const id = make();
+    126|         const before = structuredClone(node(id).data);
+    127|         expect(await auto(id)).toEqual({ status: 'needs-approval' });
+       |                                ^
+    128|         nothingHappened(id, before);
+    129|       });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/25]⎯
+
+ FAIL  tests/unit/review-round13-target.test.ts > [R13-02] harness/agent: an automatic run does not set it off > [R13-02] pinned to it: it waits for the person, and the task is left as it was
+ FAIL  tests/unit/review-round13-target.test.ts > [R13-02] harness/agent: an automatic run does not set it off > [R13-02] a pin that cannot be reached, the toolbar on it: it waits for the person, and the task is left as it was
+ FAIL  tests/unit/review-round13-target.test.ts > [R13-02] harness/agent: an automatic run does not set it off > [R13-02] nothing on the toolbar, it is the server's default: it waits for the person, and the task is left as it was
+ FAIL  tests/unit/review-round13-target.test.ts > [R13-02] harness/agent/synthetic-provider/model: an automatic run does not set it off > [R13-02] no model, the toolbar on it: it waits for the person, and the task is left as it was
+ FAIL  tests/unit/review-round13-target.test.ts > [R13-02] harness/agent/synthetic-provider/model: an automatic run does not set it off > [R13-02] pinned to it: it waits for the person, and the task is left as it was
+ FAIL  tests/unit/review-round13-target.test.ts > [R13-02] harness/agent/synthetic-provider/model: an automatic run does not set it off > [R13-02] a pin that cannot be reached, the toolbar on it: it waits for the person, and the task is left as it was
+ FAIL  tests/unit/review-round13-target.test.ts > [R13-02] harness/agent/synthetic-provider/model: an automatic run does not set it off > [R13-02] nothing on the toolbar, it is the server's default: it waits for the person, and the task is left as it was
+AssertionError: expected { status: 'answered', versionIndex: 1 } to deeply equal { status: 'needs-approval' }
+
+- Expected
++ Received
+
+  {
+-   "status": "needs-approval",
++   "status": "answered",
++   "versionIndex": 1,
+  }
+
+ ❯ tests/unit/review-round13-target.test.ts:127:32
+    125|         const id = make();
+    126|         const before = structuredClone(node(id).data);
+    127|         expect(await auto(id)).toEqual({ status: 'needs-approval' });
+       |                                ^
+    128|         nothingHappened(id, before);
+    129|       });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/25]⎯
+
+ FAIL  tests/unit/review-round13-target.test.ts > [R13-02] harness/agent: an automatic run does not set it off > [R13-02] bound to it: it waits for the person, and the task is left as it was
+ FAIL  tests/unit/review-round13-target.test.ts > [R13-02] harness/agent: an automatic run does not set it off > [R13-02] bound to it by a record that says provider: it waits for the person, and the task is left as it was
+ FAIL  tests/unit/review-round13-target.test.ts > [R13-02] harness/agent/synthetic-provider/model: an automatic run does not set it off > [R13-02] bound to it: it waits for the person, and the task is left as it was
+ FAIL  tests/unit/review-round13-target.test.ts > [R13-02] harness/agent/synthetic-provider/model: an automatic run does not set it off > [R13-02] bound to it by a record that says provider: it waits for the person, and the task is left as it was
+AssertionError: expected { Object (status, versionIndex) } to deeply equal { status: 'needs-approval' }
+
+- Expected
++ Received
+
+  {
+-   "status": "needs-approval",
++   "status": "answered",
++   "versionIndex": 0,
+  }
+
+ ❯ tests/unit/review-round13-target.test.ts:127:32
+    125|         const id = make();
+    126|         const before = structuredClone(node(id).data);
+    127|         expect(await auto(id)).toEqual({ status: 'needs-approval' });
+       |                                ^
+    128|         nothingHappened(id, before);
+    129|       });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/25]⎯
+
+ FAIL  tests/unit/review-round13-target.test.ts > [R13-02] harness/agent: an automatic run does not set it off > [R13-02] the toolbar goes to it while the run waits for the list: it waits for the person
+ FAIL  tests/unit/review-round13-target.test.ts > [R13-02] harness/agent/synthetic-provider/model: an automatic run does not set it off > [R13-02] the toolbar goes to it while the run waits for the list: it waits for the person
+AssertionError: expected { status: 'answered', versionIndex: 1 } to deeply equal { status: 'needs-approval' }
+
+- Expected
++ Received
+
+  {
+-   "status": "needs-approval",
++   "status": "answered",
++   "versionIndex": 1,
+  }
+
+ ❯ tests/unit/review-round13-target.test.ts:136:30
+    134|       const before = structuredClone(node(id).data);
+    135|       during.models = () => pick(harness);
+    136|       expect(await auto(id)).toEqual({ status: 'needs-approval' });
+       |                              ^
+    137|       nothingHappened(id, before);
+    138|     });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/25]⎯
+
+ FAIL  tests/unit/review-round13-target.test.ts > [R13-02] harness/agent: an automatic run does not set it off > [R13-02] a replay plans to ask the person first, and does not start it
+ FAIL  tests/unit/review-round13-target.test.ts > [R13-02] harness/agent/synthetic-provider/model: an automatic run does not set it off > [R13-02] a replay plans to ask the person first, and does not start it
+AssertionError: expected [ 'rerun', 'rerun' ] to deeply equal [ 'needs-approval', 'needs-approval' ]
+
+- Expected
++ Received
+
+  [
+-   "needs-approval",
+-   "needs-approval",
++   "rerun",
++   "rerun",
+  ]
+
+ ❯ tests/unit/review-round13-target.test.ts:145:47
+    143|       const old = boundAsProvider(harness);
+    144|       const plan = planReplay([unbound, old], 'target-only');
+    145|       expect(plan.steps.map((s) => s.action)).toEqual(['needs-approval…
+       |                                               ^
+    146|       const before = structuredClone(node(old).data);
+    147|       await runReplay(plan);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/25]⎯
+
+ FAIL  tests/unit/review-round13-target.test.ts > [R13-02] harness/agent: an automatic run does not set it off > [R13-02] a change upstream does not set it off, and the person is told
+ FAIL  tests/unit/review-round13-target.test.ts > [R13-02] harness/agent/synthetic-provider/model: an automatic run does not set it off > [R13-02] a change upstream does not set it off, and the person is told
+AssertionError: expected 0 to be greater than 0
+ ❯ tests/unit/review-round13-target.test.ts:158:74
+    156|       const before = structuredClone(node(down).data);
+    157|       expect(await useStore.getState().rerunNode(up, {})).toMatchObjec…
+    158|       await vi.waitFor(() => expect(useUiStore.getState().toasts.lengt…
+       |                                                                          ^
+    159|       expect(posted.map((p) => p.model)).toEqual([API_MODEL]);
+    160|       expect(node(down).data.response).toBe(before.response);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/25]⎯
+
+ FAIL  tests/unit/review-round13-target.test.ts > [R13-02] harness/agent: an automatic run does not set it off > [R13-02] there is one answer to what it is: the template, a record that says provider, and the question of writing agree
+ FAIL  tests/unit/review-round13-target.test.ts > [R13-02] harness/agent/synthetic-provider/model: an automatic run does not set it off > [R13-02] there is one answer to what it is: the template, a record that says provider, and the question of writing agree
+TypeError: isHarnessAgentModel is not a function
+ ❯ tests/unit/review-round13-target.test.ts:177:14
+    175|
+    176|     it('[R13-02] there is one answer to what it is: the template, a re…
+    177|       expect(isHarnessAgentModel(harness)).toBe(true);
+       |              ^
+    178|       expect(actsAsAgent(harness)).toBe(true);
+    179|       const made = templateFor(harness);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/25]⎯
+
+ FAIL  tests/unit/review-round13-target.test.ts > [R13-02] harness/agent: an automatic run does not set it off > [R13-02] it is not called a model reached through an API
+ FAIL  tests/unit/review-round13-target.test.ts > [R13-02] harness/agent/synthetic-provider/model: an automatic run does not set it off > [R13-02] it is not called a model reached through an API
+AssertionError: expected 'api' to be 'agent' // Object.is equality
+
+Expected: "agent"
+Received: "api"
+
+ ❯ tests/unit/review-round13-target.test.ts:190:27
+    188|     it('[R13-02] it is not called a model reached through an API', () …
+    189|       const shown = describeTarget(templateFor(harness));
+    190|       expect(shown.group).toBe('agent');
+       |                           ^
+    191|       expect(shown.label).not.toContain('API');
+    192|     });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/25]⎯
+
+ FAIL  tests/unit/review-round13-target.test.ts > [R13-02] what a run says it may do > [R13-02] the envelope of a run of the harness's agent says it may write in the folder, even on a record that says provider
+AssertionError: expected [ { kind: 'provider', write: 'none' } ] to deeply equal [ { kind: 'agent', …(1) } ]
+
+- Expected
++ Received
+
+  [
+    {
+-     "kind": "agent",
+-     "write": "workspace",
++     "kind": "provider",
++     "write": "none",
+    },
+  ]
+
+ ❯ tests/unit/review-round13-target.test.ts:205:18
+    203|     for (const call of spy.mock.results) { const envelope = await call…
+    204|     spy.mockRestore();
+    205|     expect(seen).toEqual([{ kind: 'agent', write: 'workspace' }]);
+       |                  ^
+    206|   });
+    207|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/25]⎯
+
+ FAIL  tests/unit/review-round13-target.test.ts > [R13-02] what a run says it may do > [R13-02] control: a model called through an API is still that: an automatic run runs it, and it writes nothing
+TypeError: actsAsAgent is not a function
+ ❯ tests/unit/review-round13-target.test.ts:209:12
+    207|
+    208|   it('[R13-02] control: a model called through an API is still that: a…
+    209|     expect(actsAsAgent(API_MODEL)).toBe(false);
+       |            ^
+    210|     expect(writesFiles({ model: API_MODEL })).toBe(false);
+    211|     const id = bound(API_MODEL);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/25]⎯
+
+ FAIL  tests/unit/review-round13-target.test.ts > [R13-02] what a run says it may do > [R13-02] control: a target the list no longer has: a provider's is held back, the harness's is the harness's to know
+AssertionError: expected { ok: false, …(2) } to deeply equal { ok: true }
+
+- Expected
++ Received
+
+  {
+-   "ok": true,
++   "model": "harness/agent/synthetic-provider/model",
++   "ok": false,
++   "reason": "unavailable",
+  }
+
+ ❯ tests/unit/review-round13-target.test.ts:218:80
+    216|   it('[R13-02] control: a target the list no longer has: a provider\'s…
+    217|     const list = { models: [model(API_MODEL)], serverDefault: null } a…
+    218|     expect(checkSend({ target: createTarget(templateFor(HARNESS[1])) }…
+       |                                                                                ^
+    219|     expect(checkSend({ target: { ...createTarget(templateFor(API_MODEL…
+    220|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/25]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  25 failed | 4 passed (29)
+   Start at  23:41:23
+   Duration  2.87s (tests 74%, transform 14%, environment 9%, import 2%)
+

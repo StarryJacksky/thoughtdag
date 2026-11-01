@@ -5,7 +5,7 @@ import { placeNewNodes } from '../../lib/layout';
 import { getDescendantIds, selectionSinks, walkUpAncestors } from '../../lib/graph';
 import { COLORS } from '../../lib/constants';
 import type { ContextMessage, ImageAttachment } from '../../lib/api';
-import { buildContext, resolveExplicitRole, applyRoleOverride, type MessageSource } from '../context-builder';
+import { buildContext, ownAttachmentsContext, resolveExplicitRole, applyRoleOverride, type MessageSource } from '../context-builder';
 import { activeAbortControllers, autoRunCounts, freezeForRun, runNodeGeneration, triggerParadigmCascade } from '../streaming';
 import { useUiStore, toast, recallSnapshot } from '../../lib/ui-store';
 // the stale set a request carries is the one the preview shows: the fingerprint's minus the judge's dismissals (#51)
@@ -37,7 +37,6 @@ function refusedToSend(task: { target?: ExecutionTarget; model?: string } | unde
 }
 import type { StoreState, LlmSlice, AddQuestionOptions } from '../types';
 import { condenseGuard } from '../../lib/condense-guard';
-import { isNotebook, notebookContext } from '../../lib/notebook';
 
 export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, get) => ({
   addQuestion: async (question: string, opts: AddQuestionOptions = {}) => {
@@ -166,32 +165,13 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     const parentNode = parentId ? get().nodes.find((n) => n.id === parentId) : null;
     applyRoleOverride(contextMessages, resolveExplicitRole(selfNode?.data, parentNode?.data, !!parentId), ctx.sources);
 
-    // Collect this node's own attachments (skip if same file already from ancestors)
-    const selfAttachments = selfNode?.data.attachments || [];
-    for (const att of selfAttachments) {
-      const alreadyInContext = contextMessages.some(m => m.content.includes(`[PDF: ${att.name}]`) || m.content.includes(`[File: ${att.name}]`) || m.content.startsWith(`[Notebook: ${att.name} — `));
-      if (alreadyInContext) continue;
-      if (att.type.startsWith('image/')) {
-        contextImages.push({ data: att.content, mimeType: att.type });
-      } else if (att.type === 'application/pdf') {
-        // text channel only — page images trip provider image-count limits
-        if (att.extractedText) {
-          contextMessages.push({ role: 'user', content: `[PDF: ${att.name}]\n${att.extractedText}` });
-        }
-      } else if (att.type === 'text/html') {
-        // extracted Markdown only — raw HTML source never reaches a model
-        if (att.extractedText?.trim()) {
-          contextMessages.push({ role: 'user', content: `[File: ${att.name}]\n${att.extractedText}` });
-        }
-      } else if (isNotebook(att)) {
-        // converted cells only — the raw JSON (base64 figures and all) never reaches a model
-        if (att.extractedText?.trim()) contextMessages.push({ role: 'user', content: notebookContext(att) });
-        if (att.renderMode !== 'text-only') {
-          for (const f of att.figures ?? []) contextImages.push({ data: f.data, mimeType: f.mimeType, hasCompanion: true });
-        }
-      } else if (att.content) {
-        contextMessages.push({ role: 'user', content: `[File: ${att.name}]\n${att.content}` });
-      }
+    // This node's own attachments, read as any turn's are; one already in the context above is read once
+    if (selfNode) {
+      const own = ownAttachmentsContext(selfNode, get().nodes, ctx);
+      contextMessages.push(...own.messages);
+      contextImages.push(...own.images);
+      ctx.sources.push(...own.sources);
+      ctx.imageSources.push(...own.imageSources);
     }
 
     // Record the applied role before streaming
@@ -307,7 +287,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
           await get().rerunNode(id); // standard context walk through the watch edge
         } else {
           const messages: ContextMessage[] = [...ctx!.messages, { role: 'user', content: branchQuestion }];
-          await runNodeGeneration(set, get, id, { question: branchQuestion, messages, images: ctx!.images, sources: ctx!.sources });
+          await runNodeGeneration(set, get, id, { question: branchQuestion, messages, images: ctx!.images, sources: ctx!.sources, imageSources: ctx!.imageSources });
         }
       }
     };
@@ -377,7 +357,7 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
     );
     const messages = ctx.messages;
     messages.push({ role: 'user', content: question });
-    await runNodeGeneration(set, get, id, { question, messages, images: ctx.images, sources: ctx.sources });
+    await runNodeGeneration(set, get, id, { question, messages, images: ctx.images, sources: ctx.sources, imageSources: ctx.imageSources });
   },
 
   submitHumanTurn: (nodeId: string, question: string) => {
@@ -623,6 +603,7 @@ ${intent.trim()}` : ''}` },
       question: summaryQuestion,
       messages,
       images: ctx.images,
+      imageSources: ctx.imageSources,
       // the fan-in parents ARE the members, plus whatever the compiler drew
       sources: [...selected.map((n) => ({ layer: 'chain' as const, nodeId: n.id, part: 'response' as const })), ...ctx.sources],
       onSuccess: () => {

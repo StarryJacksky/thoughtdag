@@ -78,7 +78,8 @@ export function summaryOf(envelope: RunEnvelope, imagesDropped = false, route?: 
     graphRevision: envelope.graphRevision,
     inputs: envelope.inputs.map((i) => ({
       inputId: i.inputId, snapshotId: i.snapshotId, contentHash: i.contentHash,
-      ...(i.source.kind === 'resource' ? { fileId: i.source.ref.fileId, name: i.displayName } : {}),
+      name: i.displayName,
+      ...(i.source.kind === 'resource' ? { fileId: i.source.ref.fileId } : {}),
       ...(places[i.inputId] ? { workspaceId: places[i.inputId].workspaceId } : {}),
       ...(places[i.inputId]?.semanticHash ? { semanticHash: places[i.inputId].semanticHash } : {}),
     })),

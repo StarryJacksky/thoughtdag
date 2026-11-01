@@ -145,6 +145,8 @@ interface DesktopAgentsBridge {
   /** a run's inputs written for its agent under <cwd>/.thoughtdag/runs/<runId>, from its envelope;
    *  `provided` holds what the canvas holds of them, by input id, in base64 */
   materialize(cwd: string, envelope: MaterialsEnvelope, provided: Record<string, string>): Promise<MaterializeAnswer>;
+  /** a run that was given materials is over: from now on they may be cleaned up */
+  runEnded(cwd: string, runId: string): Promise<{ ok: boolean }>;
   /** the local backup, written by the HOST instead of the browser.
    *
    *  The File System Access API is a browser capability: it needs a handle,

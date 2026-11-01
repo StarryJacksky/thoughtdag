@@ -14,7 +14,7 @@
 // What is finally sent is checked against the envelope at the last moment
 // (verifyDispatch): a system message or a tool added on the way stops it.
 
-import { buildContext, type MessageSource } from '../../store/context-builder';
+import { attachmentsLeftOut, buildContext, type MessageSource } from '../../store/context-builder';
 import { partitionContext } from '../graph';
 import { graphSnapshotHash } from '../context-bundle';
 import { generateId } from '../../utils';
@@ -74,10 +74,15 @@ const base64OfText = (text: string) => { let raw = ''; for (const b of new TextE
 
 const TEXT_COPY = (type: string) => !type.startsWith('image/') && type !== 'application/pdf' && type !== 'text/html';
 
-/** The nodes a task reads material from: the ones whose content reaches its context. */
+/**
+ * The nodes a task reads material from: the ones whose content reaches its context, by the
+ * context builder's own rules. A node archived, or whose copy the person left out, is not read.
+ */
 function materialNodes(taskNodeId: string, nodes: ThoughtNode[], edges = useStore.getState().edges): ThoughtNode[] {
-  const { materials } = partitionContext(taskNodeId, nodes, edges);
-  return materials;
+  const { materials, mainline } = partitionContext(taskNodeId, nodes, edges);
+  const task = nodes.find((n) => n.id === taskNodeId);
+  const left = attachmentsLeftOut([...materials, ...mainline], task?.data.excludedAttachmentIds, task?.data.includedAttachmentIds);
+  return materials.filter((n) => !n.data.archived && !(n.data.attachments?.length && n.data.attachments.every((a) => left.has(a.id))));
 }
 
 /**

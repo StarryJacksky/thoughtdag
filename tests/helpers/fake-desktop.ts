@@ -22,6 +22,8 @@ export interface FakeDesktop {
   runIds: string[];
   /** every run's materials as written, oldest first */
   materials: { cwd: string; runId: string; files: MaterialFile[] }[];
+  /** the runs the shell was told are over, oldest first */
+  ended: { cwd: string; runId: string }[];
   /** the text of every file the canvas wrote for the agent to read */
   readableFileContents(): string[];
   /** send one event as the shell would, to whoever is listening */
@@ -44,6 +46,7 @@ export function installFakeDesktop(options: { workspace?: string; reply?: string
   const runs: DesktopAgentRunRequest[] = [];
   const runIds: string[] = [];
   const materials: { cwd: string; runId: string; files: MaterialFile[] }[] = [];
+  const ended: { cwd: string; runId: string }[] = [];
   const emit = (runId: string, event: AgentEvent) => listener?.({ runId, event });
 
   const bridge: DesktopAgentsBridge = {
@@ -93,6 +96,7 @@ export function installFakeDesktop(options: { workspace?: string; reply?: string
       materials.push({ cwd, runId: envelope.runId, files });
       return { ok: true, dir: `.thoughtdag/runs/${envelope.runId}`, receipt: { runId: envelope.runId, manifest: 'materials/manifest.json', entries, totalBytes: 0 } };
     },
+    runEnded: async (cwd, runId) => { ended.push({ cwd, runId }); return { ok: materials.some((m) => m.runId === runId) }; },
     onEvent: (cb) => { listener = cb; },
   };
 
@@ -103,6 +107,7 @@ export function installFakeDesktop(options: { workspace?: string; reply?: string
     runs,
     runIds,
     materials,
+    ended,
     readableFileContents: () => materials.flatMap((m) => m.files.map((f) => (f.encoding === 'base64' ? atob(f.content) : f.content))),
     emit,
     say: (runId, text) => emit(runId, { type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: text } }),

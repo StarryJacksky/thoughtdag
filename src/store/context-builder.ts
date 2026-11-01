@@ -280,6 +280,35 @@ function resolveRoleFromMainline(
   return undefined;
 }
 
+/** The attachments a context leaves out: those its question leaves out, and those left out on the way to it unless its question takes them back in. */
+export function attachmentsLeftOut(through: ThoughtNode[], excludedAttachmentIds?: string[], includedAttachmentIds?: string[]): Set<string> {
+  const left = new Set<string>(excludedAttachmentIds || []);
+  const takenBack = new Set<string>(includedAttachmentIds || []);
+  for (const node of through) {
+    for (const id of (node.data.excludedAttachmentIds || [])) {
+      if (!takenBack.has(id)) left.add(id);
+    }
+  }
+  return left;
+}
+
+/**
+ * What a question's own attachments add to the context built above it, read
+ * the way any other turn's are, with where each came from. One the context
+ * above already holds (the same content, whatever it is called) is read once.
+ */
+export function ownAttachmentsContext(self: ThoughtNode, nodes: ThoughtNode[], above: Pick<BuildContextResult, 'sources' | 'imageSources'>): Pick<BuildContextResult, 'messages' | 'images' | 'sources' | 'imageSources'> {
+  const read = new Set<string>();
+  const note = (nodeId: string | undefined, attachmentId: string | undefined) => {
+    const att = nodes.find((n) => n.id === nodeId)?.data.attachments?.find((a) => a.id === attachmentId);
+    if (att) read.add(attachmentIdentity(att));
+  };
+  for (const src of above.sources) for (const id of src.attachmentIds ?? [src.attachmentId]) note(src.nodeId, id);
+  for (const src of above.imageSources) note(src.nodeId, src.attachmentId);
+  const bare: ThoughtNode = { ...self, data: { ...self.data, question: '', response: '', archived: false, rolePrompt: undefined, roleSourceNodeId: undefined, roleMode: 'inherit', attachments: (self.data.attachments ?? []).filter((a) => !read.has(attachmentIdentity(a))) } };
+  return compileContext(self.id, [bare], [], 'record', undefined, self.data.excludedAttachmentIds, self.data.includedAttachmentIds);
+}
+
 export function buildContext(
   nodeId: string,
   nodes: ThoughtNode[],
@@ -320,14 +349,7 @@ function compileContext(
   const staleSet = staleIds instanceof Set ? staleIds : new Set(staleIds ?? []);
   const { materials, references, mainline } = partitionContext(nodeId, nodes, edges);
 
-  // Propagate excludedAttachmentIds from every attachment-carrying layer
-  const excludeSet = new Set<string>(excludedAttachmentIds || []);
-  const includeOverrides = new Set<string>(includedAttachmentIds || []);
-  for (const node of [...materials, ...mainline]) {
-    for (const exId of (node.data.excludedAttachmentIds || [])) {
-      if (!includeOverrides.has(exId)) excludeSet.add(exId);
-    }
-  }
+  const excludeSet = attachmentsLeftOut([...materials, ...mainline], excludedAttachmentIds, includedAttachmentIds);
   const seenAttachmentFingerprints = new Set<string>();
 
   const pushAttachments = (node: ThoughtNode, layer: 'material' | 'chain') => {

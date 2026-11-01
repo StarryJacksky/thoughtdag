@@ -236,8 +236,11 @@ export async function runNodeGeneration(
   // its record (lib/context/run-records): written once it is prepared, and again once it has ended
   let runRecords: typeof import('../lib/context/run-records') | null = null;
   let preparedAt = '';
+  // where its materials were written: they are the shell's to clean up once it has ended
+  let materialsIn: string | null = null;
   const endRecord = (state: 'completed' | 'failed' | 'cancelled', output: { versionIndex: number; chars: number } | null = null) => {
     if (!envelope || !runRecords) return;
+    if (materialsIn) void window.desktopAgents?.runEnded?.(materialsIn, envelope.runId).catch(() => undefined);
     const session = get().nodes.find((n) => n.id === nodeId)?.data.agentSession;
     void runRecords.persistRun(envelope, runRecords.recordRun(envelope, {
       state, output, preparedAt, endedAt: new Date().toISOString(),
@@ -598,7 +601,7 @@ export async function runNodeGeneration(
       }
     }, abortController.signal, images, {
       // an agent's inputs on disk: written from the envelope, into a directory of the run's own
-      materials: materialsFor(envelope),
+      materials: materialsFor(envelope, (cwd) => { materialsIn = cwd; }),
       onDispatch: (p) => {
         // the last moment before it leaves: it must be the request prepared, nothing added on the way
         const check = prep.verifyDispatch(envelope!, p);

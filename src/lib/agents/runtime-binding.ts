@@ -1,9 +1,14 @@
 // The native session a question could go on in: a mirrored agent session
 // whose last turn the question hangs off, in the folder the canvas's agents
-// run in, with its record on disk. What the session holds is known from the
-// canvas itself: each imported turn keeps its question and answer as they
-// were imported (`source`), whatever the canvas has made of them since. A
-// turn imported without that is a session whose content is not known.
+// run in, with its record on disk. What the session holds is known from what
+// was imported of it, not from the canvas's wiring, which can be edited: its
+// turns are the nodes that say they are of this session (`importSource`), in
+// the order they came onto the canvas, each with its question and answer as
+// they were imported (`source`), whatever the canvas has made of them since;
+// and the ledger says how many there are. Cutting a wire or deleting a turn
+// changes what the run is given, never what the session holds. A session with
+// a turn imported without that, or with fewer turns on the canvas than it
+// holds, is a session whose content is not known.
 //
 // That a binding exists is necessary for going on in a session, never
 // enough: whether the run's context is what the session holds is for
@@ -18,38 +23,27 @@ import { agentSessionFile } from './agent-runtime';
 
 export interface SessionBinding extends RuntimeBinding {
   /** the turns the session holds, as the canvas gives a conversation: each imported question and answer as imported, oldest first; null where that is not known */
-  holds: { role: 'user' | 'assistant'; content: string }[] | null;
+  holds: { role: 'user' | 'assistant'; content: string; nodeId: string }[] | null;
+  /** a turn of the session came with an image: the words above do not say what the session has of it */
+  holdsImages: boolean;
   /** the folder the session ran in, when it says */
   cwd: string | null;
 }
 
 export type NoBinding = 'no-session' | 'not-the-last-turn' | 'other-folder' | 'no-session-file';
 
-/** The conversation a session's last turn closes, oldest first, by structural parent; null at a merge. */
-function chainTo(tail: ThoughtNode, nodes: ThoughtNode[]): ThoughtNode[] | null {
-  const { edges } = useStore.getState();
-  const chain: ThoughtNode[] = [];
-  const seen = new Set<string>();
-  for (let at: ThoughtNode | undefined = tail; at; ) {
-    if (seen.has(at.id)) return null;
-    seen.add(at.id);
-    chain.unshift(at);
-    const parents = edges.filter((e) => e.target === at!.id && !e.data?.isCrossLink);
-    if (parents.length > 1) return null;
-    at = parents[0] ? nodes.find((n) => n.id === parents[0].source) : undefined;
-  }
-  return chain;
-}
+/** A session's turns on the canvas, oldest first. */
+const turnsOf = (sessionId: string, runtime: AgentRuntime, nodes: ThoughtNode[]) => nodes.filter((n) => n.data.importSource?.sessionId === sessionId && n.data.importSource.runner === runtime);
 
-/** What the session holds, from its turns' imported sources; null when any turn lacks one. */
-function holdsOf(chain: ThoughtNode[] | null): SessionBinding['holds'] {
-  if (!chain) return null;
+/** What the session holds, from its turns' imported sources; null when any is missing, on the canvas or in what was imported. */
+function holdsOf(turns: ThoughtNode[], count: number): SessionBinding['holds'] {
+  if (turns.length !== count) return null;
   const out: NonNullable<SessionBinding['holds']> = [];
-  for (const n of chain) {
+  for (const n of turns) {
     const source = n.data.source;
-    if (!source || !n.data.importSource) return null;
-    if (source.question) out.push({ role: 'user', content: source.question });
-    if (source.response) out.push({ role: 'assistant', content: source.response });
+    if (!source) return null;
+    if (source.question) out.push({ role: 'user', content: source.question, nodeId: n.id });
+    if (source.response) out.push({ role: 'assistant', content: source.response, nodeId: n.id });
   }
   return out;
 }
@@ -74,7 +68,8 @@ export async function findBinding(nodeId: string, runtime: AgentRuntime, cwd?: s
   if (cwd && sessionCwd && sessionCwd !== cwd) return none('other-folder');
   const sessionPath = await agentSessionFile(runtime, entry.sessionId, parent);
   if (!sessionPath) return none('no-session-file');
-  const holds = holdsOf(chainTo(parent, nodes));
+  const turns = turnsOf(entry.sessionId, runtime, nodes);
+  const holds = holdsOf(turns, entry.importedCount);
   return {
     binding: {
       bindingId: `binding:${runtime}:${entry.sessionId}`,
@@ -87,11 +82,12 @@ export async function findBinding(nodeId: string, runtime: AgentRuntime, cwd?: s
       lastCompletedTurnId: parent.data.importSource?.itemIds.at(-1) ?? null,
       // nothing here watches the native session: its state is not known
       nativeState: { status: 'unknown', observedAt: null, evidence: 'none' },
-      prefixDigest: holds ? await digestOf(holds) : null,
+      prefixDigest: holds ? await digestOf(holds.map(({ role, content }) => ({ role, content }))) : null,
       configDigest: null,
       // a mirrored session was written by another program first: this application is not its one writer
       ownership: 'external',
       holds,
+      holdsImages: turns.some((n) => (n.data.attachments ?? []).some((a) => a.type.startsWith('image/'))),
       cwd: sessionCwd,
     },
     reason: null,

@@ -43,9 +43,9 @@ function noteOf(dir: string, receipt: MaterialsReceipt): string {
  * working directory `cwd`, resolving with the note for the prompt, or ''
  * when the run has no inputs or there is no shell to write them. Throws
  * RunBlocked when the shell refuses: nothing was written, and the run is
- * not to be sent.
+ * not to be sent. `onWritten` hears where they went once they are there.
  */
-export function materialsFor(envelope: RunEnvelope): (cwd: string) => Promise<string> {
+export function materialsFor(envelope: RunEnvelope, onWritten?: (cwd: string) => void): (cwd: string) => Promise<string> {
   return async (cwd) => {
     const bridge = window.desktopAgents;
     if (!bridge?.materialize || envelope.inputs.length === 0) return '';
@@ -55,6 +55,7 @@ export function materialsFor(envelope: RunEnvelope): (cwd: string) => Promise<st
       const from = whereFrom(envelope, answer.inputId);
       throw new RunBlocked(REASONS[answer.code] ?? 'unavailable', from.nodeId, from.fileId, answer.message);
     }
+    onWritten?.(cwd);
     return noteOf(answer.dir, answer.receipt);
   };
 }

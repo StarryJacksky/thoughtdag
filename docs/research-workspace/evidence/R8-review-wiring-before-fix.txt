@@ -1,0 +1,178 @@
+# R8 regression tests on 193c0d0, the commit R8 reviewed.
+# git archive 193c0d0, node_modules linked, tests/unit/review-r8.test.ts and the test helpers copied in.
+ RUN  v5.0.3 <repo>
+ ✓ tests/unit/review-r8.test.ts > [R8-01] what a session holds is not what the canvas still shows of it > [R8-01] control: the canvas as it was imported goes on in the session
+ × tests/unit/review-r8.test.ts > [R8-01] what a session holds is not what the canvas still shows of it > [R8-01] starts anew with the wire above the last turn cut, the turn kept
+   → expected true to be falsy
+ × tests/unit/review-r8.test.ts > [R8-01] what a session holds is not what the canvas still shows of it > [R8-01] starts anew with the first turn deleted with its wire
+   → expected true to be falsy
+ × tests/unit/review-r8.test.ts > [R8-01] what a session holds is not what the canvas still shows of it > [R8-01] starts anew with the first turn deleted, its wire left hanging
+   → expected true to be falsy
+ × tests/unit/review-r8.test.ts > [R8-01] what a session holds is not what the canvas still shows of it > [R8-01] starts anew with the wire above the last turn taken to a turn of another session, its own first turn kept
+   → expected true to be falsy
+ × tests/unit/review-r8.test.ts > [R8-01] what a session holds is not what the canvas still shows of it > [R8-01] starts anew with the first turn replaced by another session's turn of the very same words
+   → expected true to be falsy
+ × tests/unit/review-r8.test.ts > [R8-01] what a session holds is not what the canvas still shows of it > [R8-01] starts anew with a turn of another session added above the first
+   → expected true to be falsy
+ × tests/unit/review-r8.test.ts > [R8-01] what a session holds is not what the canvas still shows of it > [R8-01] starts anew with the session's own turns put in another order
+   → expected true to be falsy
+ × tests/unit/review-r8.test.ts > [R8-01] what a session holds is not what the canvas still shows of it > [R8-01] starts anew with a turn the session holds that the canvas has never had
+   → expected true to be falsy
+ × tests/unit/review-r8.test.ts > [R8-01] what a session holds is not what the canvas still shows of it > [R8-01] through the run path: a cut turn is not in what is sent, and no old session is named
+   → expected '/synthetic/sessions/rollout-sess-synt…' to be undefined
+ × tests/unit/review-r8.test.ts > [R8-01] what a session holds is not what the canvas still shows of it > [R8-01] a chapter is judged by its own session: what comes from the chapter before is not in it
+   → expected true to be falsy
+ ✓ tests/unit/review-r8.test.ts > [R8-01] what a session holds is not what the canvas still shows of it > [R8-01] a session wholly on its canvas as a chapter goes on in that chapter's session
+ ✓ tests/unit/review-r8.test.ts > [R8-01] what a session holds is not what the canvas still shows of it > [R8-01] controls: a turn archived, or an answer rewritten, still starts anew for the reason it did
+ × tests/unit/review-r8.test.ts > [R8-01] what a session holds is not what the canvas still shows of it > [R8-01] the binding says what is known of the session: nothing, when a turn it holds is gone from the canvas
+   → expected [ { role: 'user', …(1) }, …(1) ] to be null
+ × tests/unit/review-r8.test.ts > [R8-02] an image is an input as much as a text is > [R8-02] an image with no text beside it added above starts anew and is given as a material
+   → expected true to be falsy
+ × tests/unit/review-r8.test.ts > [R8-02] an image is an input as much as a text is > [R8-02] an image of other bytes and the same length added above starts anew and is given as a material
+   → expected true to be falsy
+ ✓ tests/unit/review-r8.test.ts > [R8-02] an image is an input as much as a text is > [R8-02] an image with text beside it added above starts anew and is given as a material
+ ✓ tests/unit/review-r8.test.ts > [R8-02] an image is an input as much as a text is > [R8-02] an image kept to its text alone is the text: it starts anew, with nothing on the image channel
+ × tests/unit/review-r8.test.ts > [R8-02] an image is an input as much as a text is > [R8-02] an image taken back in by the question starts anew
+   → expected { action: 'resume', …(2) } to deeply equal { Object (action, reason) }
+ × tests/unit/review-r8.test.ts > [R8-02] an image is an input as much as a text is > [R8-02] an image left out is not in the run, but a session that was given it holds it all the same: it starts anew
+   → expected true to be falsy
+ × tests/unit/review-r8.test.ts > [R8-02] an image is an input as much as a text is > [R8-02] an image the question itself is asked with starts anew, and is written for the agent
+   → expected '/synthetic/sessions/rollout-sess-synt…' to be undefined
+ ✓ tests/unit/review-r8.test.ts > [R8-02] an image is an input as much as a text is > [R8-02] control: the same canvas with no image goes on in the session, and hands over no image
+⎯⎯⎯⎯⎯⎯ Failed Tests 16 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/unit/review-r8.test.ts > [R8-01] what a session holds is not what the canvas still shows of it > [R8-01] starts anew with the wire above the last turn cut, the turn kept
+ FAIL  tests/unit/review-r8.test.ts > [R8-01] what a session holds is not what the canvas still shows of it > [R8-01] starts anew with the first turn deleted with its wire
+ FAIL  tests/unit/review-r8.test.ts > [R8-01] what a session holds is not what the canvas still shows of it > [R8-01] starts anew with the first turn deleted, its wire left hanging
+ FAIL  tests/unit/review-r8.test.ts > [R8-01] what a session holds is not what the canvas still shows of it > [R8-01] starts anew with the wire above the last turn taken to a turn of another session, its own first turn kept
+ FAIL  tests/unit/review-r8.test.ts > [R8-01] what a session holds is not what the canvas still shows of it > [R8-01] starts anew with the first turn replaced by another session's turn of the very same words
+ FAIL  tests/unit/review-r8.test.ts > [R8-01] what a session holds is not what the canvas still shows of it > [R8-01] starts anew with a turn of another session added above the first
+ FAIL  tests/unit/review-r8.test.ts > [R8-01] what a session holds is not what the canvas still shows of it > [R8-01] starts anew with the session's own turns put in another order
+ FAIL  tests/unit/review-r8.test.ts > [R8-01] what a session holds is not what the canvas still shows of it > [R8-01] starts anew with a turn the session holds that the canvas has never had
+AssertionError: expected true to be falsy
+- Expected
++ Received
+- false
++ true
+ ❯ tests/unit/review-r8.test.ts:114:27
+    112|       canvas(change);
+    113|       const r = await route();
+    114|       expect(r?.continue).toBeFalsy();
+       |                           ^
+    115|       expect(r?.sessionPath).toBeUndefined();
+    116|       expect(r?.decision?.action).toBe('fresh');
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/16]⎯
+ FAIL  tests/unit/review-r8.test.ts > [R8-01] what a session holds is not what the canvas still shows of it > [R8-01] through the run path: a cut turn is not in what is sent, and no old session is named
+AssertionError: expected '/synthetic/sessions/rollout-sess-synt…' to be undefined
+- Expected:
+undefined
++ Received:
+"/synthetic/sessions/rollout-sess-synthetic-1.jsonl"
+ ❯ tests/unit/review-r8.test.ts:123:30
+    121|     canvas({ edges: (e) => e.filter((x) => x.source !== 'n1') });
+    122|     const sent = await ask();
+    123|     expect(sent.sessionPath).toBeUndefined();
+       |                              ^
+    124|     expect(sent.prompt).toContain('With the plain mean, no.');
+    125|     expect(sent.prompt).not.toContain('ORIGINAL_UPSTREAM_A1');
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/16]⎯
+ FAIL  tests/unit/review-r8.test.ts > [R8-01] what a session holds is not what the canvas still shows of it > [R8-01] a chapter is judged by its own session: what comes from the chapter before is not in it
+AssertionError: expected true to be falsy
+- Expected
++ Received
+- false
++ true
+ ❯ tests/unit/review-r8.test.ts:132:25
+    130|     canvas({ nodes: chapter, ledger: { tailNodeId: 'n1', importedCount…
+    131|     const r = await route();
+    132|     expect(r?.continue).toBeFalsy();
+       |                         ^
+    133|     expect(r?.decision).toEqual({ action: 'fresh', reason: 'conversati…
+    134|   });
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/16]⎯
+ FAIL  tests/unit/review-r8.test.ts > [R8-01] what a session holds is not what the canvas still shows of it > [R8-01] the binding says what is known of the session: nothing, when a turn it holds is gone from the canvas
+AssertionError: expected [ { role: 'user', …(1) }, …(1) ] to be null
+- Expected:
+null
++ Received:
+[
+  {
+    "content": "Is that estimator robust to outliers?",
+    "role": "user",
+  },
+  {
+    "content": "With the plain mean, no.",
+    "role": "assistant",
+  },
+]
+ ❯ tests/unit/review-r8.test.ts:151:64
+    149|   it('[R8-01] the binding says what is known of the session: nothing, …
+    150|     canvas({ nodes: (n) => n.filter((x) => x.id !== 'n1') });
+    151|     expect((await bindingFor(TARGET, 'codex'))?.holds ?? null).toBeNul…
+       |                                                                ^
+    152|   });
+    153| });
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/16]⎯
+ FAIL  tests/unit/review-r8.test.ts > [R8-02] an image is an input as much as a text is > [R8-02] an image with no text beside it added above starts anew and is given as a material
+ FAIL  tests/unit/review-r8.test.ts > [R8-02] an image is an input as much as a text is > [R8-02] an image of other bytes and the same length added above starts anew and is given as a material
+AssertionError: expected true to be falsy
+- Expected
++ Received
+- false
++ true
+ ❯ tests/unit/review-r8.test.ts:166:27
+    164|       canvas({ nodes: patch('n1', { attachments: [att] }) });
+    165|       const r = await route();
+    166|       expect(r?.continue).toBeFalsy();
+       |                           ^
+    167|       expect(r?.decision).toEqual({ action: 'fresh', reason: 'material…
+    168|       const sent = await ask();
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/16]⎯
+ FAIL  tests/unit/review-r8.test.ts > [R8-02] an image is an input as much as a text is > [R8-02] an image taken back in by the question starts anew
+AssertionError: expected { action: 'resume', …(2) } to deeply equal { Object (action, reason) }
+- Expected
++ Received
+  {
+-   "action": "fresh",
+-   "reason": "materials",
++   "action": "resume",
++   "bindingId": "binding:codex:sess-synthetic-1",
++   "reason": "same-conversation",
+  }
+ ❯ tests/unit/review-r8.test.ts:184:39
+    182|   it('[R8-02] an image taken back in by the question starts anew', asy…
+    183|     canvas({ nodes: (n) => patch(TARGET, { includedAttachmentIds: [IMA…
+    184|     expect((await route())?.decision).toEqual({ action: 'fresh', reaso…
+       |                                       ^
+    185|   });
+    186|
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/16]⎯
+ FAIL  tests/unit/review-r8.test.ts > [R8-02] an image is an input as much as a text is > [R8-02] an image left out is not in the run, but a session that was given it holds it all the same: it starts anew
+AssertionError: expected true to be falsy
+- Expected
++ Received
+- false
++ true
+ ❯ tests/unit/review-r8.test.ts:190:25
+    188|     canvas({ nodes: (n) => patch('n2', { excludedAttachmentIds: [IMAGE…
+    189|     const r = await route();
+    190|     expect(r?.continue).toBeFalsy();
+       |                         ^
+    191|     expect(r?.decision).toEqual({ action: 'fresh', reason: 'materials'…
+    192|     const sent = await ask();
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/16]⎯
+ FAIL  tests/unit/review-r8.test.ts > [R8-02] an image is an input as much as a text is > [R8-02] an image the question itself is asked with starts anew, and is written for the agent
+AssertionError: expected '/synthetic/sessions/rollout-sess-synt…' to be undefined
+- Expected:
+undefined
++ Received:
+"/synthetic/sessions/rollout-sess-synthetic-1.jsonl"
+ ❯ tests/unit/review-r8.test.ts:202:30
+    200|     await useStore.getState().addQuestion(question, { parentId: 'n2', …
+    201|     const sent = desktop.runs.at(-1)!;
+    202|     expect(sent.sessionPath).toBeUndefined();
+       |                              ^
+    203|     expect(sent.images).toHaveLength(1);
+    204|     expect(desktop.materials.at(-1)!.files.map((x) => x.name).join(' '…
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/16]⎯
+ Test Files  1 failed (1)
+      Tests  16 failed | 6 passed (22)

@@ -1,0 +1,343 @@
+# R6 wiring regression tests on a974308, the commit R6 reviewed.
+# git archive a974308, node_modules linked, tests/unit/review-r6-wiring.test.ts and the test helpers copied in.
+ RUN  v5.0.3 <repo>
+ × tests/unit/review-r6-wiring.test.ts > [R6-02] what is left out of a run is not touched by it > [R6-02] a file left out (on-the-task) is neither looked at, saved nor frozen
+   → expected [ 'reconcile', 'freezeFile' ] to deeply equal []
+ × tests/unit/review-r6-wiring.test.ts > [R6-02] what is left out of a run is not touched by it > [R6-02] a file left out (on-the-task) that is lost stops nothing
+   → expected true to be falsy
+ × tests/unit/review-r6-wiring.test.ts > [R6-02] what is left out of a run is not touched by it > [R6-02] a file left out (inherited) is neither looked at, saved nor frozen
+   → expected [ 'reconcile', 'freezeFile' ] to deeply equal []
+ × tests/unit/review-r6-wiring.test.ts > [R6-02] what is left out of a run is not touched by it > [R6-02] a file left out (inherited) that is lost stops nothing
+   → expected true to be falsy
+ × tests/unit/review-r6-wiring.test.ts > [R6-02] what is left out of a run is not touched by it > [R6-02] a file left out (archived) is neither looked at, saved nor frozen
+   → expected [ 'reconcile', 'freezeFile' ] to deeply equal []
+ × tests/unit/review-r6-wiring.test.ts > [R6-02] what is left out of a run is not touched by it > [R6-02] a file left out (archived) that is lost stops nothing
+   → expected true to be falsy
+ × tests/unit/review-r6-wiring.test.ts > [R6-02] what is left out of a run is not touched by it > [R6-02] a file left out with typing not saved is not saved by a run that does not read it
+   → expected [ 'reconcile', 'saveText', …(1) ] to deeply equal []
+ × tests/unit/review-r6-wiring.test.ts > [R6-02] what is left out of a run is not touched by it > [R6-02] a file left out whose document is in conflict stops nothing
+   → expected true to be falsy
+ ✓ tests/unit/review-r6-wiring.test.ts > [R6-02] what is left out of a run is not touched by it > [R6-02] taken back in by the question, the file is looked at and frozen again, and a lost one stops the run again
+ × tests/unit/review-r6-wiring.test.ts > [R6-02] what is left out of a run is not touched by it > [R6-02] a file that is read beside one left out is frozen, and only it
+   → expected [ 'file_1', 'file_2' ] to deeply equal [ 'file_2' ]
+ × tests/unit/review-r6-wiring.test.ts > [R6-01] a run keeps what it was given until it is over > [R6-01] the shell is told a run given materials has ended, only then, and where they are
+   → Cannot read properties of undefined (reading 'cwd')
+ ✓ tests/unit/review-r6-wiring.test.ts > [R6-01] a run keeps what it was given until it is over > [R6-01] a run given nothing on disk tells the shell nothing
+ × tests/unit/review-r6-wiring.test.ts > [R6-03] what a question is asked with is among what its run is given > [R6-03] a first question with a text attached lists it as an input
+   → expected [] to deeply equal [ 'note.txt' ]
+ × tests/unit/review-r6-wiring.test.ts > [R6-03] what a question is asked with is among what its run is given > [R6-03] a follow-up with a text attached lists it, and the upstream file still has its place
+   → expected [] to deeply equal [ 'upstream.md', 'note.txt' ]
+ × tests/unit/review-r6-wiring.test.ts > [R6-03] what a question is asked with is among what its run is given > [R6-03] a first question with a PDF attached lists it as an input
+   → expected [] to deeply equal [ 'paper.pdf' ]
+ × tests/unit/review-r6-wiring.test.ts > [R6-03] what a question is asked with is among what its run is given > [R6-03] a follow-up with a PDF attached lists it, and the upstream file still has its place
+   → expected [] to deeply equal [ 'upstream.md', 'paper.pdf' ]
+ × tests/unit/review-r6-wiring.test.ts > [R6-03] what a question is asked with is among what its run is given > [R6-03] a first question with a HTML attached lists it as an input
+   → expected [] to deeply equal [ 'page.html' ]
+ × tests/unit/review-r6-wiring.test.ts > [R6-03] what a question is asked with is among what its run is given > [R6-03] a follow-up with a HTML attached lists it, and the upstream file still has its place
+   → expected [] to deeply equal [ 'upstream.md', 'page.html' ]
+ × tests/unit/review-r6-wiring.test.ts > [R6-03] what a question is asked with is among what its run is given > [R6-03] an agent is given what the question was asked with, as a file of the run's own
+   → Cannot read properties of undefined (reading 'files')
+ × tests/unit/review-r6-wiring.test.ts > [R6-03] what a question is asked with is among what its run is given > [R6-03] an image attached to a first question and to a follow-up is an input, on the image channel
+   → expected [] to deeply equal [ 'shot.png' ]
+ × tests/unit/review-r6-wiring.test.ts > [R6-03] what a question is asked with is among what its run is given > [R6-03] an image attached for an agent is written for it and handed over
+   → Cannot read properties of undefined (reading 'files')
+ × tests/unit/review-r6-wiring.test.ts > [R6-03] what a question is asked with is among what its run is given > [R6-03] a file attached under the name of one upstream with other words in it is not dropped: both are read
+   → expected '[File: note.txt]\nUPSTREAM\nfirst\nSY…' to contain 'OWN123'
+ ✓ tests/unit/review-r6-wiring.test.ts > [R6-03] what a question is asked with is among what its run is given > [R6-03] the very same file attached again is read once
+ × tests/unit/review-r6-wiring.test.ts > [R6-03] what a question is asked with is among what its run is given > [R6-03] the record of the run says what it was asked with
+   → expected [] to deeply equal [ 'upstream.md', 'note.txt' ]
+⎯⎯⎯⎯⎯⎯ Failed Tests 21 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/unit/review-r6-wiring.test.ts > [R6-02] what is left out of a run is not touched by it > [R6-02] a file left out (on-the-task) is neither looked at, saved nor frozen
+AssertionError: expected [ 'reconcile', 'freezeFile' ] to deeply equal []
+- Expected
++ Received
+- []
++ [
++   "reconcile",
++   "freezeFile",
++ ]
+ ❯ tests/unit/review-r6-wiring.test.ts:96:25
+     94|       const { t } = await leftOutFile(how);
+     95|       await run(t);
+     96|       expect(touched()).toEqual([]);
+       |                         ^
+     97|       expect(sent()).not.toContain('LEFT_OUT_TEXT_K7');
+     98|       expect(node(t).data.generationFailed).toBeFalsy();
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/21]⎯
+ FAIL  tests/unit/review-r6-wiring.test.ts > [R6-02] what is left out of a run is not touched by it > [R6-02] a file left out (on-the-task) that is lost stops nothing
+AssertionError: expected true to be falsy
+- Expected
++ Received
+- false
++ true
+ ❯ tests/unit/review-r6-wiring.test.ts:106:45
+    104|       shell.files.get(fileIdOf('notes/secret.md'))!.status = 'missing';
+    105|       await run(t);
+    106|       expect(node(t).data.generationFailed).toBeFalsy();
+       |                                             ^
+    107|       expect(node(t).data.response).toBe('SYNTHETIC_ANSWER');
+    108|       expect(touched()).toEqual([]);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/21]⎯
+ FAIL  tests/unit/review-r6-wiring.test.ts > [R6-02] what is left out of a run is not touched by it > [R6-02] a file left out (inherited) is neither looked at, saved nor frozen
+ FAIL  tests/unit/review-r6-wiring.test.ts > [R6-02] what is left out of a run is not touched by it > [R6-02] a file left out (archived) is neither looked at, saved nor frozen
+AssertionError: expected [ 'reconcile', 'freezeFile' ] to deeply equal []
+- Expected
++ Received
+- []
++ [
++   "reconcile",
++   "freezeFile",
++ ]
+ ❯ tests/unit/review-r6-wiring.test.ts:96:25
+     94|       const { t } = await leftOutFile(how);
+     95|       await run(t);
+     96|       expect(touched()).toEqual([]);
+       |                         ^
+     97|       expect(sent()).not.toContain('LEFT_OUT_TEXT_K7');
+     98|       expect(node(t).data.generationFailed).toBeFalsy();
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/21]⎯
+ FAIL  tests/unit/review-r6-wiring.test.ts > [R6-02] what is left out of a run is not touched by it > [R6-02] a file left out (inherited) that is lost stops nothing
+ FAIL  tests/unit/review-r6-wiring.test.ts > [R6-02] what is left out of a run is not touched by it > [R6-02] a file left out (archived) that is lost stops nothing
+AssertionError: expected true to be falsy
+- Expected
++ Received
+- false
++ true
+ ❯ tests/unit/review-r6-wiring.test.ts:106:45
+    104|       shell.files.get(fileIdOf('notes/secret.md'))!.status = 'missing';
+    105|       await run(t);
+    106|       expect(node(t).data.generationFailed).toBeFalsy();
+       |                                             ^
+    107|       expect(node(t).data.response).toBe('SYNTHETIC_ANSWER');
+    108|       expect(touched()).toEqual([]);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/21]⎯
+ FAIL  tests/unit/review-r6-wiring.test.ts > [R6-02] what is left out of a run is not touched by it > [R6-02] a file left out with typing not saved is not saved by a run that does not read it
+AssertionError: expected [ 'reconcile', 'saveText', …(1) ] to deeply equal []
+- Expected
++ Received
+- []
++ [
++   "reconcile",
++   "saveText",
++   "freezeFile",
++ ]
+ ❯ tests/unit/review-r6-wiring.test.ts:118:23
+    116|     shell.calls.length = 0;
+    117|     await run(t);
+    118|     expect(touched()).toEqual([]);
+       |                       ^
+    119|     expect(documents.get(doc.documentId)!.state).not.toBe('clean');
+    120|     expect(node(t).data.response).toBe('SYNTHETIC_ANSWER');
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/21]⎯
+ FAIL  tests/unit/review-r6-wiring.test.ts > [R6-02] what is left out of a run is not touched by it > [R6-02] a file left out whose document is in conflict stops nothing
+AssertionError: expected true to be falsy
+- Expected
++ Received
+- false
++ true
+ ❯ tests/unit/review-r6-wiring.test.ts:133:43
+    131|     shell.calls.length = 0;
+    132|     await run(t);
+    133|     expect(node(t).data.generationFailed).toBeFalsy();
+       |                                           ^
+    134|     expect(touched()).toEqual([]);
+    135|   });
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/21]⎯
+ FAIL  tests/unit/review-r6-wiring.test.ts > [R6-02] what is left out of a run is not touched by it > [R6-02] a file that is read beside one left out is frozen, and only it
+AssertionError: expected [ 'file_1', 'file_2' ] to deeply equal [ 'file_2' ]
+- Expected
++ Received
+  [
++   "file_1",
+    "file_2",
+  ]
+ ❯ tests/unit/review-r6-wiring.test.ts:158:20
+    156|     await run(t);
+    157|     const frozen = shell.calls.filter((c) => c.method === 'freezeFile'…
+    158|     expect(frozen).toEqual([fileIdOf('notes/kept.md')]);
+       |                    ^
+    159|     expect(sent()).toContain('KEPT_TEXT');
+    160|     expect(sent()).not.toContain('LEFT_OUT_TEXT_K7');
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/21]⎯
+ FAIL  tests/unit/review-r6-wiring.test.ts > [R6-01] a run keeps what it was given until it is over > [R6-01] the shell is told a run given materials has ended, only then, and where they are
+TypeError: Cannot read properties of undefined (reading 'cwd')
+ ❯ tests/unit/review-r6-wiring.test.ts:170:74
+    168|     await useStore.getState().addQuestion('describe my attachment', { …
+    169|     const written = desktop.materials.at(-1)!;
+    170|     await vi.waitFor(() => expect(desktop.ended).toEqual([{ cwd: writt…
+       |                                                                          ^
+    171|   });
+    172|
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/21]⎯
+ FAIL  tests/unit/review-r6-wiring.test.ts > [R6-03] what a question is asked with is among what its run is given > [R6-03] a first question with a text attached lists it as an input
+AssertionError: expected [] to deeply equal [ 'note.txt' ]
+- Expected
++ Received
+- [
+-   "note.txt",
+- ]
++ []
+ ❯ tests/unit/review-r6-wiring.test.ts:201:54
+    199|       await useStore.getState().addQuestion('describe my attachment', …
+    200|       expect(sent()).toContain(words);
+    201|       expect(inputsOf(last().id).map((i) => i.name)).toEqual([att.name…
+       |                                                      ^
+    202|     });
+    203|
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/21]⎯
+ FAIL  tests/unit/review-r6-wiring.test.ts > [R6-03] what a question is asked with is among what its run is given > [R6-03] a follow-up with a text attached lists it, and the upstream file still has its place
+AssertionError: expected [] to deeply equal [ 'upstream.md', 'note.txt' ]
+- Expected
++ Received
+- [
+-   "upstream.md",
+-   "note.txt",
+- ]
++ []
+ ❯ tests/unit/review-r6-wiring.test.ts:209:54
+    207|       expect(sent()).toContain(words);
+    208|       expect(sent()).toContain('UPSTREAM_TEXT_U1');
+    209|       expect(inputsOf(last().id).map((i) => i.name)).toEqual(['upstrea…
+       |                                                      ^
+    210|     });
+    211|   }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/21]⎯
+ FAIL  tests/unit/review-r6-wiring.test.ts > [R6-03] what a question is asked with is among what its run is given > [R6-03] a first question with a PDF attached lists it as an input
+AssertionError: expected [] to deeply equal [ 'paper.pdf' ]
+- Expected
++ Received
+- [
+-   "paper.pdf",
+- ]
++ []
+ ❯ tests/unit/review-r6-wiring.test.ts:201:54
+    199|       await useStore.getState().addQuestion('describe my attachment', …
+    200|       expect(sent()).toContain(words);
+    201|       expect(inputsOf(last().id).map((i) => i.name)).toEqual([att.name…
+       |                                                      ^
+    202|     });
+    203|
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/21]⎯
+ FAIL  tests/unit/review-r6-wiring.test.ts > [R6-03] what a question is asked with is among what its run is given > [R6-03] a follow-up with a PDF attached lists it, and the upstream file still has its place
+AssertionError: expected [] to deeply equal [ 'upstream.md', 'paper.pdf' ]
+- Expected
++ Received
+- [
+-   "upstream.md",
+-   "paper.pdf",
+- ]
++ []
+ ❯ tests/unit/review-r6-wiring.test.ts:209:54
+    207|       expect(sent()).toContain(words);
+    208|       expect(sent()).toContain('UPSTREAM_TEXT_U1');
+    209|       expect(inputsOf(last().id).map((i) => i.name)).toEqual(['upstrea…
+       |                                                      ^
+    210|     });
+    211|   }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/21]⎯
+ FAIL  tests/unit/review-r6-wiring.test.ts > [R6-03] what a question is asked with is among what its run is given > [R6-03] a first question with a HTML attached lists it as an input
+AssertionError: expected [] to deeply equal [ 'page.html' ]
+- Expected
++ Received
+- [
+-   "page.html",
+- ]
++ []
+ ❯ tests/unit/review-r6-wiring.test.ts:201:54
+    199|       await useStore.getState().addQuestion('describe my attachment', …
+    200|       expect(sent()).toContain(words);
+    201|       expect(inputsOf(last().id).map((i) => i.name)).toEqual([att.name…
+       |                                                      ^
+    202|     });
+    203|
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/21]⎯
+ FAIL  tests/unit/review-r6-wiring.test.ts > [R6-03] what a question is asked with is among what its run is given > [R6-03] a follow-up with a HTML attached lists it, and the upstream file still has its place
+AssertionError: expected [] to deeply equal [ 'upstream.md', 'page.html' ]
+- Expected
++ Received
+- [
+-   "upstream.md",
+-   "page.html",
+- ]
++ []
+ ❯ tests/unit/review-r6-wiring.test.ts:209:54
+    207|       expect(sent()).toContain(words);
+    208|       expect(sent()).toContain('UPSTREAM_TEXT_U1');
+    209|       expect(inputsOf(last().id).map((i) => i.name)).toEqual(['upstrea…
+       |                                                      ^
+    210|     });
+    211|   }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/21]⎯
+ FAIL  tests/unit/review-r6-wiring.test.ts > [R6-03] what a question is asked with is among what its run is given > [R6-03] an agent is given what the question was asked with, as a file of the run's own
+TypeError: Cannot read properties of undefined (reading 'files')
+ ❯ tests/unit/review-r6-wiring.test.ts:216:42
+    214|     useUiStore.getState().setSelectedModel(CODEX);
+    215|     await useStore.getState().addQuestion('describe my attachment', { …
+    216|     const files = desktop.materials.at(-1)!.files;
+       |                                          ^
+    217|     expect(files.map((f) => f.content)).toContain('OWN123');
+    218|     expect(desktop.runs.at(-1)!.prompt).toContain('OWN123');
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/21]⎯
+ FAIL  tests/unit/review-r6-wiring.test.ts > [R6-03] what a question is asked with is among what its run is given > [R6-03] an image attached to a first question and to a follow-up is an input, on the image channel
+AssertionError: expected [] to deeply equal [ 'shot.png' ]
+- Expected
++ Received
+- [
+-   "shot.png",
+- ]
++ []
+ ❯ tests/unit/review-r6-wiring.test.ts:224:52
+    222|     await useStore.getState().addQuestion('what is this?', { initialAt…
+    223|     expect(posted.at(-1)!.images).toHaveLength(1);
+    224|     expect(inputsOf(last().id).map((i) => i.name)).toEqual(['shot.png'…
+       |                                                    ^
+    225|     const parent = await answered();
+    226|     await useStore.getState().addQuestion('and this?', { parentId: par…
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/21]⎯
+ FAIL  tests/unit/review-r6-wiring.test.ts > [R6-03] what a question is asked with is among what its run is given > [R6-03] an image attached for an agent is written for it and handed over
+TypeError: Cannot read properties of undefined (reading 'files')
+ ❯ tests/unit/review-r6-wiring.test.ts:233:35
+    231|     useUiStore.getState().setSelectedModel(CODEX);
+    232|     await useStore.getState().addQuestion('what is this?', { initialAt…
+    233|     expect(desktop.materials.at(-1)!.files.map((f) => f.name).join(' '…
+       |                                   ^
+    234|     expect(desktop.runs.at(-1)!.images).toHaveLength(1);
+    235|   });
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/21]⎯
+ FAIL  tests/unit/review-r6-wiring.test.ts > [R6-03] what a question is asked with is among what its run is given > [R6-03] a file attached under the name of one upstream with other words in it is not dropped: both are read
+AssertionError: expected '[File: note.txt]\nUPSTREAM\nfirst\nSY…' to contain 'OWN123'
+- Expected
++ Received
+- OWN123
++ [File: note.txt]
++ UPSTREAM
++ first
++ SYNTHETIC_ANSWER
++ second
+ ❯ tests/unit/review-r6-wiring.test.ts:244:20
+    242|     await useStore.getState().addQuestion('second', { parentId: parent…
+    243|     expect(sent()).toContain('UPSTREAM');
+    244|     expect(sent()).toContain('OWN123');
+       |                    ^
+    245|     expect(inputsOf(last().id)).toHaveLength(2);
+    246|   });
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/21]⎯
+ FAIL  tests/unit/review-r6-wiring.test.ts > [R6-03] what a question is asked with is among what its run is given > [R6-03] the record of the run says what it was asked with
+AssertionError: expected [] to deeply equal [ 'upstream.md', 'note.txt' ]
+- Expected
++ Received
+- [
+-   "upstream.md",
+-   "note.txt",
+- ]
++ []
+ ❯ tests/unit/review-r6-wiring.test.ts:265:52
+    263|     // a run's record in a workspace lists the inputs held there; the …
+    264|     expect(shell.runRecords.at(-1)!.record.inputs.map((i) => i.fileId)…
+    265|     expect(inputsOf(last().id).map((i) => i.name)).toEqual(['upstream.…
+       |                                                    ^
+    266|   });
+    267| });
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/21]⎯
+ Test Files  1 failed (1)
+      Tests  21 failed | 3 passed (24)

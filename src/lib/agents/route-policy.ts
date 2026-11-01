@@ -3,9 +3,10 @@
 // question is exactly what the session holds: the session's turns as they
 // were, and nothing else. Anything more or different (an answer or a
 // question rewritten on the canvas, a file or an answer wired in, a role,
-// a memory or recall, a turn left out or added) starts a new session that
-// is given the whole of it, so nothing the run should see is lost by going
-// on where it was. What the session holds is not known is not gone on in.
+// a memory or recall, a turn left out or added, an image, which the words of
+// the turns do not show) starts a new session that is given the whole of it,
+// so nothing the run should see is lost by going on where it was. What the
+// session holds is not known is not gone on in.
 // Research always starts anew, and is not run at all on an agent not known
 // to keep to its inputs. Forking a session at an earlier turn is not done
 // while it is not known to work.
@@ -14,6 +15,7 @@
 
 import type { CapabilityReport, RouteDecision, RunEnvelope } from '../context/contracts';
 import { verifyPolicy } from '../context/policy';
+import { envelopeImages } from '../context/prepare-run';
 import type { SessionBinding } from './runtime-binding';
 
 export type PrefixComparison =
@@ -25,13 +27,16 @@ export type PrefixComparison =
  * What the run is to be given above its question, against what the session holds. The question is
  * the run's last message; everything before it must be the session's turns, as they were.
  */
-export function inspectExpectedPrefix(envelope: Pick<RunEnvelope, 'messages'>, binding: Pick<SessionBinding, 'holds'>): PrefixComparison {
+export function inspectExpectedPrefix(envelope: Pick<RunEnvelope, 'messages' | 'inputs'>, binding: Pick<SessionBinding, 'holds' | 'holdsImages'>): PrefixComparison {
   if (!binding.holds) return { result: 'unknown', reason: 'unknown-history' };
+  // what is known of a session is its words: an input of the run, or an image given to or kept from it, is not known to be there as it is
+  if (envelope.inputs.length > 0 || envelopeImages(envelope as RunEnvelope).length > 0 || binding.holdsImages) return { result: 'changed', reason: 'materials' };
   const above = envelope.messages.slice(0, -1);
   if (above.some((m) => m.source.layer === 'system' && m.source.part === 'role')) return { result: 'changed', reason: 'role' };
   if (above.some((m) => m.source.layer === 'system')) return { result: 'changed', reason: 'memory' };
   if (above.some((m) => m.source.layer !== 'chain' || m.source.part === 'attachment')) return { result: 'changed', reason: 'materials' };
-  if (above.length !== binding.holds.length || above.some((m, i) => m.role !== binding.holds![i].role)) return { result: 'changed', reason: 'conversation' };
+  // the session's own turns, in their order: another session's turn is another turn, whatever it says
+  if (above.length !== binding.holds.length || above.some((m, i) => m.role !== binding.holds![i].role || m.source.nodeId !== binding.holds![i].nodeId)) return { result: 'changed', reason: 'conversation' };
   if (above.some((m, i) => m.content !== binding.holds![i].content)) return { result: 'changed', reason: 'edited' };
   return { result: 'equal' };
 }

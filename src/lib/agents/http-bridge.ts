@@ -64,6 +64,7 @@ export async function installAgentsHttpBridge(apiBase: string): Promise<boolean>
     pickCwd: () => pickThroughHarness(),
     guardWrite: async (cwd, config) => (await post<{ ok: boolean }>('/agents/guard', { cwd, config })).ok,
     materialize: async (cwd, envelope, provided) => post('/agents/materials', { cwd, envelope, provided }),
+    runEnded: async (cwd, runId) => post<{ ok: boolean }>('/agents/run-ended', { cwd, runId }),
     // the host writes the backup file (#66). Inside the harness frame the
     // canvas has no directory handle — Chromium's picker never returns there
     // on Windows — so the backup keeps a plain path string and the host does

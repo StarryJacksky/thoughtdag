@@ -1,0 +1,875 @@
+TAP version 13
+# Subtest: [R12-01] create, old identity ready, the same content: looking at the old identity while the name is published does not take the new file
+ok 1 - [R12-01] create, old identity ready, the same content: looking at the old identity while the name is published does not take the new file
+  ---
+  duration_ms: 70.426375
+  type: 'test'
+  ...
+# Subtest: [R12-01] create, old identity ready, the same content: a rescan while the name is published does not take the new file
+ok 2 - [R12-01] create, old identity ready, the same content: a rescan while the name is published does not take the new file
+  ---
+  duration_ms: 55.20425
+  type: 'test'
+  ...
+# Subtest: [R12-01] create, old identity ready, the same content: the old identity's editor saving while the name is published does not reach the new file
+not ok 3 - [R12-01] create, old identity ready, the same content: the old identity's editor saving while the name is published does not reach the new file
+  ---
+  duration_ms: 76.313708
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:95:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'saved'
+    - 'conflict'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'conflict'
+  actual: 'saved'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:101:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] create, old identity ready, the same content: looking at the old identity and then saving from its editor, as one person does
+not ok 4 - [R12-01] create, old identity ready, the same content: looking at the old identity and then saving from its editor, as one person does
+  ---
+  duration_ms: 78.379125
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:105:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'saved'
+    - 'conflict'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'conflict'
+  actual: 'saved'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:115:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] create, old identity ready, the same content: saying by hand that the lost file is the new one, while it is published, is refused
+not ok 5 - [R12-01] create, old identity ready, the same content: saying by hand that the lost file is the new one, while it is published, is refused
+  ---
+  duration_ms: 59.8345
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:120:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - 'claimed'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'claimed'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:126:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] create, old identity ready, other content: looking at the old identity while the name is published does not take the new file
+not ok 6 - [R12-01] create, old identity ready, other content: looking at the old identity while the name is published does not take the new file
+  ---
+  duration_ms: 66.903708
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:75:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    nobody is told the old file came back or changed
+    + actual - expected
+    
+    + [
+    +   'content'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'content'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:82:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] create, old identity ready, other content: a rescan while the name is published does not take the new file
+not ok 7 - [R12-01] create, old identity ready, other content: a rescan while the name is published does not take the new file
+  ---
+  duration_ms: 67.091666
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:85:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + [
+    +   'content'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'content'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:92:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] create, old identity ready, other content: the old identity's editor saving while the name is published does not reach the new file
+ok 8 - [R12-01] create, old identity ready, other content: the old identity's editor saving while the name is published does not reach the new file
+  ---
+  duration_ms: 62.105542
+  type: 'test'
+  ...
+# Subtest: [R12-01] create, old identity ready, other content: looking at the old identity and then saving from its editor, as one person does
+not ok 9 - [R12-01] create, old identity ready, other content: looking at the old identity and then saving from its editor, as one person does
+  ---
+  duration_ms: 69.250417
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:105:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + [
+    +   'content'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'content'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:117:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] create, old identity ready, other content: saying by hand that the lost file is the new one, while it is published, is refused
+not ok 10 - [R12-01] create, old identity ready, other content: saying by hand that the lost file is the new one, while it is published, is refused
+  ---
+  duration_ms: 73.836708
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:120:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - 'claimed'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'claimed'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:126:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] create, old identity missing, the same content: looking at the old identity while the name is published does not take the new file
+not ok 11 - [R12-01] create, old identity missing, the same content: looking at the old identity while the name is published does not take the new file
+  ---
+  duration_ms: 71.518875
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:75:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    nobody is told the old file came back or changed
+    + actual - expected
+    
+    + [
+    +   'restored'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'restored'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:82:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] create, old identity missing, the same content: a rescan while the name is published does not take the new file
+not ok 12 - [R12-01] create, old identity missing, the same content: a rescan while the name is published does not take the new file
+  ---
+  duration_ms: 65.423583
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:85:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + [
+    +   'restored'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'restored'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:92:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] create, old identity missing, the same content: the old identity's editor saving while the name is published does not reach the new file
+ok 13 - [R12-01] create, old identity missing, the same content: the old identity's editor saving while the name is published does not reach the new file
+  ---
+  duration_ms: 66.577833
+  type: 'test'
+  ...
+# Subtest: [R12-01] create, old identity missing, the same content: looking at the old identity and then saving from its editor, as one person does
+not ok 14 - [R12-01] create, old identity missing, the same content: looking at the old identity and then saving from its editor, as one person does
+  ---
+  duration_ms: 101.219625
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:105:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'saved'
+    - 'conflict'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'conflict'
+  actual: 'saved'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:115:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] create, old identity missing, the same content: saying by hand that the lost file is the new one, while it is published, is refused
+not ok 15 - [R12-01] create, old identity missing, the same content: saying by hand that the lost file is the new one, while it is published, is refused
+  ---
+  duration_ms: 68.944125
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:120:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - 'claimed'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'claimed'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:126:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] create, old identity missing, other content: looking at the old identity while the name is published does not take the new file
+ok 16 - [R12-01] create, old identity missing, other content: looking at the old identity while the name is published does not take the new file
+  ---
+  duration_ms: 68.435875
+  type: 'test'
+  ...
+# Subtest: [R12-01] create, old identity missing, other content: a rescan while the name is published does not take the new file
+ok 17 - [R12-01] create, old identity missing, other content: a rescan while the name is published does not take the new file
+  ---
+  duration_ms: 69.896375
+  type: 'test'
+  ...
+# Subtest: [R12-01] create, old identity missing, other content: the old identity's editor saving while the name is published does not reach the new file
+ok 18 - [R12-01] create, old identity missing, other content: the old identity's editor saving while the name is published does not reach the new file
+  ---
+  duration_ms: 66.471708
+  type: 'test'
+  ...
+# Subtest: [R12-01] create, old identity missing, other content: looking at the old identity and then saving from its editor, as one person does
+ok 19 - [R12-01] create, old identity missing, other content: looking at the old identity and then saving from its editor, as one person does
+  ---
+  duration_ms: 63.023791
+  type: 'test'
+  ...
+# Subtest: [R12-01] create, old identity missing, other content: saying by hand that the lost file is the new one, while it is published, is refused
+not ok 20 - [R12-01] create, old identity missing, other content: saying by hand that the lost file is the new one, while it is published, is refused
+  ---
+  duration_ms: 85.692416
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:120:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - 'claimed'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'claimed'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:126:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] copy, old identity ready, the same content: looking at the old identity while the name is published does not take the new file
+ok 21 - [R12-01] copy, old identity ready, the same content: looking at the old identity while the name is published does not take the new file
+  ---
+  duration_ms: 49.904125
+  type: 'test'
+  ...
+# Subtest: [R12-01] copy, old identity ready, the same content: a rescan while the name is published does not take the new file
+ok 22 - [R12-01] copy, old identity ready, the same content: a rescan while the name is published does not take the new file
+  ---
+  duration_ms: 129.526291
+  type: 'test'
+  ...
+# Subtest: [R12-01] copy, old identity ready, the same content: the old identity's editor saving while the name is published does not reach the new file
+not ok 23 - [R12-01] copy, old identity ready, the same content: the old identity's editor saving while the name is published does not reach the new file
+  ---
+  duration_ms: 74.256541
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:95:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'saved'
+    - 'conflict'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'conflict'
+  actual: 'saved'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:101:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] copy, old identity ready, the same content: looking at the old identity and then saving from its editor, as one person does
+not ok 24 - [R12-01] copy, old identity ready, the same content: looking at the old identity and then saving from its editor, as one person does
+  ---
+  duration_ms: 75.996
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:105:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'saved'
+    - 'conflict'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'conflict'
+  actual: 'saved'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:115:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] copy, old identity ready, the same content: saying by hand that the lost file is the new one, while it is published, is refused
+not ok 25 - [R12-01] copy, old identity ready, the same content: saying by hand that the lost file is the new one, while it is published, is refused
+  ---
+  duration_ms: 49.8135
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:120:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - 'claimed'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'claimed'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:126:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] copy, old identity ready, other content: looking at the old identity while the name is published does not take the new file
+not ok 26 - [R12-01] copy, old identity ready, other content: looking at the old identity while the name is published does not take the new file
+  ---
+  duration_ms: 53.331791
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:75:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    nobody is told the old file came back or changed
+    + actual - expected
+    
+    + [
+    +   'content'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'content'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:82:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] copy, old identity ready, other content: a rescan while the name is published does not take the new file
+not ok 27 - [R12-01] copy, old identity ready, other content: a rescan while the name is published does not take the new file
+  ---
+  duration_ms: 130.254417
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:85:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + [
+    +   'content'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'content'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:92:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] copy, old identity ready, other content: the old identity's editor saving while the name is published does not reach the new file
+ok 28 - [R12-01] copy, old identity ready, other content: the old identity's editor saving while the name is published does not reach the new file
+  ---
+  duration_ms: 46.187625
+  type: 'test'
+  ...
+# Subtest: [R12-01] copy, old identity ready, other content: looking at the old identity and then saving from its editor, as one person does
+not ok 29 - [R12-01] copy, old identity ready, other content: looking at the old identity and then saving from its editor, as one person does
+  ---
+  duration_ms: 52.410791
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:105:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + [
+    +   'content'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'content'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:117:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] copy, old identity ready, other content: saying by hand that the lost file is the new one, while it is published, is refused
+not ok 30 - [R12-01] copy, old identity ready, other content: saying by hand that the lost file is the new one, while it is published, is refused
+  ---
+  duration_ms: 50.587166
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:120:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - 'claimed'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'claimed'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:126:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] copy, old identity missing, the same content: looking at the old identity while the name is published does not take the new file
+not ok 31 - [R12-01] copy, old identity missing, the same content: looking at the old identity while the name is published does not take the new file
+  ---
+  duration_ms: 55.279292
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:75:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    nobody is told the old file came back or changed
+    + actual - expected
+    
+    + [
+    +   'restored'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'restored'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:82:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] copy, old identity missing, the same content: a rescan while the name is published does not take the new file
+not ok 32 - [R12-01] copy, old identity missing, the same content: a rescan while the name is published does not take the new file
+  ---
+  duration_ms: 132.079208
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:85:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + [
+    +   'restored'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'restored'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:92:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] copy, old identity missing, the same content: the old identity's editor saving while the name is published does not reach the new file
+ok 33 - [R12-01] copy, old identity missing, the same content: the old identity's editor saving while the name is published does not reach the new file
+  ---
+  duration_ms: 52.875583
+  type: 'test'
+  ...
+# Subtest: [R12-01] copy, old identity missing, the same content: looking at the old identity and then saving from its editor, as one person does
+not ok 34 - [R12-01] copy, old identity missing, the same content: looking at the old identity and then saving from its editor, as one person does
+  ---
+  duration_ms: 85.787375
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:105:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'saved'
+    - 'conflict'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'conflict'
+  actual: 'saved'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:115:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] copy, old identity missing, the same content: saying by hand that the lost file is the new one, while it is published, is refused
+not ok 35 - [R12-01] copy, old identity missing, the same content: saying by hand that the lost file is the new one, while it is published, is refused
+  ---
+  duration_ms: 57.986209
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:120:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - 'claimed'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'claimed'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:126:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] copy, old identity missing, other content: looking at the old identity while the name is published does not take the new file
+ok 36 - [R12-01] copy, old identity missing, other content: looking at the old identity while the name is published does not take the new file
+  ---
+  duration_ms: 53.929542
+  type: 'test'
+  ...
+# Subtest: [R12-01] copy, old identity missing, other content: a rescan while the name is published does not take the new file
+ok 37 - [R12-01] copy, old identity missing, other content: a rescan while the name is published does not take the new file
+  ---
+  duration_ms: 140.83125
+  type: 'test'
+  ...
+# Subtest: [R12-01] copy, old identity missing, other content: the old identity's editor saving while the name is published does not reach the new file
+ok 38 - [R12-01] copy, old identity missing, other content: the old identity's editor saving while the name is published does not reach the new file
+  ---
+  duration_ms: 54.866
+  type: 'test'
+  ...
+# Subtest: [R12-01] copy, old identity missing, other content: looking at the old identity and then saving from its editor, as one person does
+ok 39 - [R12-01] copy, old identity missing, other content: looking at the old identity and then saving from its editor, as one person does
+  ---
+  duration_ms: 51.165084
+  type: 'test'
+  ...
+# Subtest: [R12-01] copy, old identity missing, other content: saying by hand that the lost file is the new one, while it is published, is refused
+not ok 40 - [R12-01] copy, old identity missing, other content: saying by hand that the lost file is the new one, while it is published, is refused
+  ---
+  duration_ms: 54.506916
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:120:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - 'claimed'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'claimed'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:126:16)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] create: the old identity is not moved or trashed while the name is published: the new file stays where it was made
+not ok 41 - [R12-01] create: the old identity is not moved or trashed while the name is published: the new file stays where it was made
+  ---
+  duration_ms: 159.633791
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:135:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    move: the old identity is lost by the time its turn comes
+    + actual - expected
+    
+    + undefined
+    - 'lost'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'lost'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:144:14)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] create: a read through the old identity while the name is published tells nobody its file changed
+not ok 42 - [R12-01] create: a read through the old identity while the name is published tells nobody its file changed
+  ---
+  duration_ms: 66.436875
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:149:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + [
+    +   'content'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'content'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:156:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] copy: the old identity is not moved or trashed while the name is published: the new file stays where it was made
+not ok 43 - [R12-01] copy: the old identity is not moved or trashed while the name is published: the new file stays where it was made
+  ---
+  duration_ms: 142.780042
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:135:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    move: the old identity is lost by the time its turn comes
+    + actual - expected
+    
+    + undefined
+    - 'lost'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'lost'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:144:14)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] copy: a read through the old identity while the name is published tells nobody its file changed
+not ok 44 - [R12-01] copy: a read through the old identity while the name is published tells nobody its file changed
+  ---
+  duration_ms: 51.182125
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:149:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + [
+    +   'content'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'content'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:156:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] a lost file is not found again under another name that is being published: not the new name, and not the creation's own temporary one
+not ok 45 - [R12-01] a lost file is not found again under another name that is being published: not the new name, and not the creation's own temporary one
+  ---
+  duration_ms: 51.822209
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:161:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    before the name is taken: its record does not go to a name that is not its file
+    + actual - expected
+    
+    + 'notes/.new.tdag-create-60e16959'
+    - 'notes/gone.md'
+             ^
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'notes/gone.md'
+  actual: 'notes/.new.tdag-create-60e16959'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:181:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] control: looking at the name while it is published, by name, finds the same new identity
+ok 46 - [R12-01] control: looking at the name while it is published, by name, finds the same new identity
+  ---
+  duration_ms: 152.168167
+  type: 'test'
+  ...
+# Subtest: [R12-01] control: a save that has the name first keeps it: the creation takes the next free name
+ok 47 - [R12-01] control: a save that has the name first keeps it: the creation takes the next free name
+  ---
+  duration_ms: 89.929042
+  type: 'test'
+  ...
+# Subtest: [R12-01] control: a lost file that really moved is still found at its new name, and a file put back as it was still comes back
+ok 48 - [R12-01] control: a lost file that really moved is still found at its new name, and a file put back as it was still comes back
+  ---
+  duration_ms: 65.105375
+  type: 'test'
+  ...
+# Subtest: [R12-01] a temporary file of this application is not taken for a lost file that moved
+not ok 49 - [R12-01] a temporary file of this application is not taken for a lost file that moved
+  ---
+  duration_ms: 28.096042
+  type: 'test'
+  location: '<repo>/tests/host/review-round12-identity.test.cjs:243:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    'ready' !== 'missing'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'missing'
+  actual: 'ready'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round12-identity.test.cjs:249:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R12-01] everything that takes a name and a file together, at once, in both directions, never waits on itself
+ok 50 - [R12-01] everything that takes a name and a file together, at once, in both directions, never waits on itself
+  ---
+  duration_ms: 261.205
+  type: 'test'
+  ...
+1..50
+# tests 50
+# suites 0
+# pass 20
+# fail 30
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 8770.853625

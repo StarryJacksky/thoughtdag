@@ -16,6 +16,9 @@
 //   - A file that is gone is followed by file-system identity first, then by
 //     content. A name alone is never evidence.
 //   - Two candidates that fit equally well are an ambiguity, not a guess.
+//   - This application's own temporary files are nobody's document.
+//   - A name that is being given to a new file is not looked at until the new
+//     file has its identity: until then nothing can tell it from this one.
 // File-system identity (device and inode) is used as evidence at the moment
 // of looking; it is never the identity of the document, which is its fileId.
 'use strict';
@@ -28,6 +31,9 @@ const { hashOf } = require('./file-ops.cjs');
 
 /** A search for a moved file gives up past this many entries and says the file is missing. */
 const MAX_SCAN = 20000;
+/** What the names of file-ops.cjs's temporary files and folders have in them. */
+const OWN_TEMP = '.tdag-';
+const anyTime = (_relativePath, step) => step();
 const observedOf = (stat) => ({ dev: stat.dev, ino: stat.ino, size: stat.size, mtimeMs: stat.mtimeMs });
 const sameIdentity = (a, b) => !!a && !!b && a.dev === b.dev && a.ino === b.ino;
 const untouched = (a, b) => sameIdentity(a, b) && a.size === b.size && a.mtimeMs === b.mtimeMs;
@@ -37,7 +43,9 @@ const untouched = (a, b) => sameIdentity(a, b) && a.size === b.size && a.mtimeMs
  *   grant     { rootPath, readOnly, ... }
  *   registry  see registry.cjs
  *   inStep    `(fileId, fn)`: runs `fn` in step with everything else that
- *             looks at that file or changes it (see file-ops.cjs)
+ *             looks at that file or changes it, and gives it
+ *             `atName(relativePath, step)`, which runs a step in step with
+ *             whatever is being made at that name (see file-ops.cjs)
  * Every method resolves with `{ record, change }`; `change` is null when the
  * record already matched the disk, else one of 'content', 'moved',
  * 'missing', 'ambiguous', 'restored'.
@@ -76,6 +84,7 @@ function createReconciler({ grant, registry, io = fs.promises, inStep = (_fileId
         if (++seen > MAX_SCAN) return false;
         const relativePath = relativeDir ? `${relativeDir}/${entry.name}` : entry.name;
         if (!relativeDir && entry.name.toLowerCase() === METADATA_DIR) continue;
+        if (entry.name.includes(OWN_TEMP)) continue;
         if (entry.isDirectory()) { if (!(await walk(relativePath))) return false; }
         else if (entry.isFile() && !claimed.has(relativePath)) {
           const stat = await io.stat(absoluteOf(relativePath)).catch(() => null);
@@ -99,7 +108,8 @@ function createReconciler({ grant, registry, io = fs.promises, inStep = (_fileId
     return record ? { record, change } : { record: await registry.get(fileId), change: null };
   };
 
-  async function lookAt(fileId) {
+  /** What is at the file's own path says what became of it, or null when nothing is there. */
+  async function lookHere(fileId) {
     const entry = await registry.entry(fileId);
     if (!entry) throw new WorkspaceAccessError('unknown-file', 'that file is not known to this workspace');
     const { record, observed } = entry;
@@ -127,8 +137,26 @@ function createReconciler({ grant, registry, io = fs.promises, inStep = (_fileId
       if (!proven) return { record, change: null };
       return settleUnlessHeld(fileId, { relativePath: here.relativePath, revision, status: live }, observedOf(here.stat), 'restored');
     }
+    return null;
+  }
 
-    // nothing at the path: look for where the file went
+  /** Whether the file at `relativePath` is still what was found to be this one when it was searched for. */
+  async function stillTheOne(relativePath, found, record, observed) {
+    const stat = await io.stat(absoluteOf(relativePath)).catch(() => null);
+    if (!stat?.isFile()) return null;
+    if (sameIdentity(stat, observed)) return stat;
+    return sameIdentity(stat, found) && await contentOf(absoluteOf(relativePath)).catch(() => null) === record.revision ? stat : null;
+  }
+
+  async function lookAt(fileId, atName = anyTime) {
+    const known = await registry.entry(fileId);
+    if (!known) throw new WorkspaceAccessError('unknown-file', 'that file is not known to this workspace');
+    const atItsPath = await atName(known.record.relativePath, () => lookHere(fileId));
+    if (atItsPath) return atItsPath;
+
+    // nothing at the path: look for where the file went. The search holds no name: it only finds candidates
+    const { record, observed } = await registry.entry(fileId);
+    const live = grant.readOnly ? 'readonly' : 'ready';
     const { found, complete } = await unclaimedFiles(fileId);
     const byIdentity = found.filter((c) => sameIdentity(c.stat, observed));
     const candidates = [...byIdentity];
@@ -139,8 +167,15 @@ function createReconciler({ grant, registry, io = fs.promises, inStep = (_fileId
     }
     if (candidates.length === 1 && complete) {
       const [moved] = candidates;
-      const revision = await contentOf(absoluteOf(moved.relativePath));
-      return settleUnlessHeld(fileId, { relativePath: moved.relativePath, mediaType: mediaTypeOf(moved.relativePath), revision, status: live }, observedOf(moved.stat), 'moved');
+      // the name it was found at may be being given to a new file: the file is taken for this one only once that is over, if it still is
+      const taken = await atName(moved.relativePath, async () => {
+        const stat = await stillTheOne(moved.relativePath, moved.stat, record, observed);
+        if (!stat) return null;
+        const revision = await contentOf(absoluteOf(moved.relativePath));
+        const settled = await settleUnlessHeld(fileId, { relativePath: moved.relativePath, mediaType: mediaTypeOf(moved.relativePath), revision, status: live }, observedOf(stat), 'moved');
+        return settled.change ? settled : null;
+      });
+      if (taken) return taken;
     }
     const status = candidates.length > 1 ? 'ambiguous' : 'missing';
     if (record.status === status) return { record, change: null };
@@ -150,7 +185,7 @@ function createReconciler({ grant, registry, io = fs.promises, inStep = (_fileId
   // A file is looked at by one look at a time, which reads its record as the
   // one before left it: two looks at the same moment would each find the
   // same change, and each announce it.
-  const reconcile = (fileId) => inStep(fileId, () => lookAt(fileId));
+  const reconcile = (fileId) => inStep(fileId, (atName) => lookAt(fileId, atName));
 
   return {
     reconcile,
@@ -169,19 +204,22 @@ function createReconciler({ grant, registry, io = fs.promises, inStep = (_fileId
      * The person says the lost file is the one at `relativePath`. That file
      * must exist, be inside the workspace, and not be another registered file.
      */
-    relink: (fileId, relativePath) => inStep(fileId, async () => {
-      const entry = await registry.entry(fileId);
-      if (!entry) throw new WorkspaceAccessError('unknown-file', 'that file is not known to this workspace');
-      const target = await assertAllowedPath(grant, 'read', relativePath);
-      const here = await fileAt(target.relativePath);
-      if (!here) throw new WorkspaceAccessError('not-found', 'nothing is at that path');
-      const other = await registry.findByPath(here.relativePath);
-      if (other && other.fileId !== fileId && other.status !== 'missing' && other.status !== 'ambiguous') throw new WorkspaceAccessError('claimed', 'that file is already another registered file');
-      const revision = await contentOf(here.absolute);
-      const change = entry.record.status === 'missing' || entry.record.status === 'ambiguous' ? 'restored' : 'moved';
-      const record = await registry.update(fileId, { relativePath: here.relativePath, mediaType: mediaTypeOf(here.relativePath), revision, status: grant.readOnly ? 'readonly' : 'ready' }, observedOf(here.stat), { unlessHeld: true });
-      if (!record) throw new WorkspaceAccessError('claimed', 'that file is already another registered file');
-      return { record, change };
+    relink: (fileId, relativePath) => inStep(fileId, async (atName = anyTime) => {
+      const known = await assertAllowedPath(grant, 'read', relativePath);
+      return atName(known.relativePath, async () => {
+        const entry = await registry.entry(fileId);
+        if (!entry) throw new WorkspaceAccessError('unknown-file', 'that file is not known to this workspace');
+        const target = await assertAllowedPath(grant, 'read', relativePath);
+        const here = await fileAt(target.relativePath);
+        if (!here) throw new WorkspaceAccessError('not-found', 'nothing is at that path');
+        const other = await registry.findByPath(here.relativePath);
+        if (other && other.fileId !== fileId && other.status !== 'missing' && other.status !== 'ambiguous') throw new WorkspaceAccessError('claimed', 'that file is already another registered file');
+        const revision = await contentOf(here.absolute);
+        const change = entry.record.status === 'missing' || entry.record.status === 'ambiguous' ? 'restored' : 'moved';
+        const record = await registry.update(fileId, { relativePath: here.relativePath, mediaType: mediaTypeOf(here.relativePath), revision, status: grant.readOnly ? 'readonly' : 'ready' }, observedOf(here.stat), { unlessHeld: true });
+        if (!record) throw new WorkspaceAccessError('claimed', 'that file is already another registered file');
+        return { record, change };
+      });
     }),
   };
 }

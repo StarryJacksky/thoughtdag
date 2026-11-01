@@ -133,7 +133,12 @@ async function startOfCharacter(handle, offset) {
 function createFileOps({ grant, registry, journal, trash = null, io = fs.promises, now = () => new Date().toISOString(), newId = randomUUID, notify = () => {} }) {
   // One operation at a time per key. A file's id keeps a save from
   // interleaving with a move of the same file; a path keeps two moves of two
-  // files from reaching for the same name together.
+  // files from reaching for the same name together, and keeps whoever acts on
+  // a file by its record away from a name that is being given to a new file:
+  // from the moment the name is there until the new file has its identity, a
+  // record of an older file at that name is not yet known to be out of date.
+  // The order is always the file's id first, then the path; nothing that holds
+  // a path waits for a file's id, and only two moved names are held together.
   const chains = new Map();
   const locked = (key, fn) => {
     const run = (chains.get(key) ?? Promise.resolve()).then(fn, fn);
@@ -325,19 +330,24 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
   async function noteRead(record, revision, stat) {
     if (record.revision === revision || await readOnly()) return;
     await changing(() => locked(record.fileId, async () => {
-      const now = await registry.get(record.fileId).catch(() => null);
-      if (!now || isLost(now)) return;
-      let seen = { revision, stat };
-      if (now.revision !== record.revision || now.relativePath !== record.relativePath) {
-        const target = await assertAllowedPath(grant, 'read', now.relativePath).catch(() => null);
-        const there = target ? await readChecked(target.absolute).catch(() => null) : null;
-        if (!there) return;
-        seen = { revision: hashOf(there.bytes), stat: there.stat };
-        if (seen.revision === now.revision) return;
-      }
-      const updated = await registry.update(record.fileId, { revision: seen.revision }, observedOf(seen.stat)).catch(() => null);
-      // everyone who refers to the file hears of a change, whoever happened to read it first
-      if (updated && now.revision !== null) { try { notify(updated, 'content'); } catch { /* the listener's own problem */ } }
+      const known = await registry.get(record.fileId).catch(() => null);
+      if (!known) return;
+      // what is at a name being given to a new file is that file's, whatever this record says
+      await atPath(known.relativePath, async () => {
+        const now = await registry.get(record.fileId).catch(() => null);
+        if (!now || isLost(now)) return;
+        let seen = { revision, stat };
+        if (now.revision !== record.revision || now.relativePath !== record.relativePath) {
+          const target = await assertAllowedPath(grant, 'read', now.relativePath).catch(() => null);
+          const there = target ? await readChecked(target.absolute).catch(() => null) : null;
+          if (!there) return;
+          seen = { revision: hashOf(there.bytes), stat: there.stat };
+          if (seen.revision === now.revision) return;
+        }
+        const updated = await registry.update(record.fileId, { revision: seen.revision }, observedOf(seen.stat)).catch(() => null);
+        // everyone who refers to the file hears of a change, whoever happened to read it first
+        if (updated && now.revision !== null) { try { notify(updated, 'content'); } catch { /* the listener's own problem */ } }
+      });
     }));
   }
 
@@ -403,71 +413,79 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
       const done = await finished(opId, 'save');
       if (done) return { status: 'saved', revision: done.revision, sourceRevision: null };
       if (await readOnly()) return { status: 'readonly', reason: 'this workspace is read-only' };
-      const record = await recordOf(fileId);
-      if (isLost(record)) return { status: 'conflict', currentRevision: null };
+      const known = await recordOf(fileId);
+      if (isLost(known)) return { status: 'conflict', currentRevision: null };
 
-      let target;
-      try { target = await assertAllowedPath(grant, 'write', record.relativePath); } catch (e) {
-        if (e instanceof WorkspaceAccessError && e.code === 'not-found') return { status: 'conflict', currentRevision: null };
-        throw e;
-      }
-      let temp = null;
-      try {
-        const current = await readChecked(target.absolute);
-        const currentRevision = hashOf(current.bytes);
-        if (currentRevision !== baseRevision) {
-          // this very save may have put its content in place and lost the note that it did:
-          // what the file holds is then what this save was writing, and that is a save, not a conflict
-          const mine = (await journal.attempt(opId))?.find((e) => e.phase === 'intent');
-          if (mine && mine.base === baseRevision && mine.next === currentRevision) {
-            await registry.update(fileId, { revision: currentRevision }, observedOf(current.stat)).catch(() => {});
-            await journal.append({ opId, kind: 'save', phase: 'done', fileId, revision: currentRevision }).catch(() => {});
-            return { status: 'saved', revision: currentRevision, sourceRevision: null };
+      // From the first read to the replacement nothing else of this application reaches for this name. A new
+      // file may be getting it right now: when that is over this record is out of date, which is why it is
+      // read again, and why looking once before waiting is not enough.
+      return atPath(known.relativePath, async () => {
+        const record = await recordOf(fileId);
+        if (isLost(record)) return { status: 'conflict', currentRevision: null };
+
+        let target;
+        try { target = await assertAllowedPath(grant, 'write', record.relativePath); } catch (e) {
+          if (e instanceof WorkspaceAccessError && e.code === 'not-found') return { status: 'conflict', currentRevision: null };
+          throw e;
+        }
+        let temp = null;
+        try {
+          const current = await readChecked(target.absolute);
+          const currentRevision = hashOf(current.bytes);
+          if (currentRevision !== baseRevision) {
+            // this very save may have put its content in place and lost the note that it did:
+            // what the file holds is then what this save was writing, and that is a save, not a conflict
+            const mine = (await journal.attempt(opId))?.find((e) => e.phase === 'intent');
+            if (mine && mine.base === baseRevision && mine.next === currentRevision) {
+              await registry.update(fileId, { revision: currentRevision }, observedOf(current.stat)).catch(() => {});
+              await journal.append({ opId, kind: 'save', phase: 'done', fileId, revision: currentRevision }).catch(() => {});
+              return { status: 'saved', revision: currentRevision, sourceRevision: null };
+            }
+            return { status: 'conflict', currentRevision };
           }
-          return { status: 'conflict', currentRevision };
-        }
-        const wanted = await nextOf(current);
-        if (wanted.result) return wanted.result;
-        const next = wanted.bytes;
-        const revision = hashOf(next);
-        if (revision === currentRevision) return { status: 'saved', revision, sourceRevision: null };
+          const wanted = await nextOf(current);
+          if (wanted.result) return wanted.result;
+          const next = wanted.bytes;
+          const revision = hashOf(next);
+          if (revision === currentRevision) return { status: 'saved', revision, sourceRevision: null };
 
-        temp = path.join(path.dirname(target.absolute), `.${path.basename(target.absolute)}.tdag-save-${newId().slice(0, 8)}`);
-        await journal.append({ opId, kind: 'save', phase: 'intent', fileId, base: baseRevision, next: revision, temp: path.basename(temp) });
-        const handle = await io.open(temp, 'wx', current.stat.mode & 0o777);
-        try { await handle.writeFile(next); await handle.sync(); } finally { await handle.close(); }
-        // the old content is kept whole before anything replaces it; if it cannot be, nothing is replaced
-        await keepPreviousVersion(grant.rootPath, fileId, currentRevision, current.bytes, io);
+          temp = path.join(path.dirname(target.absolute), `.${path.basename(target.absolute)}.tdag-save-${newId().slice(0, 8)}`);
+          await journal.append({ opId, kind: 'save', phase: 'intent', fileId, base: baseRevision, next: revision, temp: path.basename(temp) });
+          const handle = await io.open(temp, 'wx', current.stat.mode & 0o777);
+          try { await handle.writeFile(next); await handle.sync(); } finally { await handle.close(); }
+          // the old content is kept whole before anything replaces it; if it cannot be, nothing is replaced
+          await keepPreviousVersion(grant.rootPath, fileId, currentRevision, current.bytes, io);
 
-        // the last look before the replacement: anything that changed since the first read stops it
-        const again = await readChecked(target.absolute);
-        if (hashOf(again.bytes) !== currentRevision) {
-          await io.rm(temp, { force: true });
-          await journal.append({ opId, kind: 'save', phase: 'failed' });
-          return { status: 'conflict', currentRevision: hashOf(again.bytes) };
-        }
-        await io.rename(temp, target.absolute);
-        // from here the new content is in place: nothing below undoes it or reports it as failed
-        temp = null;
-        await syncDirectory(path.dirname(target.absolute));
+          // the last look before the replacement: anything that changed since the first read stops it
+          const again = await readChecked(target.absolute);
+          if (hashOf(again.bytes) !== currentRevision) {
+            await io.rm(temp, { force: true });
+            await journal.append({ opId, kind: 'save', phase: 'failed' });
+            return { status: 'conflict', currentRevision: hashOf(again.bytes) };
+          }
+          await io.rename(temp, target.absolute);
+          // from here the new content is in place: nothing below undoes it or reports it as failed
+          temp = null;
+          await syncDirectory(path.dirname(target.absolute));
 
-        // the content is in place; the registry catching up cannot undo that
-        const stat = await io.stat(target.absolute).catch(() => null);
-        await registry.update(fileId, { revision }, stat ? observedOf(stat) : undefined).catch(() => {});
-        // if this note cannot be written the save still happened: asked again, or after a restart, it is recognized from its intent
-        await journal.append({ opId, kind: 'save', phase: 'done', fileId, revision }).catch(() => {});
-        return { status: 'saved', revision, sourceRevision: null };
-      } catch (e) {
-        // `temp` is set once the intent is written: only an attempt that started is marked as failed
-        if (temp) {
-          await io.rm(temp, { force: true }).catch(() => {});
-          await journal.append({ opId, kind: 'save', phase: 'failed' }).catch(() => {});
+          // the content is in place; the registry catching up cannot undo that
+          const stat = await io.stat(target.absolute).catch(() => null);
+          await registry.update(fileId, { revision }, stat ? observedOf(stat) : undefined).catch(() => {});
+          // if this note cannot be written the save still happened: asked again, or after a restart, it is recognized from its intent
+          await journal.append({ opId, kind: 'save', phase: 'done', fileId, revision }).catch(() => {});
+          return { status: 'saved', revision, sourceRevision: null };
+        } catch (e) {
+          // `temp` is set once the intent is written: only an attempt that started is marked as failed
+          if (temp) {
+            await io.rm(temp, { force: true }).catch(() => {});
+            await journal.append({ opId, kind: 'save', phase: 'failed' }).catch(() => {});
+          }
+          if (e instanceof WorkspaceAccessError) return { status: 'error', reason: e.message };
+          if (['EACCES', 'EPERM', 'EROFS'].includes(e.code)) return { status: 'readonly', reason: 'the file cannot be written' };
+          if (e.code === 'ENOSPC') return { status: 'error', reason: 'the disk is full' };
+          return { status: 'error', reason: 'the save did not complete' };
         }
-        if (e instanceof WorkspaceAccessError) return { status: 'error', reason: e.message };
-        if (['EACCES', 'EPERM', 'EROFS'].includes(e.code)) return { status: 'readonly', reason: 'the file cannot be written' };
-        if (e.code === 'ENOSPC') return { status: 'error', reason: 'the disk is full' };
-        return { status: 'error', reason: 'the save did not complete' };
-      }
+      });
   }));
 
   /**
@@ -562,8 +580,13 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
     /** Run something that changes the workspace's records from outside this module (catching up with the disk, a file found again by hand) in step with everything here that does. */
     asChange: (fn) => changing(fn),
 
-    /** Run a look at one file that may change its record (catching up with the disk) in step with everything here that looks at that file or changes it: one at a time, each seeing the record as the one before left it. */
-    inStepWithFile: (fileId, fn) => locked(fileId, fn),
+    /**
+     * Run a look at one file that may change its record (catching up with the disk) in step with everything
+     * here that looks at that file or changes it: one at a time, each seeing the record as the one before left
+     * it. `fn` is given `atName(relativePath, step)`: a step that goes by what is at a name, or gives this
+     * record that name, is taken in step with whatever is being made there. One name at a time, never nested.
+     */
+    inStepWithFile: (fileId, fn) => locked(fileId, () => fn(atPath)),
 
     /**
      * Create a file. `request` is a CreateFileRequest with `parentId` already
@@ -782,6 +805,8 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
       // from the look at the name to the file being there and no longer at the old name, nothing else of this
       // application reaches for either: what a tool puts at the old name meanwhile would go with it
       return atPaths(source.relativePath, wanted.relativePath, async () => {
+        // the old name may have been given to a new file while this waited for it: that file is not the one being moved
+        await liveRecordOf(fileId);
         const destination = await assertAllowedPath(grant, 'move-to', join(targetParentRelativePath, newName));
         let caseOnly = false;
         if (destination.exists) {
@@ -836,26 +861,30 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
       await refuseReadOnly();
       const done = await finished(opId, 'trash');
       if (done) return done.receipt;
-      const record = await liveRecordOf(fileId);
-      const source = await assertAllowedPath(grant, 'trash', record.relativePath);
-      const receiptId = `trash_${newId()}`;
-      await journal.append({ opId, kind: 'trash', phase: 'intent', fileId, relativePath: source.relativePath, receiptId });
-      let location = 'project-recovery';
-      try {
-        if (trash) {
-          try { await trash(source.absolute); location = 'system-trash'; } catch { /* no system trash here: keep it in the workspace instead */ }
+      const known = await liveRecordOf(fileId);
+      // the name may be being given to a new file: that file is not the one being trashed
+      return atPath(known.relativePath, async () => {
+        const record = await liveRecordOf(fileId);
+        const source = await assertAllowedPath(grant, 'trash', record.relativePath);
+        const receiptId = `trash_${newId()}`;
+        await journal.append({ opId, kind: 'trash', phase: 'intent', fileId, relativePath: source.relativePath, receiptId });
+        let location = 'project-recovery';
+        try {
+          if (trash) {
+            try { await trash(source.absolute); location = 'system-trash'; } catch { /* no system trash here: keep it in the workspace instead */ }
+          }
+          if (location === 'project-recovery') {
+            await moveToRecoveryTrash(grant.rootPath, receiptId, source.absolute, io, { receiptId, kind: 'file', name: nameOf(source.relativePath), relativePath: source.relativePath, trashedAt: now(), fileId });
+          }
+        } catch (e) {
+          await journal.append({ opId, kind: 'trash', phase: 'failed' });
+          throw e;
         }
-        if (location === 'project-recovery') {
-          await moveToRecoveryTrash(grant.rootPath, receiptId, source.absolute, io, { receiptId, kind: 'file', name: nameOf(source.relativePath), relativePath: source.relativePath, trashedAt: now(), fileId });
-        }
-      } catch (e) {
-        await journal.append({ opId, kind: 'trash', phase: 'failed' });
-        throw e;
-      }
-      await registry.update(fileId, { status: 'missing' }).catch(() => {});
-      const receipt = { receiptId, fileId, opId, location, restorable: true };
-      await journal.append({ opId, kind: 'trash', phase: 'done', fileId, receipt });
-      return receipt;
+        await registry.update(fileId, { status: 'missing' }).catch(() => {});
+        const receipt = { receiptId, fileId, opId, location, restorable: true };
+        await journal.append({ opId, kind: 'trash', phase: 'done', fileId, receipt });
+        return receipt;
+      });
     })),
 
     /** Create a folder. Asking again for a folder that is there is not an error. */

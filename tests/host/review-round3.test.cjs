@@ -115,9 +115,10 @@ test('[R3-02] a lost file is not found again in a new file that took its name wh
   // a new file with the same name and the same words: it has its name, and no record yet
   const importing = service.importText(request('op-new', { parentId: notes }), { text: 'FIRST_TEXT_B3\n', name: 'a', provenance });
   await linked.reached;
-  // the old file is looked for: nobody holds the path yet, and its content is being read
+  // the old file is looked for: no record holds the path yet. Since R12-01 the look waits for the name, so it
+  // does not get as far as reading the content; on a build where it does, it is held there
   const looking = service.reconcile(old.record.fileId);
-  await looked.reached;
+  await Promise.race([looked.reached, soon()]);
   linked.release();
   const fresh = await importing;
   looked.release();

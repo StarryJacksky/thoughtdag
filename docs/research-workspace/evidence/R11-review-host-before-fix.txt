@@ -1,0 +1,147 @@
+# node --test tests/host/review-round11-backup.test.cjs on the code of c440c81 (the reviewed commit; no fix applied), with the final test
+TAP version 13
+# Subtest: [R11-01] a backup whose folder is slow to make cannot overwrite the backup asked for after it (at the folder root)
+not ok 1 - [R11-01] a backup whose folder is slow to make cannot overwrite the backup asked for after it (at the folder root)
+  ---
+  duration_ms: 40.551125
+  type: 'test'
+  location: '<repo>/tests/host/review-round11-backup.test.cjs:75:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    the backup asked for last is the one on disk, byte for byte
+    + actual - expected
+    
+    + '{"version":2,"name":"Canvas","nodes":[{"id":"n1","data":{"question":"OLDER_AUTOMATIC"}}],"edges":[]}'
+    - '{"version":2,"name":"Canvas","nodes":[{"id":"n1","data":{"question":"LATEST_BACK_UP_NOW"}}],"edges":[]}'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '{"version":2,"name":"Canvas","nodes":[{"id":"n1","data":{"question":"LATEST_BACK_UP_NOW"}}],"edges":[]}'
+  actual: '{"version":2,"name":"Canvas","nodes":[{"id":"n1","data":{"question":"OLDER_AUTOMATIC"}}],"edges":[]}'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round11-backup.test.cjs:84:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: [R11-01] a backup whose folder is slow to make cannot overwrite the backup asked for after it (in the cli/ drawer)
+not ok 2 - [R11-01] a backup whose folder is slow to make cannot overwrite the backup asked for after it (in the cli/ drawer)
+  ---
+  duration_ms: 37.958041
+  type: 'test'
+  location: '<repo>/tests/host/review-round11-backup.test.cjs:75:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    the backup asked for last is the one on disk, byte for byte
+    + actual - expected
+    
+    + '{"version":2,"name":"Canvas","nodes":[{"id":"n1","data":{"question":"OLDER_AUTOMATIC"}}],"edges":[]}'
+    - '{"version":2,"name":"Canvas","nodes":[{"id":"n1","data":{"question":"LATEST_BACK_UP_NOW"}}],"edges":[]}'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '{"version":2,"name":"Canvas","nodes":[{"id":"n1","data":{"question":"LATEST_BACK_UP_NOW"}}],"edges":[]}'
+  actual: '{"version":2,"name":"Canvas","nodes":[{"id":"n1","data":{"question":"OLDER_AUTOMATIC"}}],"edges":[]}'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round11-backup.test.cjs:84:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R11-01] the later backup's folder being the slow one: it still ends on disk
+ok 3 - [R11-01] the later backup's folder being the slow one: it still ends on disk
+  ---
+  duration_ms: 15.477291
+  type: 'test'
+  ...
+# Subtest: [R11-01] the earlier backup held at its folder, the later one held at its write: the later one ends on disk
+not ok 4 - [R11-01] the earlier backup held at its folder, the later one held at its write: the later one ends on disk
+  ---
+  duration_ms: 70.407584
+  type: 'test'
+  location: '<repo>/tests/host/review-round11-backup.test.cjs:103:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + '{"version":2,"name":"Canvas","nodes":[{"id":"n1","data":{"question":"OLDER_AUTOMATIC"}}],"edges":[]}'
+    - '{"version":2,"name":"Canvas","nodes":[{"id":"n1","data":{"question":"LATEST_BACK_UP_NOW"}}],"edges":[]}'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '{"version":2,"name":"Canvas","nodes":[{"id":"n1","data":{"question":"LATEST_BACK_UP_NOW"}}],"edges":[]}'
+  actual: '{"version":2,"name":"Canvas","nodes":[{"id":"n1","data":{"question":"OLDER_AUTOMATIC"}}],"edges":[]}'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round11-backup.test.cjs:116:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R11-01] the earlier backup held at its write, the later one held at its folder: the later one ends on disk
+ok 5 - [R11-01] the earlier backup held at its write, the later one held at its folder: the later one ends on disk
+  ---
+  duration_ms: 45.592166
+  type: 'test'
+  ...
+# Subtest: [R11-01] three backups of one canvas, the first two with slow folders: the last one asked for ends on disk
+not ok 6 - [R11-01] three backups of one canvas, the first two with slow folders: the last one asked for ends on disk
+  ---
+  duration_ms: 69.678375
+  type: 'test'
+  location: '<repo>/tests/host/review-round11-backup.test.cjs:138:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    'FIRST' !== 'THIRD'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'THIRD'
+  actual: 'FIRST'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round11-backup.test.cjs:153:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R11-01] a folder that cannot be made fails only that backup: the one behind it is written, and a retry works (at the folder root)
+ok 7 - [R11-01] a folder that cannot be made fails only that backup: the one behind it is written, and a retry works (at the folder root)
+  ---
+  duration_ms: 38.833041
+  type: 'test'
+  ...
+# Subtest: [R11-01] a folder that cannot be made fails only that backup: the one behind it is written, and a retry works (in the cli/ drawer)
+ok 8 - [R11-01] a folder that cannot be made fails only that backup: the one behind it is written, and a retry works (in the cli/ drawer)
+  ---
+  duration_ms: 39.471291
+  type: 'test'
+  ...
+# Subtest: [R11-01] the first backup into a drawer that does not exist yet makes the folder and writes whole
+ok 9 - [R11-01] the first backup into a drawer that does not exist yet makes the folder and writes whole
+  ---
+  duration_ms: 10.762042
+  type: 'test'
+  ...
+# Subtest: [R11-01] backups of different canvases do not wait for each other
+ok 10 - [R11-01] backups of different canvases do not wait for each other
+  ---
+  duration_ms: 10.138667
+  type: 'test'
+  ...
+# Subtest: [R11-01] a request that is not writable is refused before it touches the disk or the queue
+ok 11 - [R11-01] a request that is not writable is refused before it touches the disk or the queue
+  ---
+  duration_ms: 0.929709
+  type: 'test'
+  ...
+1..11
+# tests 11
+# suites 0
+# pass 7
+# fail 4
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 447.865667

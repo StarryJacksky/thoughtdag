@@ -86,8 +86,12 @@ async function writeBackup(body) {
   if (target !== inside && !target.startsWith(inside.endsWith(sep) ? inside : inside + sep)) {
     throw new BackupRequestError('name escapes the backup directory');
   }
-  await mkdir(dirname(target), { recursive: true });
-  await inTurn(target, () => publish(target, json));
+  // Joined here, with nothing awaited since the call: a folder that is slow to
+  // make must not let a backup asked for later go first.
+  await inTurn(target, async () => {
+    await mkdir(dirname(target), { recursive: true });
+    await publish(target, json);
+  });
   return target;
 }
 

@@ -1,0 +1,278 @@
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/review-round12-target.test.ts (28 tests | 15 failed) 1098ms
+   ❯ [R12-02] an automatic run does not come to an agent that may write files (11)
+     × [R12-02] no model, the toolbar on an agent: it waits for the person, and the task is left as it was 29ms
+     × [R12-02] no model, nothing on the toolbar, the server's default an agent: it waits for the person, and the task is left as it was 3ms
+     × [R12-02] a pin that cannot be reached, the toolbar on an agent: it waits for the person, and the task is left as it was 3ms
+     × [R12-02] a pin that cannot be reached, nothing on the toolbar, the server's default an agent: it waits for the person, and the task is left as it was 2ms
+     × [R12-02] no model, nothing on the toolbar, no default: no AI can be named: it waits for the person, and the task is left as it was 1ms
+     × [R12-02] no model, nothing on the toolbar, the list of models not known: no AI can be named: it waits for the person, and the task is left as it was 2ms
+     × [R12-02] the toolbar goes from an API model to an agent while the run waits for the list: it waits for the person 4ms
+     × [R12-02] the task is given an agent while the run waits for the list: it waits for the person, and keeps what it was given 3ms
+     × [R12-02] the task is given another API model while the run waits for the list: not what was planned, so it does not start 3ms
+     × [R12-02] a summary task (one that reads a material) that comes to an agent is left as it was too 3ms
+     × [R12-02] when a change upstream comes to an agent only as it starts, the person is told, as when it is known beforehand 1004ms
+   ❯ [R12-02] a replay (4)
+     × [R12-02] plans a task bound to nothing by what it would run on: the toolbar on an agent, it waits, and so does what reads it 2ms
+     × [R12-02] a pin that comes to an agent only as it starts: the step and what reads it wait, and neither is said to have failed 6ms
+     × [R12-02] the toolbar goes to an agent between the plan and the step: it waits 4ms
+     × [R12-02] the toolbar goes to an agent while the step waits for the list: it waits 4ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 15 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/review-round12-target.test.ts > [R12-02] an automatic run does not come to an agent that may write files > [R12-02] no model, the toolbar on an agent: it waits for the person, and the task is left as it was
+ FAIL  tests/unit/review-round12-target.test.ts > [R12-02] an automatic run does not come to an agent that may write files > [R12-02] no model, nothing on the toolbar, the server's default an agent: it waits for the person, and the task is left as it was
+ FAIL  tests/unit/review-round12-target.test.ts > [R12-02] an automatic run does not come to an agent that may write files > [R12-02] a pin that cannot be reached, the toolbar on an agent: it waits for the person, and the task is left as it was
+ FAIL  tests/unit/review-round12-target.test.ts > [R12-02] an automatic run does not come to an agent that may write files > [R12-02] a pin that cannot be reached, nothing on the toolbar, the server's default an agent: it waits for the person, and the task is left as it was
+ FAIL  tests/unit/review-round12-target.test.ts > [R12-02] an automatic run does not come to an agent that may write files > [R12-02] no model, nothing on the toolbar, the list of models not known: no AI can be named: it waits for the person, and the task is left as it was
+AssertionError: expected { status: 'answered', versionIndex: 1 } to deeply equal { status: 'needs-approval' }
+
+- Expected
++ Received
+
+  {
+-   "status": "needs-approval",
++   "status": "answered",
++   "versionIndex": 1,
+  }
+
+ ❯ tests/unit/review-round12-target.test.ts:123:30
+    121|       const id = make();
+    122|       const before = structuredClone(node(id).data);
+    123|       expect(await auto(id)).toEqual({ status: 'needs-approval' });
+       |                              ^
+    124|       nothingHappened(id, before);
+    125|     });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/15]⎯
+
+ FAIL  tests/unit/review-round12-target.test.ts > [R12-02] an automatic run does not come to an agent that may write files > [R12-02] no model, nothing on the toolbar, no default: no AI can be named: it waits for the person, and the task is left as it was
+AssertionError: expected { status: 'not-sent' } to deeply equal { status: 'needs-approval' }
+
+- Expected
++ Received
+
+  {
+-   "status": "needs-approval",
++   "status": "not-sent",
+  }
+
+ ❯ tests/unit/review-round12-target.test.ts:123:30
+    121|       const id = make();
+    122|       const before = structuredClone(node(id).data);
+    123|       expect(await auto(id)).toEqual({ status: 'needs-approval' });
+       |                              ^
+    124|       nothingHappened(id, before);
+    125|     });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/15]⎯
+
+ FAIL  tests/unit/review-round12-target.test.ts > [R12-02] an automatic run does not come to an agent that may write files > [R12-02] the toolbar goes from an API model to an agent while the run waits for the list: it waits for the person
+AssertionError: expected { status: 'answered', versionIndex: 1 } to deeply equal { status: 'needs-approval' }
+
+- Expected
++ Received
+
+  {
+-   "status": "needs-approval",
++   "status": "answered",
++   "versionIndex": 1,
+  }
+
+ ❯ tests/unit/review-round12-target.test.ts:132:50
+    130|     const before = structuredClone(node(id).data);
+    131|     during.models = () => pick(CODEX);
+    132|     expect(await auto(id, { expect: 'model:' })).toEqual({ status: 'ne…
+       |                                                  ^
+    133|     nothingHappened(id, before);
+    134|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/15]⎯
+
+ FAIL  tests/unit/review-round12-target.test.ts > [R12-02] an automatic run does not come to an agent that may write files > [R12-02] the task is given an agent while the run waits for the list: it waits for the person, and keeps what it was given
+AssertionError: expected { status: 'answered', versionIndex: 1 } to deeply equal { status: 'needs-approval' }
+
+- Expected
++ Received
+
+  {
+-   "status": "needs-approval",
++   "status": "answered",
++   "versionIndex": 1,
+  }
+
+ ❯ tests/unit/review-round12-target.test.ts:140:50
+    138|     const agent = createTarget(templateFor(CODEX));
+    139|     during.models = () => patch(id, { target: agent });
+    140|     expect(await auto(id, { expect: 'model:' })).toEqual({ status: 'ne…
+       |                                                  ^
+    141|     expect(desktop.runs).toEqual([]);
+    142|     expect(desktop.materials).toEqual([]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/15]⎯
+
+ FAIL  tests/unit/review-round12-target.test.ts > [R12-02] an automatic run does not come to an agent that may write files > [R12-02] the task is given another API model while the run waits for the list: not what was planned, so it does not start
+AssertionError: expected { Object (status, versionIndex) } to deeply equal { status: 'needs-approval' }
+
+- Expected
++ Received
+
+  {
+-   "status": "needs-approval",
++   "status": "answered",
++   "versionIndex": 0,
+  }
+
+ ❯ tests/unit/review-round12-target.test.ts:154:49
+    152|     const planned = `${node(id).data.target!.targetId}@${node(id).data…
+    153|     during.models = () => patch(id, { target: other });
+    154|     expect(await auto(id, { expect: planned })).toEqual({ status: 'nee…
+       |                                                 ^
+    155|     expect(posted).toEqual([]);
+    156|     expect(node(id).data.target).toEqual(other);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/15]⎯
+
+ FAIL  tests/unit/review-round12-target.test.ts > [R12-02] an automatic run does not come to an agent that may write files > [R12-02] a summary task (one that reads a material) that comes to an agent is left as it was too
+AssertionError: expected { status: 'answered', versionIndex: 1 } to deeply equal { status: 'needs-approval' }
+
+- Expected
++ Received
+
+  {
+-   "status": "needs-approval",
++   "status": "answered",
++   "versionIndex": 1,
+  }
+
+ ❯ tests/unit/review-round12-target.test.ts:164:28
+    162|     const id = oldTask('d', { digestOf: 'att-1' });
+    163|     const before = structuredClone(node(id).data);
+    164|     expect(await auto(id)).toEqual({ status: 'needs-approval' });
+       |                            ^
+    165|     nothingHappened(id, before);
+    166|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/15]⎯
+
+ FAIL  tests/unit/review-round12-target.test.ts > [R12-02] an automatic run does not come to an agent that may write files > [R12-02] when a change upstream comes to an agent only as it starts, the person is told, as when it is known beforehand
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/unit/review-round12-target.test.ts:177:127
+    175|     expect(await useStore.getState().rerunNode(up, {})).toMatchObject(…
+    176|     posted = [];
+    177|     await vi.waitFor(() => expect(useUiStore.getState().toasts.some((x…
+       |                                                                                                                               ^
+    178|     nothingHappened(down, before);
+    179|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/15]⎯
+
+ FAIL  tests/unit/review-round12-target.test.ts > [R12-02] a replay > [R12-02] plans a task bound to nothing by what it would run on: the toolbar on an agent, it waits, and so does what reads it
+AssertionError: expected [ 'rerun', 'rerun' ] to deeply equal [ 'needs-approval', 'rerun' ]
+
+- Expected
++ Received
+
+  [
+-   "needs-approval",
++   "rerun",
+    "rerun",
+  ]
+
+ ❯ tests/unit/review-round12-target.test.ts:189:45
+    187|     wire(a, b);
+    188|     const plan = planReplay([a], 'downstream');
+    189|     expect(plan.steps.map((s) => s.action)).toEqual(['needs-approval',…
+       |                                             ^
+    190|     const out = await runReplay(plan);
+    191|     expect(out.ran).toEqual([]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/15]⎯
+
+ FAIL  tests/unit/review-round12-target.test.ts > [R12-02] a replay > [R12-02] a pin that comes to an agent only as it starts: the step and what reads it wait, and neither is said to have failed
+AssertionError: expected [ 'a', 'c', 'b' ] to deeply equal [ 'c' ]
+
+- Expected
++ Received
+
+  [
++   "a",
+    "c",
++   "b",
+  ]
+
+ ❯ tests/unit/review-round12-target.test.ts:206:21
+    204|     const beforeA = structuredClone(node(a).data);
+    205|     const out = await runReplay(planReplay([a, c], 'downstream'));
+    206|     expect(out.ran).toEqual([c]);
+       |                     ^
+    207|     expect(out.waiting).toEqual([a, b]);
+    208|     expect(out.failed).toBeUndefined();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/15]⎯
+
+ FAIL  tests/unit/review-round12-target.test.ts > [R12-02] a replay > [R12-02] the toolbar goes to an agent between the plan and the step: it waits
+AssertionError: expected { ran: [ 'a' ], waiting: [] } to match object { ran: [], waiting: [ 'a' ] }
+
+- Expected
++ Received
+
+  {
+-   "ran": [],
+-   "waiting": [
++   "ran": [
+      "a",
+    ],
++   "waiting": [],
+  }
+
+ ❯ tests/unit/review-round12-target.test.ts:220:17
+    218|     pick(CODEX);
+    219|     const out = await runReplay(plan);
+    220|     expect(out).toMatchObject({ ran: [], waiting: [a] });
+       |                 ^
+    221|     expect(desktop.runs).toEqual([]);
+    222|     expect(posted).toEqual([]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/15]⎯
+
+ FAIL  tests/unit/review-round12-target.test.ts > [R12-02] a replay > [R12-02] the toolbar goes to an agent while the step waits for the list: it waits
+AssertionError: expected { ran: [ 'a' ], waiting: [] } to match object { ran: [], waiting: [ 'a' ] }
+
+- Expected
++ Received
+
+  {
+-   "ran": [],
+-   "waiting": [
++   "ran": [
+      "a",
+    ],
++   "waiting": [],
+  }
+
+ ❯ tests/unit/review-round12-target.test.ts:230:17
+    228|     during.models = () => pick(CODEX);
+    229|     const out = await runReplay(plan);
+    230|     expect(out).toMatchObject({ ran: [], waiting: [a] });
+       |                 ^
+    231|     expect(desktop.runs).toEqual([]);
+    232|     expect(posted).toEqual([]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/15]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  15 failed | 13 passed (28)
+   Start at  22:48:57
+   Duration  1.82s (tests 63%, transform 21%, environment 13%, import 3%)
+

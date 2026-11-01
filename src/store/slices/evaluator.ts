@@ -7,6 +7,7 @@ import { toast, updateToast, useUiStore } from '../../lib/ui-store';
 import { t, fmt } from '../../i18n';
 import type { StoreState, EvaluatorSlice, RerunOutcome } from '../types';
 import { writesFiles } from '../../lib/agents/target-model';
+import type { ExecutionTarget } from '../../lib/context/contracts';
 import { condenseGuard } from '../../lib/condense-guard';
 
 // Batch-replay cancellation flag — one replay at a time, module-scoped.
@@ -40,15 +41,24 @@ export const createEvaluatorSlice: StateCreator<StoreState, [], [], EvaluatorSli
    *
    * An automatic run never sets off an agent that may write files: that is
    * looked at here, as it starts and again once its files are frozen, since
-   * the person can change the task's AI during either wait. `mayWrite` is for
-   * what the person set going themselves (a feedback line's rounds, a
-   * paradigm). `expect` is what the caller planned this run for: another AI
-   * than that is not what was planned, and it does not start.
+   * the person can change the task's AI during either wait, and for the last
+   * time as the pipeline settles what the run is on: a task bound to nothing
+   * may come to run on the toolbar's pick or the server's default, and a pin
+   * that cannot be reached may be replaced, and an AI that cannot be named at
+   * all is not known not to write. `mayWrite` is for what the person set going
+   * themselves (a feedback line's rounds, a paradigm). `expect` is what the
+   * caller planned this run for: another AI than that is not what was planned,
+   * and it does not start.
    */
   rerunNode: async (nodeId: string, opts?: { auto?: boolean; mayWrite?: boolean; expect?: string }): Promise<RerunOutcome> => {
     const notAllowed = (data: ThoughtData): RerunOutcome | null => {
       if (opts?.expect !== undefined && taskIdentity(data) !== opts.expect) return { status: 'needs-approval' };
       return opts?.auto && !opts.mayWrite && writesFiles(data) ? { status: 'needs-approval' } : null;
+    };
+    const held = !!opts?.auto || opts?.expect !== undefined;
+    const mayStart = (data: ThoughtData | undefined, target: ExecutionTarget | undefined) => {
+      if (!data || notAllowed(data)) return false;
+      return !opts?.auto || !!opts.mayWrite || (!!target && !writesFiles({ target }));
     };
     if (condenseGuard()) return { status: 'not-sent' };
     const { nodes } = get();
@@ -68,6 +78,15 @@ export const createEvaluatorSlice: StateCreator<StoreState, [], [], EvaluatorSli
     const onEnded = (how: 'completed' | 'failed' | 'cancelled', versionIndex: number | null) => {
       ended = how === 'completed' && versionIndex !== null ? { status: 'answered', versionIndex } : { status: how === 'cancelled' ? 'cancelled' : 'failed' };
     };
+    /** Told no as it was about to start: the task is left as it was before this run was set up, its answer on show. */
+    const refusedBy = (before: ThoughtData) => () => {
+      ended = { status: 'needs-approval' };
+      const { response, reasoning, generationFailed, appliedRole, isCollapsed } = before;
+      set((state) => ({
+        nodes: state.nodes.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, response, reasoning, generationFailed, appliedRole, isCollapsed, isLoading: false, restreaming: undefined } } : n)),
+      }));
+    };
+    const gate = (before: ThoughtData) => (held ? { mayStart, onRefused: refusedBy(before) } : {});
 
     // Digest nodes regenerate through the digest prompt against the source
     // attachment's full extracted text — not the context walk (the walk
@@ -88,6 +107,7 @@ export const createEvaluatorSlice: StateCreator<StoreState, [], [], EvaluatorSli
         sources: material ? [{ layer: 'material', nodeId: material.id, attachmentId: att.id, part: 'attachment' }] : [],
         autoChain: opts?.auto,
         onEnded,
+        ...gate(node.data),
       });
       return ended;
     }
@@ -134,6 +154,7 @@ export const createEvaluatorSlice: StateCreator<StoreState, [], [], EvaluatorSli
       imageSources: ctx.imageSources,
       autoChain: opts?.auto,
       onEnded,
+      ...gate(nodeNow.data),
     });
     return ended;
   },

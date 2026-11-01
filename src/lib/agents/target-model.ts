@@ -26,11 +26,14 @@ export const runModeOf = (target: Pick<ExecutionTarget, 'policyId'> | undefined)
 /**
  * Whether a task's runs may change files: an agent at work runs in its folder with tools that write.
  * Such a run is never set off on its own (by a replay, by an automatic rerun when something upstream
- * changed): the person starts it, having seen what it is to write.
+ * changed): the person starts it, having seen what it is to write. A task bound to nothing runs on
+ * its pin or else the toolbar's pick, as far as can be said without the list of models: that its pin
+ * cannot be reached, or that the server's default is what it comes to, is known only as it starts
+ * (`mayStart` in store/streaming).
  */
 export function writesFiles(task: { target?: ExecutionTarget; model?: string }): boolean {
   if (task.target) return task.target.kind === 'agent' && runModeOf(task.target) === 'workspace';
-  return !!task.model && runtimeOf(task.model) !== null;
+  return runtimeOf(task.model ?? useUiStore.getState().selectedModel) !== null;
 }
 
 /** What of a target makes it the AI it is: two targets with the same settings are the same revision. */

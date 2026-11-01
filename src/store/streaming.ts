@@ -23,7 +23,8 @@ import type { Ladder } from '../types';
 import { t, fmt } from '../i18n';
 import { notifyWaiting } from '../lib/agents/waiting';
 import { isViewerMode } from '../lib/viewer';
-import type { Reference } from '../types';
+import type { Reference, ThoughtData } from '../types';
+import type { ExecutionTarget } from '../lib/context/contracts';
 import type { StoreState } from './types';
 import { sanitizeReferenceUrls } from '../lib/outbound-links';
 import type { RunEnvelope } from '../lib/context/contracts';
@@ -219,6 +220,13 @@ export async function runNodeGeneration(
     onSuccess?: (response: string) => void;
     /** How the run came out, once its final state is written; never called for one that wrote nothing. */
     onEnded?: (how: 'completed' | 'failed' | 'cancelled', versionIndex: number | null) => void;
+    /**
+     * Asked once, the moment the run's AI is settled and before the task is bound to it or anything is sent:
+     * whether a run on that AI may start. `target` is the AI as it would run, undefined when none can be named.
+     * Told no, nothing is sent or changed and `onRefused` says so; what the caller set up for the run is its own to undo.
+     */
+    mayStart?: (data: ThoughtData | undefined, target: ExecutionTarget | undefined) => boolean;
+    onRefused?: () => void;
     /** where each context message came from — the members of this request */
     sources?: MessageSource[];
     /** where each image came from, parallel to `images` */
@@ -287,10 +295,14 @@ export async function runNodeGeneration(
   // different from a bare pin: it runs on that AI or not at all. Its model
   // is never remapped to another provider's and never dropped for the
   // global pick; when it cannot be reached the run stops and says so.
-  const boundTarget = get().nodes.find((n) => n.id === nodeId)?.data.target;
-  const pinnedRaw = boundTarget?.model ?? get().nodes.find((n) => n.id === nodeId)?.data.model;
-  let pinnedModel = pinnedRaw;
+  //
+  // Everything that says which AI it is, is read after the wait for the list, with no wait from here until the
+  // task is bound: what was checked below is what runs.
   const modelData = await getModelsOnce();
+  const dataNow = get().nodes.find((n) => n.id === nodeId)?.data;
+  const boundTarget = dataNow?.target;
+  const pinnedRaw = boundTarget?.model ?? dataNow?.model;
+  let pinnedModel = pinnedRaw;
   const serverDefaultModel: string | null = modelData?.default ?? null;
   const boundCheck = boundTarget ? checkSend({ target: boundTarget }, { models: modelData?.models ?? [], serverDefault: serverDefaultModel }) : { ok: true as const };
   if (!boundCheck.ok) {
@@ -323,6 +335,15 @@ export async function runNodeGeneration(
   // Resolved ONCE, here: the picker may change while this node runs, and the
   // node must record what it was asked with, not what the picker says later
   const requestedModel = pinnedModel ?? useUiStore.getState().selectedModel ?? serverDefaultModel ?? undefined;
+  // Who set this run going may have a say in what it runs on, now that that is known (an automatic run is never
+  // an agent that may write files): a default or a remapped pin is only known here.
+  if (opts.mayStart && !opts.mayStart(dataNow, boundTarget ?? (requestedModel ? templateFor(requestedModel) : undefined))) {
+    if (!isCurrent()) return;
+    activeAbortControllers.delete(nodeId);
+    frozenFor.delete(nodeId);
+    opts.onRefused?.();
+    return;
+  }
   // No model anywhere, and the list of models is known: nothing is sent (it would go out naming none, for the
   // server to pick one by itself), and nothing is recorded as asked or answered. Every way a run starts comes
   // through here: a question, a follow-up, a rerun in place or by itself, a sibling.
@@ -911,7 +932,11 @@ function triggerAutoReruns(set: Set, get: Get, completedNodeId: string): void {
         continue;
       }
       autoRunCounts.set(n.id, spent + 1);
-      void get().rerunNode(n.id, { auto: true });
+      // what it runs on may only come to be known as it starts: it is told the same way then
+      const askedOf = n.data.question;
+      void get().rerunNode(n.id, { auto: true }).then((outcome) => {
+        if (outcome.status === 'needs-approval') toast('info', fmt(t('replay.agentWaits'), { name: (askedOf || '').slice(0, 40) }), 9000);
+      });
     }
   }
 

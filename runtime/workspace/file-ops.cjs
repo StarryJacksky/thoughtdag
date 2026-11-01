@@ -305,6 +305,63 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
     throw new WorkspaceAccessError('no-free-name', 'no free name was found for the new file');
   }
 
+  /**
+   * Finish a creation that was cut short, from what its journal entries say: the record of the file it gave a name,
+   * or null when it gave none that is still there. Nothing but the operation's own temp files is removed. Can be
+   * asked again at any point: the file has one identity, the one noted before it had its name. An identity already
+   * registered at that name is another file's, whose file is gone: the name was free when this file took it.
+   */
+  async function finishCreate(opId, entries) {
+    const last = (phase) => [...entries].reverse().find((e) => e.phase === phase);
+    const intent = last('intent');
+    const created = last('created');
+    const attempt = last('attempt');
+    const lookAt = async (relativePath) => {
+      const target = await assertAllowedPath(grant, 'stat', relativePath).catch(() => null);
+      if (target?.kind !== 'file') return null;
+      return readChecked(target.absolute).catch((e) => { if (TRY_AGAIN.has(e?.code)) throw e; return null; });
+    };
+    let there = null;
+    let relativePath = null;
+    if (created) {
+      relativePath = created.relativePath;
+      // whatever is at the name now is what the record says: another program may have replaced it since
+      there = await lookAt(relativePath);
+    } else if (attempt && intent?.revision) {
+      // cut short between giving the file its name and noting that. The file at the name that was being
+      // tried is this operation's only if it is the very file the operation wrote (the same file-system
+      // object) and still holds what was written. A name and equal content are not proof: another
+      // creation may have made just such a file there.
+      relativePath = attempt.relativePath;
+      const found = await lookAt(relativePath);
+      if (found && sameFile(found.stat, attempt) && hashOf(found.bytes) === intent.revision) there = found;
+    }
+    // the operation's own name for what it wrote, if the crash left it: the file has its real name by now, or is not wanted
+    for (const tried of entries) {
+      if (tried.phase === 'attempt' && typeof tried.temp === 'string' && CREATE_TEMP.test(tried.temp) && typeof tried.relativePath === 'string') {
+        await io.rm(path.join(grant.rootPath, ...parentOf(tried.relativePath).split('/').filter(Boolean), tried.temp), { force: true }).catch(() => {});
+      }
+    }
+    if (!there) return null;
+    const revision = hashOf(there.bytes);
+    const observed = observedOf(there.stat);
+    const record = await atPath(relativePath, async () => {
+      // a journal of an older version names no identity: one it stored for this very file stands, and any other is not its own
+      let fileId = intent?.fileId;
+      if (!fileId) {
+        const live = await registry.findByPath(relativePath);
+        const entry = live ? await registry.entry(live.fileId) : null;
+        if (entry && sameFile(entry.observed, observed)) fileId = live.fileId;
+      }
+      const origin = created?.origin ?? intent?.recordOrigin ?? intent?.origin;
+      const importedFrom = created?.importedFrom ?? intent?.importedFrom;
+      const given = await registry.create({ ...(fileId ? { fileId } : {}), relativePath, mediaType: mediaTypeOf(relativePath), origin, observed, revision, ...(importedFrom ? { importedFrom } : {}) });
+      return given.relativePath === relativePath && given.revision !== revision ? registry.update(given.fileId, { revision }, observed) : given;
+    });
+    await journal.append({ opId, kind: 'create', phase: 'done', fileId: record.fileId });
+    return record;
+  }
+
   function* numbered(prefix, extension) {
     for (let n = 1; n <= 9999; n++) yield `${prefix}-${pad3(n)}.${extension}`;
   }
@@ -601,6 +658,12 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
       return once(`create:${idempotencyKey}`, () => changing(async () => {
         const done = await finished(idempotencyKey, 'create');
         if (done) return recordOf(done.fileId);
+        // asked again after an attempt that gave a file its name and did not finish: that file is the answer, and no second one is made
+        const cutShort = await journal.attempt(idempotencyKey);
+        if (cutShort) {
+          const settled = await finishCreate(idempotencyKey, cutShort);
+          if (settled) return settled;
+        }
         if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,15}$/.test(String(extension))) throw new WorkspaceAccessError('invalid-name', 'that is not a file extension');
         if (name !== null) assertPortableName(`${name}.${extension}`);
 
@@ -614,9 +677,11 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
         const bytes = given ? Buffer.from(given) : Buffer.from(content ?? templateFor(extension, { newId }), 'utf8');
         const revision = hashOf(bytes);
         const recordOrigin = importedFrom ? 'import' : origin;
-        // the intent says what the file will hold, and each name is noted before it is tried, with the identity
-        // of the file this operation wrote: a crash at any point leaves enough to tell whether a file at that name is this one
-        await journal.append({ opId: idempotencyKey, kind: 'create', phase: 'intent', parent, extension, origin, recordOrigin, revision, ...(importedFrom ? { importedFrom } : {}) });
+        // the intent says what the file will hold and the identity it will have, and each name is noted before it is tried,
+        // with the file-system identity of the file this operation wrote: a crash at any point leaves enough to tell whether
+        // a file at that name is this one, and which record is its own whatever else is registered at that name
+        const fileId = registry.newFileId();
+        await journal.append({ opId: idempotencyKey, kind: 'create', phase: 'intent', fileId, parent, extension, origin, recordOrigin, revision, ...(importedFrom ? { importedFrom } : {}) });
 
         const candidates = name !== null ? named(name, extension) : numbered(extension.toLowerCase() === 'tdmap' ? 'Mindmap' : 'Untitled', extension);
         let isThere = false;
@@ -626,6 +691,7 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
             isThere = true;
             await journal.append({ opId: idempotencyKey, kind: 'create', phase: 'created', relativePath: target.relativePath, origin: recordOrigin, revision, ...(importedFrom ? { importedFrom } : {}) });
             const record = await registry.create({
+              fileId,
               relativePath: target.relativePath,
               mediaType: mediaTypeOf(target.relativePath),
               origin: recordOrigin,
@@ -1076,33 +1142,7 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
         let restored = null;
         try {
           if (op.kind === 'create') {
-            const created = last('created');
-            const attempt = last('attempt');
-            let made = null;
-            if (created) {
-              const there = await assertAllowedPath(grant, 'stat', created.relativePath).then((t) => t.kind === 'file', () => false);
-              if (there) made = { relativePath: created.relativePath, origin: created.origin, revision: created.revision, importedFrom: created.importedFrom };
-            } else if (attempt && intent?.revision) {
-              // cut short between giving the file its name and noting that. The file at the name that was being
-              // tried is this operation's only if it is the very file the operation wrote (the same file-system
-              // object) and still holds what was written. A name and equal content are not proof: another
-              // creation may have made just such a file there.
-              const target = await assertAllowedPath(grant, 'stat', attempt.relativePath).catch(() => null);
-              const there = target?.kind === 'file' ? await readChecked(target.absolute).catch(() => null) : null;
-              if (there && sameFile(there.stat, attempt) && hashOf(there.bytes) === intent.revision) made = { relativePath: target.relativePath, origin: intent.recordOrigin ?? intent.origin, revision: intent.revision, importedFrom: intent.importedFrom };
-            }
-            // the operation's own name for what it wrote, if the crash left it: the file has its real name by now, or is not wanted
-            for (const tried of op.entries) {
-              if (tried.phase === 'attempt' && typeof tried.temp === 'string' && CREATE_TEMP.test(tried.temp) && typeof tried.relativePath === 'string') {
-                await io.rm(path.join(grant.rootPath, ...parentOf(tried.relativePath).split('/').filter(Boolean), tried.temp), { force: true }).catch(() => {});
-              }
-            }
-            if (made) {
-              const stat = await io.stat(path.join(grant.rootPath, made.relativePath));
-              const record = await registry.register({ relativePath: made.relativePath, mediaType: mediaTypeOf(made.relativePath), origin: made.origin, observed: observedOf(stat), revision: made.revision, ...(made.importedFrom ? { importedFrom: made.importedFrom } : {}) });
-              await journal.append({ opId: op.opId, kind: 'create', phase: 'done', fileId: record.fileId });
-              outcome = 'completed';
-            }
+            if (await finishCreate(op.opId, op.entries)) outcome = 'completed';
           } else if (op.kind === 'save' && intent) {
             const record = await registry.get(intent.fileId);
             if (record) {

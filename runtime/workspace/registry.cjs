@@ -147,9 +147,9 @@ function createRegistry({ rootPath, workspaceId, rootGrantId, readOnly = false, 
     }
   }
 
-  function newRecord({ relativePath, mediaType, origin, revision = null, importedFrom }) {
+  function newRecord({ fileId = newId(), relativePath, mediaType, origin, revision = null, importedFrom }) {
     const record = {
-      fileId: newId(),
+      fileId,
       workspaceId,
       relativePath,
       locator: { kind: 'local', rootGrantId, relativePath },
@@ -166,6 +166,9 @@ function createRegistry({ rootPath, workspaceId, rootGrantId, readOnly = false, 
   }
 
   return {
+    /** A fileId for a file about to be made: noted before the file has its name, so that what is cut short can give it that identity and no other. */
+    newFileId: () => newId(),
+
     /** 'read-write', or 'read-only' for a read-only root or a newer registry */
     access: () => serial(async () => (await load()).access),
 
@@ -206,12 +209,16 @@ function createRegistry({ rootPath, workspaceId, rootGrantId, readOnly = false, 
      * The record of a file that was just made at `relativePath`: always a
      * new identity. Whatever record held that path before is of a file that
      * is no longer there (the name was free to create), so it is marked
-     * missing and keeps its own identity.
+     * missing and keeps its own identity. With a `fileId` from `newFileId`
+     * this can be asked again: an identity already stored under it is
+     * answered, and nothing changes.
      */
-    create: ({ relativePath, mediaType, origin, observed, revision = null, importedFrom }) => serial(async () => {
+    create: ({ fileId, relativePath, mediaType, origin, observed, revision = null, importedFrom }) => serial(async () => {
       await load();
+      const already = fileId ? state.resources.get(fileId) : null;
+      if (already) return already.record;
       const stale = liveAt(relativePath);
-      const record = newRecord({ relativePath, mediaType, origin, revision, importedFrom });
+      const record = newRecord({ ...(fileId ? { fileId } : {}), relativePath, mediaType, origin, revision, importedFrom });
       if (stale) state.resources.set(stale.record.fileId, { record: { ...stale.record, status: 'missing' }, observed: stale.observed });
       try { await commit(record.fileId, { record, observed: observed ?? null }); } catch (e) {
         if (stale) state.resources.set(stale.record.fileId, stale);

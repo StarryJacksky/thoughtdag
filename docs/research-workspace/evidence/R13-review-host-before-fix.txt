@@ -1,0 +1,395 @@
+TAP version 13
+# Subtest: [R13-01] cut short at attempt, old identity ready, the same content: after a restart the new file has its own identity
+ok 1 - [R13-01] cut short at attempt, old identity ready, the same content: after a restart the new file has its own identity
+  ---
+  duration_ms: 80.861917
+  type: 'test'
+  ...
+# Subtest: [R13-01] cut short at attempt, old identity ready, other content: after a restart the new file has its own identity
+ok 2 - [R13-01] cut short at attempt, old identity ready, other content: after a restart the new file has its own identity
+  ---
+  duration_ms: 57.036125
+  type: 'test'
+  ...
+# Subtest: [R13-01] cut short at attempt, old identity missing, the same content: after a restart the new file has its own identity
+ok 3 - [R13-01] cut short at attempt, old identity missing, the same content: after a restart the new file has its own identity
+  ---
+  duration_ms: 65.329625
+  type: 'test'
+  ...
+# Subtest: [R13-01] cut short at attempt, old identity missing, other content: after a restart the new file has its own identity
+ok 4 - [R13-01] cut short at attempt, old identity missing, other content: after a restart the new file has its own identity
+  ---
+  duration_ms: 60.290541
+  type: 'test'
+  ...
+# Subtest: [R13-01] cut short at published, old identity ready, the same content: after a restart the new file has its own identity
+not ok 5 - [R13-01] cut short at published, old identity ready, the same content: after a restart the new file has its own identity
+  ---
+  duration_ms: 33.855375
+  type: 'test'
+  location: '<repo>/tests/host/review-round13-identity.test.cjs:95:7'
+  failureType: 'testCodeFailure'
+  error: 'it has an identity of its own'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'file_881cc5f1-c606-4193-9cb3-594d63744468'
+  actual: 'file_881cc5f1-c606-4193-9cb3-594d63744468'
+  operator: 'notStrictEqual'
+  stack: |-
+    oneNewFile (<repo>/tests/host/review-round13-identity.test.cjs:79:10)
+    TestContext.<anonymous> (<repo>/tests/host/review-round13-identity.test.cjs:100:15)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R13-01] cut short at published, old identity ready, other content: after a restart the new file has its own identity
+not ok 6 - [R13-01] cut short at published, old identity ready, other content: after a restart the new file has its own identity
+  ---
+  duration_ms: 32.91575
+  type: 'test'
+  location: '<repo>/tests/host/review-round13-identity.test.cjs:95:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    what the creation answered is what is on disk
+    + actual - expected
+    
+    + 'sha256:bef1434193452e2fbfd2336c5f6f554dd504df913cbdf83cc1e79eef610e6d06'
+    - 'sha256:4bb15274b5756e6cf204040dbb1dd46868ecb3d0b71323d168fe6bdd8dc9e1bc'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'sha256:4bb15274b5756e6cf204040dbb1dd46868ecb3d0b71323d168fe6bdd8dc9e1bc'
+  actual: 'sha256:bef1434193452e2fbfd2336c5f6f554dd504df913cbdf83cc1e79eef610e6d06'
+  operator: 'strictEqual'
+  stack: |-
+    oneNewFile (<repo>/tests/host/review-round13-identity.test.cjs:78:10)
+    TestContext.<anonymous> (<repo>/tests/host/review-round13-identity.test.cjs:100:15)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R13-01] cut short at published, old identity missing, the same content: after a restart the new file has its own identity
+ok 7 - [R13-01] cut short at published, old identity missing, the same content: after a restart the new file has its own identity
+  ---
+  duration_ms: 45.858416
+  type: 'test'
+  ...
+# Subtest: [R13-01] cut short at published, old identity missing, other content: after a restart the new file has its own identity
+ok 8 - [R13-01] cut short at published, old identity missing, other content: after a restart the new file has its own identity
+  ---
+  duration_ms: 51.348833
+  type: 'test'
+  ...
+# Subtest: [R13-01] cut short at created, old identity ready, the same content: after a restart the new file has its own identity
+not ok 9 - [R13-01] cut short at created, old identity ready, the same content: after a restart the new file has its own identity
+  ---
+  duration_ms: 44.781959
+  type: 'test'
+  location: '<repo>/tests/host/review-round13-identity.test.cjs:95:7'
+  failureType: 'testCodeFailure'
+  error: 'it has an identity of its own'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'file_7fe73a18-8e01-44ce-8275-ac88a6b29cea'
+  actual: 'file_7fe73a18-8e01-44ce-8275-ac88a6b29cea'
+  operator: 'notStrictEqual'
+  stack: |-
+    oneNewFile (<repo>/tests/host/review-round13-identity.test.cjs:79:10)
+    TestContext.<anonymous> (<repo>/tests/host/review-round13-identity.test.cjs:100:15)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R13-01] cut short at created, old identity ready, other content: after a restart the new file has its own identity
+not ok 10 - [R13-01] cut short at created, old identity ready, other content: after a restart the new file has its own identity
+  ---
+  duration_ms: 42.844334
+  type: 'test'
+  location: '<repo>/tests/host/review-round13-identity.test.cjs:95:7'
+  failureType: 'testCodeFailure'
+  error: |-
+    what the creation answered is what is on disk
+    + actual - expected
+    
+    + 'sha256:bef1434193452e2fbfd2336c5f6f554dd504df913cbdf83cc1e79eef610e6d06'
+    - 'sha256:4bb15274b5756e6cf204040dbb1dd46868ecb3d0b71323d168fe6bdd8dc9e1bc'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'sha256:4bb15274b5756e6cf204040dbb1dd46868ecb3d0b71323d168fe6bdd8dc9e1bc'
+  actual: 'sha256:bef1434193452e2fbfd2336c5f6f554dd504df913cbdf83cc1e79eef610e6d06'
+  operator: 'strictEqual'
+  stack: |-
+    oneNewFile (<repo>/tests/host/review-round13-identity.test.cjs:78:10)
+    TestContext.<anonymous> (<repo>/tests/host/review-round13-identity.test.cjs:100:15)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R13-01] cut short at created, old identity missing, the same content: after a restart the new file has its own identity
+ok 11 - [R13-01] cut short at created, old identity missing, the same content: after a restart the new file has its own identity
+  ---
+  duration_ms: 51.83475
+  type: 'test'
+  ...
+# Subtest: [R13-01] cut short at created, old identity missing, other content: after a restart the new file has its own identity
+ok 12 - [R13-01] cut short at created, old identity missing, other content: after a restart the new file has its own identity
+  ---
+  duration_ms: 52.218
+  type: 'test'
+  ...
+# Subtest: [R13-01] cut short at identity, old identity ready, the same content: after a restart the new file has its own identity
+ok 13 - [R13-01] cut short at identity, old identity ready, the same content: after a restart the new file has its own identity
+  ---
+  duration_ms: 48.4
+  type: 'test'
+  ...
+# Subtest: [R13-01] cut short at identity, old identity ready, other content: after a restart the new file has its own identity
+ok 14 - [R13-01] cut short at identity, old identity ready, other content: after a restart the new file has its own identity
+  ---
+  duration_ms: 43.315708
+  type: 'test'
+  ...
+# Subtest: [R13-01] cut short at identity, old identity missing, the same content: after a restart the new file has its own identity
+ok 15 - [R13-01] cut short at identity, old identity missing, the same content: after a restart the new file has its own identity
+  ---
+  duration_ms: 56.38275
+  type: 'test'
+  ...
+# Subtest: [R13-01] cut short at identity, old identity missing, other content: after a restart the new file has its own identity
+ok 16 - [R13-01] cut short at identity, old identity missing, other content: after a restart the new file has its own identity
+  ---
+  duration_ms: 52.75175
+  type: 'test'
+  ...
+# Subtest: [R13-01] cut short at published: restarting again and asking again give the same file
+not ok 17 - [R13-01] cut short at published: restarting again and asking again give the same file
+  ---
+  duration_ms: 40.23225
+  type: 'test'
+  location: '<repo>/tests/host/review-round13-identity.test.cjs:107:3'
+  failureType: 'testCodeFailure'
+  error: 'it has an identity of its own'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'file_2ced987a-b9e1-49f4-a6fa-d0b6443c865f'
+  actual: 'file_2ced987a-b9e1-49f4-a6fa-d0b6443c865f'
+  operator: 'notStrictEqual'
+  stack: |-
+    oneNewFile (<repo>/tests/host/review-round13-identity.test.cjs:79:10)
+    TestContext.<anonymous> (<repo>/tests/host/review-round13-identity.test.cjs:118:11)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R13-01] cut short at created: restarting again and asking again give the same file
+not ok 18 - [R13-01] cut short at created: restarting again and asking again give the same file
+  ---
+  duration_ms: 41.0905
+  type: 'test'
+  location: '<repo>/tests/host/review-round13-identity.test.cjs:107:3'
+  failureType: 'testCodeFailure'
+  error: 'it has an identity of its own'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'file_70cf2f62-374c-4b98-8463-98e66a136a4a'
+  actual: 'file_70cf2f62-374c-4b98-8463-98e66a136a4a'
+  operator: 'notStrictEqual'
+  stack: |-
+    oneNewFile (<repo>/tests/host/review-round13-identity.test.cjs:79:10)
+    TestContext.<anonymous> (<repo>/tests/host/review-round13-identity.test.cjs:118:11)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R13-01] cut short at identity: restarting again and asking again give the same file
+ok 19 - [R13-01] cut short at identity: restarting again and asking again give the same file
+  ---
+  duration_ms: 45.6075
+  type: 'test'
+  ...
+# Subtest: [R13-01] cut short at created, and another program puts other content at the name before the restart: what is answered is what is there
+not ok 20 - [R13-01] cut short at created, and another program puts other content at the name before the restart: what is answered is what is there
+  ---
+  duration_ms: 38.223834
+  type: 'test'
+  location: '<repo>/tests/host/review-round13-identity.test.cjs:124:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    what the creation answered is what is on disk
+    + actual - expected
+    
+    + 'sha256:bef1434193452e2fbfd2336c5f6f554dd504df913cbdf83cc1e79eef610e6d06'
+    - 'sha256:4bb15274b5756e6cf204040dbb1dd46868ecb3d0b71323d168fe6bdd8dc9e1bc'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'sha256:4bb15274b5756e6cf204040dbb1dd46868ecb3d0b71323d168fe6bdd8dc9e1bc'
+  actual: 'sha256:bef1434193452e2fbfd2336c5f6f554dd504df913cbdf83cc1e79eef610e6d06'
+  operator: 'strictEqual'
+  stack: |-
+    oneNewFile (<repo>/tests/host/review-round13-identity.test.cjs:78:10)
+    TestContext.<anonymous> (<repo>/tests/host/review-round13-identity.test.cjs:131:11)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R13-01] cut short at created, and the file is gone before the restart: nothing is claimed, and asking again makes the file
+ok 21 - [R13-01] cut short at created, and the file is gone before the restart: nothing is claimed, and asking again makes the file
+  ---
+  duration_ms: 66.294167
+  type: 'test'
+  ...
+# Subtest: [R13-01] cut short at identity, and another program puts other content at the name before the restart: what is answered is what is there
+not ok 22 - [R13-01] cut short at identity, and another program puts other content at the name before the restart: what is answered is what is there
+  ---
+  duration_ms: 49.800166
+  type: 'test'
+  location: '<repo>/tests/host/review-round13-identity.test.cjs:124:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    what the creation answered is what is on disk
+    + actual - expected
+    
+    + 'sha256:bef1434193452e2fbfd2336c5f6f554dd504df913cbdf83cc1e79eef610e6d06'
+    - 'sha256:4bb15274b5756e6cf204040dbb1dd46868ecb3d0b71323d168fe6bdd8dc9e1bc'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'sha256:4bb15274b5756e6cf204040dbb1dd46868ecb3d0b71323d168fe6bdd8dc9e1bc'
+  actual: 'sha256:bef1434193452e2fbfd2336c5f6f554dd504df913cbdf83cc1e79eef610e6d06'
+  operator: 'strictEqual'
+  stack: |-
+    oneNewFile (<repo>/tests/host/review-round13-identity.test.cjs:78:10)
+    TestContext.<anonymous> (<repo>/tests/host/review-round13-identity.test.cjs:131:11)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R13-01] cut short at identity, and the file is gone before the restart: nothing is claimed, and asking again makes the file
+ok 23 - [R13-01] cut short at identity, and the file is gone before the restart: nothing is claimed, and asking again makes the file
+  ---
+  duration_ms: 71.652459
+  type: 'test'
+  ...
+# Subtest: [R13-01] another program puts a file at the name that was being tried: it is not this creation's, and the new file takes the next name
+ok 24 - [R13-01] another program puts a file at the name that was being tried: it is not this creation's, and the new file takes the next name
+  ---
+  duration_ms: 58.915542
+  type: 'test'
+  ...
+# Subtest: [R13-01] a journal an older version left, cut short at published: an old identity at the name is still not taken for the new file
+not ok 25 - [R13-01] a journal an older version left, cut short at published: an old identity at the name is still not taken for the new file
+  ---
+  duration_ms: 40.238292
+  type: 'test'
+  location: '<repo>/tests/host/review-round13-identity.test.cjs:165:3'
+  failureType: 'testCodeFailure'
+  error: 'it has an identity of its own'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'file_813fc9d8-2436-42a7-bf5c-e9c7c4f019fc'
+  actual: 'file_813fc9d8-2436-42a7-bf5c-e9c7c4f019fc'
+  operator: 'notStrictEqual'
+  stack: |-
+    oneNewFile (<repo>/tests/host/review-round13-identity.test.cjs:79:10)
+    TestContext.<anonymous> (<repo>/tests/host/review-round13-identity.test.cjs:171:11)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R13-01] a journal an older version left, cut short at created: an old identity at the name is still not taken for the new file
+not ok 26 - [R13-01] a journal an older version left, cut short at created: an old identity at the name is still not taken for the new file
+  ---
+  duration_ms: 39.883333
+  type: 'test'
+  location: '<repo>/tests/host/review-round13-identity.test.cjs:165:3'
+  failureType: 'testCodeFailure'
+  error: 'it has an identity of its own'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'file_6af41274-1304-4e86-ba25-f4a180932864'
+  actual: 'file_6af41274-1304-4e86-ba25-f4a180932864'
+  operator: 'notStrictEqual'
+  stack: |-
+    oneNewFile (<repo>/tests/host/review-round13-identity.test.cjs:79:10)
+    TestContext.<anonymous> (<repo>/tests/host/review-round13-identity.test.cjs:171:11)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R13-01] a journal an older version left, cut short once the identity was stored: the identity it was given stands, and no second one is made
+ok 27 - [R13-01] a journal an older version left, cut short once the identity was stored: the identity it was given stands, and no second one is made
+  ---
+  duration_ms: 47.861583
+  type: 'test'
+  ...
+# Subtest: [R13-01] the registry cannot be stored as the file is made, and the same request is asked again without a restart: the same file, not a second one
+not ok 28 - [R13-01] the registry cannot be stored as the file is made, and the same request is asked again without a restart: the same file, not a second one
+  ---
+  duration_ms: 61.240083
+  type: 'test'
+  location: '<repo>/tests/host/review-round13-identity.test.cjs:186:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    'ready' !== 'missing'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'missing'
+  actual: 'ready'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round13-identity.test.cjs:200:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R13-01] the end of a creation cannot be noted, and the same request is asked again: the identity it was given, not a second one
+not ok 29 - [R13-01] the end of a creation cannot be noted, and the same request is asked again: the identity it was given, not a second one
+  ---
+  duration_ms: 67.501542
+  type: 'test'
+  location: '<repo>/tests/host/review-round13-identity.test.cjs:205:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'file_0c7ed871-53c1-471c-a46d-e24e37573be7'
+    - 'file_ffc6817a-36e4-4ad5-9e07-4586da18b304'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'file_ffc6817a-36e4-4ad5-9e07-4586da18b304'
+  actual: 'file_0c7ed871-53c1-471c-a46d-e24e37573be7'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round13-identity.test.cjs:217:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R13-01] control: a creation that is not cut short notes the identity before it gives the file its name
+not ok 30 - [R13-01] control: a creation that is not cut short notes the identity before it gives the file its name
+  ---
+  duration_ms: 47.353667
+  type: 'test'
+  location: '<repo>/tests/host/review-round13-identity.test.cjs:222:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - 'file_b3166a82-59ed-4ce3-be58-074137c8d82d'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'file_b3166a82-59ed-4ce3-be58-074137c8d82d'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round13-identity.test.cjs:228:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..30
+# tests 30
+# suites 0
+# pass 17
+# fail 13
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6406.599792

@@ -1120,6 +1120,7 @@ export const zh: Record<keyof typeof en, string> = {
   'replay.confirmTitle': '批量重放陈旧节点',
   'replay.confirmMsg': '将按依赖顺序重放 {n} 个节点（各自追加新版本，不覆盖旧回答），预计发送约 {tok} token。重放过程中随时可以停止。',
   'replay.confirmBtn': '开始重放',
+  'replay.failed': '有 {n} 个回答这次没有写成，读它们的也没有运行，都保留原样。',
   'replay.waiting': '有 {n} 个会写文件的 Agent 任务没有重跑，等你自己运行（以及读它们的回答）。',
   'replay.agentWaits': '上游变了，但「{name}」是会写文件的 Agent 任务，不会自动重跑。需要时请自己运行它。',
   'replay.progress': '重放中 {done}/{total}…',

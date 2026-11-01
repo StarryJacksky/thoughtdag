@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { readTextRange } from '../../lib/workspace/client';
+import { onFileEvent } from '../../lib/workspace/file-news';
 import { isProse } from '../editors/codemirror-document';
 import { useT, fmt } from '../../i18n';
 
@@ -7,7 +8,8 @@ import { useT, fmt } from '../../i18n';
 // the beginning first, and more of it as the person scrolls down or asks
 // for it, a part at a time. None of it goes into a document: nothing can
 // be typed, nothing is drafted or saved. If the file changes while it is
-// being shown, what is shown is let go and read again from the start.
+// being shown, what is shown is let go and read again from the start: when the
+// workspace says so, read to the end or not, or when the next part shows it.
 
 /** How much of the file is read at a time. */
 const PART_BYTES = 512 * 1024;
@@ -23,6 +25,8 @@ export default function LargeTextView({ fileId, name }: { fileId: string; name: 
   const [restarted, setRestarted] = useState(false);
   const stamp = useRef<string | null>(null);
   const busy = useRef(false);
+  // news of a change that came during a read: that read is of the old file, whatever it found
+  const changedMeanwhile = useRef(false);
   const scroller = useRef<HTMLDivElement>(null);
 
   const more = useCallback(async (from: number) => {
@@ -30,8 +34,9 @@ export default function LargeTextView({ fileId, name }: { fileId: string; name: 
     busy.current = true;
     try {
       const part = await readTextRange(fileId, from, PART_BYTES);
-      if (stamp.current !== null && part.stamp !== stamp.current) {
+      if (changedMeanwhile.current || (stamp.current !== null && part.stamp !== stamp.current)) {
         // the file changed while it was being shown: start again from the beginning
+        changedMeanwhile.current = false;
         stamp.current = null;
         setParts([]); setNext(0); setRestarted(true);
         busy.current = false;
@@ -50,6 +55,13 @@ export default function LargeTextView({ fileId, name }: { fileId: string; name: 
   }, [fileId]);
 
   useEffect(() => { void more(0); }, [more]);
+  useEffect(() => onFileEvent(fileId, (event) => {
+    if (event.change !== 'content' && event.change !== 'restored') return;
+    if (busy.current) { changedMeanwhile.current = true; return; }
+    stamp.current = null;
+    setParts([]); setNext(0); setSize(null); setFailed(null); setRestarted(true);
+    void more(0);
+  }), [fileId, more]);
   const done = size !== null && next >= size;
   // near the bottom, the next part is read without being asked
   const onScroll = () => {

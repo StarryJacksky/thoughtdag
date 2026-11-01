@@ -5,7 +5,8 @@ import { buildContext } from '../context-builder';
 import { runNodeGeneration, autoRunCounts, freezeForRun } from '../streaming';
 import { toast, updateToast, useUiStore } from '../../lib/ui-store';
 import { t, fmt } from '../../i18n';
-import type { StoreState, EvaluatorSlice } from '../types';
+import type { StoreState, EvaluatorSlice, RerunOutcome } from '../types';
+import { writesFiles } from '../../lib/agents/target-model';
 import { condenseGuard } from '../../lib/condense-guard';
 
 // Batch-replay cancellation flag — one replay at a time, module-scoped.
@@ -27,22 +28,46 @@ export function isAutoRerun(data: ThoughtData): boolean {
   return data.autoRerun ?? data.evaluatorTrigger === 'auto';
 }
 
+/** Which AI a task is set to run on: its target as it is now, or its bare model. */
+export const taskIdentity = (data: ThoughtData): string => (data.target ? `${data.target.targetId}@${data.target.revision}` : `model:${data.model ?? ''}`);
+
 export const createEvaluatorSlice: StateCreator<StoreState, [], [], EvaluatorSlice> = (set, get) => ({
   /**
    * Regenerate a node IN PLACE from its incoming edges (standard context
    * walk — same one every node uses), appending to its version history.
    * This is the generic engine behind auto-rerun; also useful manually.
+   * Resolves with how it went: only `answered` is a new answer.
+   *
+   * An automatic run never sets off an agent that may write files: that is
+   * looked at here, as it starts and again once its files are frozen, since
+   * the person can change the task's AI during either wait. `mayWrite` is for
+   * what the person set going themselves (a feedback line's rounds, a
+   * paradigm). `expect` is what the caller planned this run for: another AI
+   * than that is not what was planned, and it does not start.
    */
-  rerunNode: async (nodeId: string, opts?: { auto?: boolean }) => {
-    if (condenseGuard()) return;
+  rerunNode: async (nodeId: string, opts?: { auto?: boolean; mayWrite?: boolean; expect?: string }): Promise<RerunOutcome> => {
+    const notAllowed = (data: ThoughtData): RerunOutcome | null => {
+      if (opts?.expect !== undefined && taskIdentity(data) !== opts.expect) return { status: 'needs-approval' };
+      return opts?.auto && !opts.mayWrite && writesFiles(data) ? { status: 'needs-approval' } : null;
+    };
+    if (condenseGuard()) return { status: 'not-sent' };
     const { nodes } = get();
     const node = nodes.find((n) => n.id === nodeId);
-    if (!node || node.data.isLoading) return;
+    if (!node) return { status: 'gone' };
+    if (node.data.isLoading) return { status: 'busy' };
+    const refused = notAllowed(node.data);
+    if (refused) return refused;
     get().pushHistory();
     // In-place regenerate works for anything with a question — roots included
     // (their context is just role + question). Material/frames never generate.
-    if (!node.data.question) return;
-    if (['note', 'file', 'link', 'frame'].includes(node.data.stepKind ?? '')) return;
+    if (!node.data.question) return { status: 'not-sent' };
+    if (['note', 'file', 'link', 'frame'].includes(node.data.stepKind ?? '')) return { status: 'not-sent' };
+
+    // what the run comes to, as the one pipeline reports it; no report means nothing was written
+    let ended: RerunOutcome = { status: 'not-sent' };
+    const onEnded = (how: 'completed' | 'failed' | 'cancelled', versionIndex: number | null) => {
+      ended = how === 'completed' && versionIndex !== null ? { status: 'answered', versionIndex } : { status: how === 'cancelled' ? 'cancelled' : 'failed' };
+    };
 
     // Digest nodes regenerate through the digest prompt against the source
     // attachment's full extracted text — not the context walk (the walk
@@ -50,7 +75,7 @@ export const createEvaluatorSlice: StateCreator<StoreState, [], [], EvaluatorSli
     if (node.data.digestOf) {
       const material = nodes.find((n) => n.data.attachments?.some((a) => a.id === node.data.digestOf));
       const att = material?.data.attachments?.find((a) => a.id === node.data.digestOf);
-      if (!att?.extractedText?.trim()) return;
+      if (!att?.extractedText?.trim()) return { status: 'not-sent' };
       set((state) => ({
         nodes: state.nodes.map((n) =>
           n.id === nodeId ? { ...n, data: { ...n.data, isLoading: true, isCollapsed: false, response: '' } } : n
@@ -62,15 +87,21 @@ export const createEvaluatorSlice: StateCreator<StoreState, [], [], EvaluatorSli
         versionMode: 'append',
         sources: material ? [{ layer: 'material', nodeId: material.id, attachmentId: att.id, part: 'attachment' }] : [],
         autoChain: opts?.auto,
+        onEnded,
       });
-      return;
+      return ended;
     }
 
     // A run in place starts a round: feedback lines into what it reads move to
     // their latest finished answers (lib/feedback), before the context is built.
     get().advanceFeedback(nodeId);
     // the files it reads are saved and frozen before its context is built (lib/context/prepare-run)
-    if (!(await freezeForRun(set, get, nodeId))) return;
+    if (!(await freezeForRun(set, get, nodeId))) return { status: 'not-sent' };
+    // the wait is over: the task may have gone with the canvas, or been given another AI meanwhile
+    const nodeNow = get().nodes.find((n) => n.id === nodeId);
+    if (!nodeNow) return { status: 'gone' };
+    const refusedNow = notAllowed(nodeNow.data);
+    if (refusedNow) return refusedNow;
     const { nodes: nodesNow, edges: edgesNow } = get();
     // Standard context with this node's own Q&A blanked out (same pattern
     // as editQuestion) — ancestors, roles, highlights, attachments all
@@ -102,7 +133,9 @@ export const createEvaluatorSlice: StateCreator<StoreState, [], [], EvaluatorSli
       sources: ctx.sources,
       imageSources: ctx.imageSources,
       autoChain: opts?.auto,
+      onEnded,
     });
+    return ended;
   },
 
   /**
@@ -130,18 +163,21 @@ export const createEvaluatorSlice: StateCreator<StoreState, [], [], EvaluatorSli
     });
     let done = 0;
     let waiting: string[] = [];
+    let failed = 0;
     try {
       const outcome = await runReplay(plan, {
         stopped: () => replayAborted,
         onProgress: (ran) => { done = ran.length; updateToast(progress, fmt(t('replay.progress'), { done, total })); },
       });
       waiting = outcome.waiting;
+      failed = outcome.failed?.length ?? 0;
     } finally {
       useUiStore.getState().dismissToast(progress);
       get().recomputeStaleness();
       toast('success', replayAborted
         ? fmt(t('replay.stopped'), { done, total })
         : fmt(t('replay.done'), { done }));
+      if (failed > 0) toast('error', fmt(t('replay.failed'), { n: failed }), 9000);
       if (waiting.length > 0) toast('info', fmt(t('replay.waiting'), { n: waiting.length }), 9000);
     }
   },

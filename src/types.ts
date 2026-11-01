@@ -12,6 +12,9 @@ export interface RunSummary {
   imagesDropped?: boolean;
   /** an agent run: whether it went on in a session or started a new one, and why (lib/agents/route-policy) */
   route?: { action: 'resume' | 'fresh'; reason: string };
+  /** the fingerprint of what this version's context was built from, and of each upstream node's part of it */
+  contextHash?: string;
+  contextParts?: Record<string, { h: string; head: string }>;
 }
 
 export interface Attachment {

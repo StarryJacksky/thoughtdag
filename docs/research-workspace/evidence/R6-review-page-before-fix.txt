@@ -1,0 +1,388 @@
+# R6 page regression tests on a974308, the commit R6 reviewed.
+# git archive a974308, node_modules linked, tests/unit/review-r6-page.test.ts and the test helpers copied in.
+ RUN  v5.0.3 <repo>
+ ✓ tests/unit/review-r6-page.test.ts > [R6-04] a step that wrote no answer does not count as run > [R6-04] control: a step that answers lets the next one go
+ × tests/unit/review-r6-page.test.ts > [R6-04] a step that wrote no answer does not count as run > [R6-04] the file it reads is lost: what reads it is not run, and neither is said to have run
+   → expected [ 'node-1793549002868-12', …(1) ] to deeply equal []
+ × tests/unit/review-r6-page.test.ts > [R6-04] a step that wrote no answer does not count as run > [R6-04] the model answers with an error: what reads it is not run
+   → expected [ 'node-1793549002875-20', …(1) ] to deeply equal []
+ × tests/unit/review-r6-page.test.ts > [R6-04] a step that wrote no answer does not count as run > [R6-04] the model says nothing: what reads it is not run
+   → expected undefined to deeply equal [ { …(2) } ]
+ × tests/unit/review-r6-page.test.ts > [R6-04] a step that wrote no answer does not count as run > [R6-04] the person stops it: what reads it is not run, and what was written so far stays
+   → Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ × tests/unit/review-r6-page.test.ts > [R6-04] a step that wrote no answer does not count as run > [R6-04] it is already running: it is not a new answer, and what reads it is not run
+   → expected [ 'node-1793549007898-50', …(1) ] to deeply equal []
+ × tests/unit/review-r6-page.test.ts > [R6-04] a step that wrote no answer does not count as run > [R6-04] it was deleted after the plan was made: what reads it is not run
+   → expected [ 'node-1793549007906-59', …(1) ] to deeply equal []
+ × tests/unit/review-r6-page.test.ts > [R6-04] a step that wrote no answer does not count as run > [R6-04] a branch that reads nothing that failed goes on
+   → expected [ 'node-1793549007911-68', …(2) ] to deeply equal [ 'node-1793549007911-70' ]
+ × tests/unit/review-r6-page.test.ts > [R6-04] a step that wrote no answer does not count as run > [R6-04] the rerun itself says how it went
+   → expected undefined to deeply equal { status: 'answered', versionIndex: 1 }
+ ✓ tests/unit/review-r6-page.test.ts > [R6-05] whether a step may run is looked at again when it starts > [R6-05] control: nothing changed, every step runs
+ × tests/unit/review-r6-page.test.ts > [R6-05] whether a step may run is looked at again when it starts > [R6-05] switched to an agent that may write files while it waited: it and what reads it wait for the person
+   → expected [ 'node-1793549007925-93', …(2) ] to deeply equal [ 'node-1793549007925-93' ]
+ × tests/unit/review-r6-page.test.ts > [R6-05] whether a step may run is looked at again when it starts > [R6-05] an agent set from research to work while it waited does not start, nor what reads it
+   → expected [ 'node-1793549007930-102', …(2) ] to deeply equal [ 'node-1793549007930-102' ]
+ × tests/unit/review-r6-page.test.ts > [R6-05] whether a step may run is looked at again when it starts > [R6-05] pointed at another AI while it waited: the plan was not made for that, so it waits
+   → expected [ 'node-1793549007934-110', …(2) ] to deeply equal [ 'node-1793549007934-110' ]
+ × tests/unit/review-r6-page.test.ts > [R6-05] whether a step may run is looked at again when it starts > [R6-05] set to write files in the time its files are being frozen: it does not start
+   → expected [ 'node-1793549007937-121' ] to deeply equal []
+ × tests/unit/review-r6-page.test.ts > [R6-05] whether a step may run is looked at again when it starts > [R6-05] an automatic rerun cannot set off an agent that may write files, whoever asks
+   → expected undefined to deeply equal { status: 'needs-approval' }
+ × tests/unit/review-r6-page.test.ts > [R6-05] whether a step may run is looked at again when it starts > [R6-05] a plan made on one canvas does nothing on the next: the person left, and the steps wait
+   → expected [ 'question a', 'question b' ] to deeply equal [ 'question a' ]
+ × tests/unit/review-r6-page.test.ts > [R6-07] an answer is judged by what it was given itself > [R6-07] the newest answer deleted: the old one back on show is said to be out of date, by its own run
+   → expected [] to deeply equal [ ObjectContaining{…} ]
+ × tests/unit/review-r6-page.test.ts > [R6-07] an answer is judged by what it was given itself > [R6-07] an old answer shown again is out of date; the newest shown again is not
+   → expected [] to deeply equal [ 'input-changed' ]
+ × tests/unit/review-r6-page.test.ts > [R6-07] an answer is judged by what it was given itself > [R6-07] an answer in the middle deleted: the one on show keeps its own run, and the rest theirs
+   → expected [] to deeply equal [ 'input-changed' ]
+ ✓ tests/unit/review-r6-page.test.ts > [R6-07] an answer is judged by what it was given itself > [R6-07] the file lost: an old answer back on show says so
+ × tests/unit/review-r6-page.test.ts > [R6-07] an answer is judged by what it was given itself > [R6-07] an answer above changed: the old answer back on show is out of date, and is not cleared by the deleted one's fingerprint
+   → expected [] to deeply equal [ ObjectContaining{…} ]
+ × tests/unit/review-r6-page.test.ts > [R6-07] an answer is judged by what it was given itself > [R6-07] switching back and forth: each answer is judged by the fingerprint of its own, with what changed named
+   → expected [] to deeply equal [ ObjectContaining{…} ]
+ ✓ tests/unit/review-r6-page.test.ts > [R6-07] an answer is judged by what it was given itself > [R6-07] an old version with no record of what it was given borrows nobody's: nothing is claimed of it, and nothing stops the newest being judged
+ × tests/unit/review-r6-page.test.ts > [R6-07] an answer is judged by what it was given itself > [R6-07] the newest of two with no run records deleted: its fingerprint does not stand for the one left
+   → expected 'bij846' to be undefined
+ ✓ tests/unit/review-r6-page.test.ts > [R6-07] an answer is judged by what it was given itself > [R6-07] an answer written before versions kept their own runs, the newest, is still judged by what the node recorded
+⎯⎯⎯⎯⎯⎯ Failed Tests 20 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/unit/review-r6-page.test.ts > [R6-04] a step that wrote no answer does not count as run > [R6-04] the file it reads is lost: what reads it is not run, and neither is said to have run
+AssertionError: expected [ 'node-1793549002868-12', …(1) ] to deeply equal []
+- Expected
++ Received
+- []
++ [
++   "node-1793549002868-12",
++   "node-1793549002868-13",
++ ]
+ ❯ tests/unit/review-r6-page.test.ts:113:25
+    111|     const before = node(b).data.responses.length;
+    112|     const outcome = await runReplay(planReplay([a], 'downstream'));
+    113|     expect(outcome.ran).toEqual([]);
+       |                         ^
+    114|     expect(asks()).toEqual([]);
+    115|     expect(outcome.waiting).toEqual([b]);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/20]⎯
+ FAIL  tests/unit/review-r6-page.test.ts > [R6-04] a step that wrote no answer does not count as run > [R6-04] the model answers with an error: what reads it is not run
+AssertionError: expected [ 'node-1793549002875-20', …(1) ] to deeply equal []
+- Expected
++ Received
+- []
++ [
++   "node-1793549002875-20",
++   "node-1793549002876-21",
++ ]
+ ❯ tests/unit/review-r6-page.test.ts:124:25
+    122|     respond = () => new Response('upstream failure', { status: 500 });
+    123|     const outcome = await runReplay(planReplay([a], 'downstream'));
+    124|     expect(outcome.ran).toEqual([]);
+       |                         ^
+    125|     expect(outcome.failed).toEqual([{ nodeId: a, status: 'failed' }]);
+    126|     expect(outcome.waiting).toEqual([b]);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/20]⎯
+ FAIL  tests/unit/review-r6-page.test.ts > [R6-04] a step that wrote no answer does not count as run > [R6-04] the model says nothing: what reads it is not run
+AssertionError: expected undefined to deeply equal [ { …(2) } ]
+- Expected:
+[
+  {
+    "nodeId": "node-1793549002890-30",
+    "status": "failed",
+  },
+]
++ Received:
+undefined
+ ❯ tests/unit/review-r6-page.test.ts:134:28
+    132|     respond = () => answer('');
+    133|     const outcome = await runReplay(planReplay([a], 'downstream'));
+    134|     expect(outcome.failed).toEqual([{ nodeId: a, status: 'failed' }]);
+       |                            ^
+    135|     expect(outcome.waiting).toEqual([b]);
+    136|   });
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/20]⎯
+ FAIL  tests/unit/review-r6-page.test.ts > [R6-04] a step that wrote no answer does not count as run > [R6-04] the person stops it: what reads it is not run, and what was written so far stays
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ tests/unit/review-r6-page.test.ts:138:3
+    136|   });
+    137|
+    138|   it('[R6-04] the person stops it: what reads it is not run, and what …
+       |   ^
+    139|     const { a, b } = await chain();
+    140|     let aborted = () => {};
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/20]⎯
+ FAIL  tests/unit/review-r6-page.test.ts > [R6-04] a step that wrote no answer does not count as run > [R6-04] it is already running: it is not a new answer, and what reads it is not run
+AssertionError: expected [ 'node-1793549007898-50', …(1) ] to deeply equal []
+- Expected
++ Received
+- []
++ [
++   "node-1793549007898-50",
++   "node-1793549007898-51",
++ ]
+ ❯ tests/unit/review-r6-page.test.ts:156:25
+    154|     patch(a, { isLoading: true });
+    155|     const outcome = await runReplay(planReplay([a], 'downstream'));
+    156|     expect(outcome.ran).toEqual([]);
+       |                         ^
+    157|     expect(outcome.failed).toEqual([{ nodeId: a, status: 'busy' }]);
+    158|     expect(outcome.waiting).toEqual([b]);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/20]⎯
+ FAIL  tests/unit/review-r6-page.test.ts > [R6-04] a step that wrote no answer does not count as run > [R6-04] it was deleted after the plan was made: what reads it is not run
+AssertionError: expected [ 'node-1793549007906-59', …(1) ] to deeply equal []
+- Expected
++ Received
+- []
++ [
++   "node-1793549007906-59",
++   "node-1793549007906-60",
++ ]
+ ❯ tests/unit/review-r6-page.test.ts:167:25
+    165|     useStore.setState((st) => ({ nodes: st.nodes.filter((n) => n.id !=…
+    166|     const outcome = await runReplay(plan);
+    167|     expect(outcome.ran).toEqual([]);
+       |                         ^
+    168|     expect(outcome.waiting).toEqual(expect.arrayContaining([a, b]));
+    169|     expect(asks()).toEqual([]);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/20]⎯
+ FAIL  tests/unit/review-r6-page.test.ts > [R6-04] a step that wrote no answer does not count as run > [R6-04] a branch that reads nothing that failed goes on
+AssertionError: expected [ 'node-1793549007911-68', …(2) ] to deeply equal [ 'node-1793549007911-70' ]
+- Expected
++ Received
+  [
++   "node-1793549007911-68",
+    "node-1793549007911-70",
++   "node-1793549007911-69",
+  ]
+ ❯ tests/unit/review-r6-page.test.ts:176:25
+    174|     shell.files.get(fileIdOf('notes/a.md'))!.status = 'missing';
+    175|     const outcome = await runReplay(planReplay([a, aside], 'downstream…
+    176|     expect(outcome.ran).toEqual([aside]);
+       |                         ^
+    177|     expect(outcome.waiting).toEqual([b]);
+    178|     expect(outcome.failed).toEqual([{ nodeId: a, status: 'not-sent' }]…
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/20]⎯
+ FAIL  tests/unit/review-r6-page.test.ts > [R6-04] a step that wrote no answer does not count as run > [R6-04] the rerun itself says how it went
+AssertionError: expected undefined to deeply equal { status: 'answered', versionIndex: 1 }
+- Expected:
+{
+  "status": "answered",
+  "versionIndex": 1,
+}
++ Received:
+undefined
+ ❯ tests/unit/review-r6-page.test.ts:183:28
+    181|   it('[R6-04] the rerun itself says how it went', async () => {
+    182|     const { a, aside } = await chain();
+    183|     await expect(run(aside)).resolves.toEqual({ status: 'answered', ve…
+       |                            ^
+    184|     shell.files.get(fileIdOf('notes/a.md'))!.status = 'missing';
+    185|     await expect(run(a)).resolves.toEqual({ status: 'not-sent' });
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/20]⎯
+ FAIL  tests/unit/review-r6-page.test.ts > [R6-05] whether a step may run is looked at again when it starts > [R6-05] switched to an agent that may write files while it waited: it and what reads it wait for the person
+AssertionError: expected [ 'node-1793549007925-93', …(2) ] to deeply equal [ 'node-1793549007925-93' ]
+- Expected
++ Received
+  [
+    "node-1793549007925-93",
++   "node-1793549007925-94",
++   "node-1793549007925-95",
+  ]
+ ❯ tests/unit/review-r6-page.test.ts:218:25
+    216|   it('[R6-05] switched to an agent that may write files while it waite…
+    217|     const { a, b, c, outcome } = await changedWhileWaiting((id) => bin…
+    218|     expect(outcome.ran).toEqual([a]);
+       |                         ^
+    219|     expect(outcome.waiting).toEqual([b, c]);
+    220|     expect(desktop.runs).toEqual([]);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/20]⎯
+ FAIL  tests/unit/review-r6-page.test.ts > [R6-05] whether a step may run is looked at again when it starts > [R6-05] an agent set from research to work while it waited does not start, nor what reads it
+AssertionError: expected [ 'node-1793549007930-102', …(2) ] to deeply equal [ 'node-1793549007930-102' ]
+- Expected
++ Received
+  [
+    "node-1793549007930-102",
++   "node-1793549007930-103",
++   "node-1793549007930-105",
+  ]
+ ❯ tests/unit/review-r6-page.test.ts:236:25
+    234|     respond = () => { if (streamed.at(-1) === 'question a') setRunMode…
+    235|     const outcome = await runReplay(plan);
+    236|     expect(outcome.ran).toEqual([a]);
+       |                         ^
+    237|     expect(outcome.waiting).toEqual([b, c]);
+    238|     expect(desktop.runs).toEqual([]);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/20]⎯
+ FAIL  tests/unit/review-r6-page.test.ts > [R6-05] whether a step may run is looked at again when it starts > [R6-05] pointed at another AI while it waited: the plan was not made for that, so it waits
+AssertionError: expected [ 'node-1793549007934-110', …(2) ] to deeply equal [ 'node-1793549007934-110' ]
+- Expected
++ Received
+  [
+    "node-1793549007934-110",
++   "node-1793549007934-111",
++   "node-1793549007934-112",
+  ]
+ ❯ tests/unit/review-r6-page.test.ts:243:25
+    241|   it('[R6-05] pointed at another AI while it waited: the plan was not …
+    242|     const { a, b, c, outcome } = await changedWhileWaiting((id) => bin…
+    243|     expect(outcome.ran).toEqual([a]);
+       |                         ^
+    244|     expect(outcome.waiting).toEqual([b, c]);
+    245|   });
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/20]⎯
+ FAIL  tests/unit/review-r6-page.test.ts > [R6-05] whether a step may run is looked at again when it starts > [R6-05] set to write files in the time its files are being frozen: it does not start
+AssertionError: expected [ 'node-1793549007937-121' ] to deeply equal []
+- Expected
++ Received
+- []
++ [
++   "node-1793549007937-121",
++ ]
+ ❯ tests/unit/review-r6-page.test.ts:259:25
+    257|     held.release();
+    258|     const outcome = await replay;
+    259|     expect(outcome.ran).toEqual([]);
+       |                         ^
+    260|     expect(outcome.waiting).toEqual([b]);
+    261|     expect(asks()).toEqual([]);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/20]⎯
+ FAIL  tests/unit/review-r6-page.test.ts > [R6-05] whether a step may run is looked at again when it starts > [R6-05] an automatic rerun cannot set off an agent that may write files, whoever asks
+AssertionError: expected undefined to deeply equal { status: 'needs-approval' }
+- Expected:
+{
+  "status": "needs-approval",
+}
++ Received:
+undefined
+ ❯ tests/unit/review-r6-page.test.ts:267:66
+    265|   it('[R6-05] an automatic rerun cannot set off an agent that may writ…
+    266|     const b = task(CODEX, 'question b');
+    267|     await expect(useStore.getState().rerunNode(b, { auto: true })).res…
+       |                                                                  ^
+    268|     expect(desktop.runs).toEqual([]);
+    269|     await run(b);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/20]⎯
+ FAIL  tests/unit/review-r6-page.test.ts > [R6-05] whether a step may run is looked at again when it starts > [R6-05] a plan made on one canvas does nothing on the next: the person left, and the steps wait
+AssertionError: expected [ 'question a', 'question b' ] to deeply equal [ 'question a' ]
+- Expected
++ Received
+  [
+    "question a",
++   "question b",
+  ]
+ ❯ tests/unit/review-r6-page.test.ts:285:20
+    283|     };
+    284|     const outcome = await runReplay(plan);
+    285|     expect(asks()).toEqual(['question a']);
+       |                    ^
+    286|     expect(outcome.ran).not.toContain(b);
+    287|     expect(outcome.waiting).toEqual([b]);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/20]⎯
+ FAIL  tests/unit/review-r6-page.test.ts > [R6-07] an answer is judged by what it was given itself > [R6-07] the newest answer deleted: the old one back on show is said to be out of date, by its own run
+AssertionError: expected [] to deeply equal [ ObjectContaining{…} ]
+- Expected
++ Received
+- [
+-   ObjectContaining {
+-     "fileId": "file_1",
+-     "inputId": "in_9b803583eee993fe",
+-     "kind": "input-changed",
+-   },
+- ]
++ []
+ ❯ tests/unit/review-r6-page.test.ts:314:24
+    312|     useStore.getState().deleteVersion(t, 1);
+    313|     expect(node(t).data.response).toBe('OLD ANSWER');
+    314|     expect(reasons(t)).toEqual([expect.objectContaining({ kind: 'input…
+       |                        ^
+    315|     expect(node(t).data.lastRun?.runId).toBe(oldRun.runId);
+    316|   });
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/20]⎯
+ FAIL  tests/unit/review-r6-page.test.ts > [R6-07] an answer is judged by what it was given itself > [R6-07] an old answer shown again is out of date; the newest shown again is not
+AssertionError: expected [] to deeply equal [ 'input-changed' ]
+- Expected
++ Received
+- [
+-   "input-changed",
+- ]
++ []
+ ❯ tests/unit/review-r6-page.test.ts:322:43
+    320|     useStore.getState().navigateVersion(t, 'prev');
+    321|     expect(node(t).data.response).toBe('OLD ANSWER');
+    322|     expect(reasons(t).map((r) => r.kind)).toEqual(['input-changed']);
+       |                                           ^
+    323|     useStore.getState().navigateVersion(t, 'next');
+    324|     expect(node(t).data.response).toBe('NEW ANSWER');
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/20]⎯
+ FAIL  tests/unit/review-r6-page.test.ts > [R6-07] an answer is judged by what it was given itself > [R6-07] an answer in the middle deleted: the one on show keeps its own run, and the rest theirs
+AssertionError: expected [] to deeply equal [ 'input-changed' ]
+- Expected
++ Received
+- [
+-   "input-changed",
+- ]
++ []
+ ❯ tests/unit/review-r6-page.test.ts:340:43
+    338|     expect(node(t).data.lastRun?.runId).toBe(newest.runId);
+    339|     useStore.getState().navigateVersion(t, 'prev');
+    340|     expect(reasons(t).map((r) => r.kind)).toEqual(['input-changed']);
+       |                                           ^
+    341|   });
+    342|
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/20]⎯
+ FAIL  tests/unit/review-r6-page.test.ts > [R6-07] an answer is judged by what it was given itself > [R6-07] an answer above changed: the old answer back on show is out of date, and is not cleared by the deleted one's fingerprint
+AssertionError: expected [] to deeply equal [ ObjectContaining{…} ]
+- Expected
++ Received
+- [
+-   ObjectContaining {
+-     "kind": "upstream-changed",
+-   },
+- ]
++ []
+ ❯ tests/unit/review-r6-page.test.ts:370:24
+    368|     useStore.getState().deleteVersion(t, 1);
+    369|     expect(node(t).data.response).toBe('BELOW ONE');
+    370|     expect(reasons(t)).toEqual([expect.objectContaining({ kind: 'upstr…
+       |                        ^
+    371|   });
+    372|
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/20]⎯
+ FAIL  tests/unit/review-r6-page.test.ts > [R6-07] an answer is judged by what it was given itself > [R6-07] switching back and forth: each answer is judged by the fingerprint of its own, with what changed named
+AssertionError: expected [] to deeply equal [ ObjectContaining{…} ]
+- Expected
++ Received
+- [
+-   ObjectContaining {
+-     "kind": "upstream-changed",
+-     "via": [
+-       "node-1793549008231-164",
+-     ],
+-   },
+- ]
++ []
+ ❯ tests/unit/review-r6-page.test.ts:376:24
+    374|     const { up, t } = await upstreamVersions();
+    375|     useStore.getState().navigateVersion(t, 'prev');
+    376|     expect(reasons(t)).toEqual([expect.objectContaining({ kind: 'upstr…
+       |                        ^
+    377|     useStore.getState().navigateVersion(t, 'next');
+    378|     expect(reasons(t)).toEqual([]);
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/20]⎯
+ FAIL  tests/unit/review-r6-page.test.ts > [R6-07] an answer is judged by what it was given itself > [R6-07] the newest of two with no run records deleted: its fingerprint does not stand for the one left
+AssertionError: expected 'bij846' to be undefined
+- Expected:
+undefined
++ Received:
+"bij846"
+ ❯ tests/unit/review-r6-page.test.ts:397:42
+    395|     useStore.getState().deleteVersion(t, 1);
+    396|     expect(node(t).data.response).toBe('BELOW ONE');
+    397|     expect(node(t).data.lastContextHash).toBeUndefined();
+       |                                          ^
+    398|     expect(reasons(t)).toEqual([]);
+    399|   });
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[20/20]⎯
+ Test Files  1 failed (1)
+      Tests  20 failed | 5 passed (25)

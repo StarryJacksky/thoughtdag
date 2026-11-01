@@ -1121,6 +1121,7 @@ export const en = {
   'replay.confirmTitle': 'Replay stale nodes',
   'replay.confirmMsg': 'This will replay {n} nodes in dependency order (each appends a new version, nothing is overwritten), sending an estimated {tok} tokens. You can stop at any time.',
   'replay.confirmBtn': 'Start replay',
+  'replay.failed': '{n} answers were not written this time. What reads them was not run, and all of them stay as they were.',
   'replay.waiting': '{n} agent tasks that may write files were not run again; they wait for you to run them (and so do the answers that read them).',
   'replay.agentWaits': 'Something upstream changed, but "{name}" is an agent task that may write files, so it is not run again on its own. Run it yourself when you want to.',
   'replay.progress': 'Replaying {done}/{total}…',

@@ -4,11 +4,16 @@
 // replay writes new versions beside the old ones, which stay as they were.
 // An agent that may write files is never set off by a replay: its step
 // waits for the person, and so does every step that reads what it would
-// write.
+// write. What may run is looked at when the plan is made and again as each
+// step starts: the person can change a task while it waits. A step counts as
+// run only when it wrote a new answer; otherwise what reads it does not run.
 
 import { isFeedback } from '../feedback';
 import { writesFiles } from '../agents/target-model';
+import { canvasVisit } from '../workspace/canvas-visit';
 import { useStore } from '../../store';
+import { taskIdentity } from '../../store/slices/evaluator';
+import type { RerunOutcome } from '../../store/types';
 import type { ThoughtEdge, ThoughtNode } from '../../types';
 import type { StaleReason } from './staleness';
 import { detectStale } from './staleness';
@@ -23,6 +28,8 @@ export interface ReplayStep {
   after: string[];
   /** why it is in the plan: what changed, for an answer that is out of date itself */
   reasons: StaleReason[];
+  /** the AI it was planned for (a target and its settings, or a bare model) */
+  planned: string;
 }
 
 export interface ReplayPlan {
@@ -82,6 +89,7 @@ export function planReplay(targets: string[], policy: ReplayPolicy, graph: { nod
     action: writesFiles(nodeOf(id)!.data) ? 'needs-approval' as const : 'rerun' as const,
     after: order.filter((x) => after.get(id)!.includes(x)),
     reasons: reasons.filter((r) => r.nodeId === id),
+    planned: taskIdentity(nodeOf(id)!.data),
   }));
   return { policy, targets: wanted, steps, kept: [] };
 }
@@ -93,13 +101,18 @@ export interface ReplayOptions {
   onProgress?: (ran: string[]) => void;
 }
 
+/** What became of a step that was asked to run and wrote no answer. */
+export interface ReplayFailure { nodeId: string; status: Exclude<RerunOutcome['status'], 'answered' | 'needs-approval'> }
+
 /**
- * Carry a plan out. Steps run once every step they read has run, those that are ready together.
- * A step that waits for the person is not run, and neither is a step that reads one. Keeping
- * marks the kept answers as kept, for the staleness they have now. Resolves with what ran and
- * what waits.
+ * Carry a plan out, on the canvas it was made on. Steps run once every step they read has written its
+ * answer, those that are ready together. A step that waits for the person is not run, nor one that has
+ * changed since it was planned, and neither is a step that reads one. A step that wrote no answer (it
+ * was not sent, failed or was stopped, or was running already) is said to have failed, and what reads it
+ * waits; branches that read nothing of it go on. Keeping marks the kept answers as kept, for the
+ * staleness they have now. Resolves with what ran, what waits, and what failed if anything did.
  */
-export async function runReplay(plan: ReplayPlan, { stopped = () => false, onProgress }: ReplayOptions = {}): Promise<{ ran: string[]; waiting: string[] }> {
+export async function runReplay(plan: ReplayPlan, { stopped = () => false, onProgress }: ReplayOptions = {}): Promise<{ ran: string[]; waiting: string[]; failed?: ReplayFailure[] }> {
   const store = useStore.getState();
   if (plan.policy === 'keep') {
     store.recomputeStaleness();
@@ -107,17 +120,34 @@ export async function runReplay(plan: ReplayPlan, { stopped = () => false, onPro
     store.setStaleVerdicts(Object.fromEntries(plan.kept.filter((id) => staleFps[id]).map((id) => [id, { fp: staleFps[id], p: 0, changed: [], kept: true }])));
     return { ran: [], waiting: [] };
   }
-  const waiting = new Set(plan.steps.filter((s) => s.action === 'needs-approval').map((s) => s.nodeId));
-  for (const step of plan.steps) if (step.after.some((x) => waiting.has(x))) waiting.add(step.nodeId);
-  const remaining = plan.steps.filter((s) => !waiting.has(s.nodeId));
+  const visit = canvasVisit();
+  const waiting = new Set<string>();
+  const holdBack = (nodeId: string) => { waiting.add(nodeId); for (const s of plan.steps) if (s.after.includes(nodeId)) waiting.add(s.nodeId); };
+  for (const step of plan.steps) if (step.action === 'needs-approval') holdBack(step.nodeId);
   const ran: string[] = [];
-  while (remaining.length > 0 && !stopped()) {
-    const ready = remaining.filter((s) => s.after.every((x) => ran.includes(x) || !remaining.some((r) => r.nodeId === x)));
+  const failed: ReplayFailure[] = [];
+  const over = (nodeId: string) => ran.includes(nodeId) || waiting.has(nodeId) || failed.some((f) => f.nodeId === nodeId);
+  while (!stopped()) {
+    const open = plan.steps.filter((s) => !over(s.nodeId));
+    if (open.length === 0) break;
+    if (canvasVisit() !== visit) { for (const s of open) waiting.add(s.nodeId); break; } // the person left: this plan is not for what is on show now
+    const ready = open.filter((s) => s.after.every((x) => ran.includes(x)));
     if (ready.length === 0) break;
-    await Promise.all(ready.map((s) => useStore.getState().rerunNode(s.nodeId, { auto: true })));
-    for (const s of ready) { ran.push(s.nodeId); remaining.splice(remaining.indexOf(s), 1); }
+    const starting = ready.filter((s) => {
+      const data = useStore.getState().nodes.find((n) => n.id === s.nodeId)?.data;
+      if (data && taskIdentity(data) === s.planned && !writesFiles(data)) return true;
+      holdBack(s.nodeId);
+      return false;
+    });
+    const outcomes = await Promise.all(starting.map((s) => useStore.getState().rerunNode(s.nodeId, { auto: true, expect: s.planned })));
+    starting.forEach((s, i) => {
+      const { status } = outcomes[i];
+      if (status === 'answered') ran.push(s.nodeId);
+      else if (status === 'needs-approval') holdBack(s.nodeId);
+      else { failed.push({ nodeId: s.nodeId, status }); holdBack(s.nodeId); waiting.delete(s.nodeId); }
+    });
     onProgress?.([...ran]);
   }
   useStore.getState().recomputeStaleness();
-  return { ran, waiting: plan.steps.map((s) => s.nodeId).filter((id) => waiting.has(id)) };
+  return { ran, waiting: plan.steps.map((s) => s.nodeId).filter((id) => waiting.has(id)), ...(failed.length > 0 ? { failed } : {}) };
 }

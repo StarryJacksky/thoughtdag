@@ -452,10 +452,14 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
         const newResponses = n.data.responses.filter((_, i) => i !== versionIndex);
         if (newResponses.length === 0) return n; // Don't delete last version
         const newIndex = Math.min(n.data.responseIndex, newResponses.length - 1);
+        // what the node records is of its newest version: when that one goes, of the one that is newest now, if that says
+        const newRuns = n.data.runs?.filter((_, i) => i !== versionIndex);
+        const newest = versionIndex === n.data.responses.length - 1 ? newRuns?.[newRuns.length - 1] : undefined;
         return {
           ...n,
           data: {
             ...n.data,
+            ...(versionIndex === n.data.responses.length - 1 ? { lastRun: newest, lastContextHash: newest?.contextHash, lastContextParts: newest?.contextParts } : {}),
             responses: newResponses,
             responseIndex: newIndex,
             response: newResponses[newIndex],
@@ -469,7 +473,7 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
             editedAts: n.data.editedAts?.filter((_, i) => i !== versionIndex),
             generatedEfforts: n.data.generatedEfforts?.filter((_, i) => i !== versionIndex),
             gatewaySearches: n.data.gatewaySearches?.filter((_, i) => i !== versionIndex),
-            runs: n.data.runs?.filter((_, i) => i !== versionIndex),
+            runs: newRuns,
             highlights: pruneHighlights(n.data.highlights, newResponses[newIndex]),
           },
         };

@@ -8,6 +8,7 @@
 // node predates the record, the fingerprint's verdict stands.
 import { useStore } from '../store';
 import { upstreamParts } from '../store/context-builder';
+import { baselineOf } from './context/staleness';
 import { judgeAvailable, decideStaleness, STALE_BAR, type StaleCase } from './judge';
 import type { StaleVerdict } from '../store/types';
 
@@ -45,7 +46,7 @@ export async function judgeStaleness(): Promise<void> {
     for (const id of pending.slice(0, BATCH)) {
       tried.add(`${id}:${st.staleFps[id]}`);
       const n = nodes.find((x) => x.id === id);
-      const recorded = n?.data.lastContextParts;
+      const recorded = n ? baselineOf(n.data).contextParts : undefined;
       if (!n || !recorded) continue; // nothing recorded about what it read: the fingerprint's verdict stands
       const now = upstreamParts(id, nodes, edges);
       const changes: StaleCase['changes'] = [];

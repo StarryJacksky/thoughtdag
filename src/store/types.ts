@@ -133,10 +133,15 @@ export interface HighlightSlice {
   setMaterialSummary: (nodeId: string, summary: string, topic?: string) => void;
 }
 
+/** How a rerun went. Only `answered` wrote a new answer; `not-sent` left nothing asked, `needs-approval` is for the person to start. */
+export type RerunOutcome =
+  | { status: 'answered'; versionIndex: number }
+  | { status: 'failed' | 'cancelled' | 'not-sent' | 'busy' | 'gone' | 'needs-approval' };
+
 export interface EvaluatorSlice {
   /** PRESET: ordinary node with a critic role + autoRerun, wired by a followsTip edge. */
   /** Regenerate a node in place from its incoming edges, appending a version (generic primitive). */
-  rerunNode: (nodeId: string, opts?: { auto?: boolean }) => Promise<void>;
+  rerunNode: (nodeId: string, opts?: { auto?: boolean; mayWrite?: boolean; expect?: string }) => Promise<RerunOutcome>;
   /** Replay every currently-stale node in dependency order (confirm first — N generations). */
   replayStale: () => Promise<void>;
   /** Toggle the autoRerun primitive on any node. */

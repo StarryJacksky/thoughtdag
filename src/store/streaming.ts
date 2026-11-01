@@ -217,6 +217,8 @@ export async function runNodeGeneration(
     autoChain?: boolean;
     /** Extra work after the final state write, before settleNode (e.g. re-layout). */
     onSuccess?: (response: string) => void;
+    /** How the run came out, once its final state is written; never called for one that wrote nothing. */
+    onEnded?: (how: 'completed' | 'failed' | 'cancelled', versionIndex: number | null) => void;
     /** where each context message came from — the members of this request */
     sources?: MessageSource[];
     /** where each image came from, parallel to `images` */
@@ -390,7 +392,9 @@ export async function runNodeGeneration(
         const generatedAts = [...kept.map(({ at }) => at), now];
         const editedAts = [...kept.map(({ ed }) => ed), undefined];
         // the run each version came from: an earlier answer still finds what it was given (lib/context/run-records)
-        const summary = envelope && runRecords ? runRecords.summaryOf(envelope, imagesDropped, routeTaken) : undefined;
+        const madeOf = envelope && runRecords ? runRecords.summaryOf(envelope, imagesDropped, routeTaken) : undefined;
+        // what this answer depended on stays with it: another version shown later is judged by its own (lib/context/staleness)
+        const summary = madeOf ? { ...madeOf, contextHash, contextParts } : undefined;
         const runs = [...kept.map(({ rn }) => rn), summary];
         versionWritten = responses.length - 1;
         return { ...n, data: { ...n.data, response, responses, questions, generatedBy, gatewaySearches, generatedEfforts, reasonings, generatedAts, editedAts, runs: runs.some(Boolean) ? runs : undefined, reasoning: undefined, restreaming: undefined, pendingApprovals: undefined, agentTrace: undefined, responseIndex: responses.length - 1, isLoading: false, tokenCount, generationFailed: failed || undefined, references, highlights: pruneHighlights(n.data.highlights, response), lastContextHash: contextHash, lastContextParts: contextParts, lastFeedback: Object.keys(feedbackRead).length > 0 ? feedbackRead : undefined, lastGeneratedAt: now,
@@ -400,6 +404,7 @@ export async function runNodeGeneration(
     }));
     // a failure's placeholder is no answer: a failed run wrote none
     endRecord(ended, versionWritten === null || ended === 'failed' ? null : { versionIndex: versionWritten, chars: response.length });
+    opts.onEnded?.(ended, versionWritten);
   };
 
   // Ambient memory rides the system layer of ordinary generations only —
@@ -853,7 +858,7 @@ export function triggerParadigmCascade(get: Get, completedNodeId: string): void 
     if (!parentIds.every(isComplete)) continue; // fan-in: wait for all parents
     // rerunNode sets isLoading synchronously before awaiting, so a sibling
     // completion arriving next tick sees the child as busy — no double fire.
-    void get().rerunNode(child.id, { auto: true });
+    void get().rerunNode(child.id, { auto: true, mayWrite: true });
   }
 }
 
@@ -925,11 +930,11 @@ function triggerAutoReruns(set: Set, get: Get, completedNodeId: string): void {
       const spent = autoRunCounts.get(key) ?? 0;
       if (spent >= rounds || busy(line.target)) continue;
       autoRunCounts.set(key, spent + 1);
-      void get().rerunNode(line.target, { auto: true });
+      void get().rerunNode(line.target, { auto: true, mayWrite: true });
     } else if (completedNodeId === line.target || walkUpAncestors(line.source, nodes, edges).ordered.some((a) => a.id === completedNodeId)) {
       // what the source reads has a new answer: it answers it, unless it is already doing so
       if (busy(line.source)) continue;
-      void get().rerunNode(line.source, { auto: true });
+      void get().rerunNode(line.source, { auto: true, mayWrite: true });
     }
   }
 }

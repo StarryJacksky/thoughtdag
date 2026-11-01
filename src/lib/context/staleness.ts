@@ -31,17 +31,34 @@ const NOT_ASKED = new Set(['note', 'file', 'link', 'frame']);
 /** The hash of what a mind map says (lib/context/meaning). */
 export const meaningHashOf = (text: string): Promise<ContentHash> => hashText(meaningOf(text));
 
-/** The run each node's latest answer came from. */
-export function latestRuns(nodes: ThoughtNode[]): Record<string, RunSummary | undefined> {
-  return Object.fromEntries(nodes.filter((n) => n.data.lastRun).map((n) => [n.id, n.data.lastRun]));
+/**
+ * What the answer on show was written from: its own run, and the fingerprint of what its context was
+ * built from. A version keeps these itself. What the node records beside them (`lastRun`, `lastContext*`)
+ * is of the newest version, and stands in only for that one: another version, with nothing of its own,
+ * is one nothing is known about, and nobody else's record is said to be its.
+ */
+export function baselineOf(data: ThoughtNode['data']): { run: RunSummary | undefined; contextHash: string | undefined; contextParts: RunSummary['contextParts'] } {
+  if (!data.runs) return { run: data.lastRun, contextHash: data.lastContextHash, contextParts: data.lastContextParts };
+  const run = data.runs[data.responseIndex];
+  const newest = data.responseIndex === data.responses.length - 1;
+  return {
+    run,
+    contextHash: run?.contextHash ?? (newest ? data.lastContextHash : undefined),
+    contextParts: run?.contextParts ?? (newest ? data.lastContextParts : undefined),
+  };
+}
+
+/** The run each node's answer on show came from. */
+export function shownRuns(nodes: ThoughtNode[]): Record<string, RunSummary | undefined> {
+  return Object.fromEntries(nodes.map((n) => [n.id, baselineOf(n.data).run]).filter(([, run]) => run));
 }
 
 /**
  * Why each answer of the canvas is out of date, if it is. `records` are the runs the answers came
- * from (by default each node's latest). What a file holds now is what the canvas knows of it: the
+ * from (by default the one on show of each node). What a file holds now is what the canvas knows of it: the
  * revision of the copy on its node, and for a mind map what that copy says.
  */
-export function detectStale(graph: { nodes: ThoughtNode[]; edges: ThoughtEdge[] }, records: Record<string, RunSummary | undefined> = latestRuns(graph.nodes)): StaleReason[] {
+export function detectStale(graph: { nodes: ThoughtNode[]; edges: ThoughtEdge[] }, records: Record<string, RunSummary | undefined> = shownRuns(graph.nodes)): StaleReason[] {
   const { nodes, edges } = graph;
   const fileNow = new Map<string, NonNullable<ThoughtNode['data']['resourceHint']>>();
   for (const n of nodes) {
@@ -68,7 +85,8 @@ export function detectStale(graph: { nodes: ThoughtNode[]; edges: ThoughtEdge[] 
       }
       own.push({ ...about, kind: 'input-changed' });
     }
-    if (n.data.lastContextHash && upstreamFingerprint(n.id, nodes, edges) !== n.data.lastContextHash && own.length === 0) {
+    const { contextHash } = baselineOf(n.data);
+    if (contextHash && upstreamFingerprint(n.id, nodes, edges) !== contextHash && own.length === 0) {
       own.push({ nodeId: n.id, kind: 'upstream-changed', via: changedUpstream(n, nodes, edges) });
     }
     reasons.push(...own);
@@ -78,7 +96,7 @@ export function detectStale(graph: { nodes: ThoughtNode[]; edges: ThoughtEdge[] 
 
 /** The upstream nodes whose part of a node's context is not what it was when its answer was written. */
 function changedUpstream(n: ThoughtNode, nodes: ThoughtNode[], edges: ThoughtEdge[]): string[] {
-  const then = n.data.lastContextParts;
+  const then = baselineOf(n.data).contextParts;
   if (!then) return [];
   const now = upstreamParts(n.id, nodes, edges);
   const ids = new Set([...Object.keys(then), ...Object.keys(now)]);

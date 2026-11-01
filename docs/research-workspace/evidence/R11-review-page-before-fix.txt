@@ -1,0 +1,208 @@
+# vitest run tests/unit/review-round11-page.test.ts on the code of cac1da0 (host and plugin fixes in, the page not yet), with the final test
+
+ RUN  v5.0.3 <repo>
+
+ × tests/unit/review-round11-page.test.ts > [R11-01] backups from the page, in the order asked > [R11-01] the host being slower with the older backup: the backup asked for last is the one on disk 29ms
+   → expected 'OLDER' to be 'LATEST' // Object.is equality
+ × tests/unit/review-round11-page.test.ts > [R11-01] backups from the page, in the order asked > [R11-01] one backup is on its way at a time: the next is sent once the one before it is answered 13ms
+   → expected [ 'FIRST', 'SECOND', 'THIRD' ] to deeply equal [ 'FIRST' ]
+ × tests/unit/review-round11-page.test.ts > [R11-01] backups from the page, in the order asked > [R11-01] the automatic backup on its way and "back up now": the later one is the one on disk 8ms
+   → expected 'AUTOMATIC' to be 'BACK_UP_NOW' // Object.is equality
+ × tests/unit/review-round11-page.test.ts > [R11-01] backups from the page, in the order asked > [R11-01] the older backup slow to read its attachments from the vault: the later one still ends on disk 29ms
+   → expected 'OLDER' to be 'LATEST' // Object.is equality
+ ✓ tests/unit/review-round11-page.test.ts > [R11-01] backups from the page, in the order asked > [R11-01] a backup that waits its turn writes the canvas as it was when asked for 23ms
+ × tests/unit/review-round11-page.test.ts > [R11-01] backups from the page, in the order asked > [R11-01] a backup of one canvas stays that canvas's when the person switches while it reads the vault 17ms
+   → the name reported is the canvas written: expected 'beta' to be 'alpha' // Object.is equality
+ × tests/unit/review-round11-page.test.ts > [R11-01] backups from the page, in the order asked > [R11-01] a session mirror asked for before a switch goes to its own file in the cli/ drawer 19ms
+   → expected [ 'cli/beta-1a2b3c4d.thoughtdag.json' ] to deeply equal [ Array(1) ]
+ ✓ tests/unit/review-round11-page.test.ts > [R11-01] backups from the page, in the order asked > [R11-01] a backup that fails fails only itself: the one behind it is written, and only that one moves the time of the last backup 18ms
+ × tests/unit/review-round11-page.test.ts > [R11-01] backups from the page, in the order asked > [R11-01] a folder let go while a backup waits its turn is not written to 14ms
+   → expected [ { …(5) }, { …(5) } ] to have a length of 1 but got 2
+ × tests/unit/review-round11-page.test.ts > [R11-01] backups from the page, in the order asked > [R11-01] a new folder picked while a backup waits its turn: what waited for the old folder goes nowhere, and the new folder gets the canvas 5010ms
+   → Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ✓ tests/unit/review-round11-page.test.ts > [R11-01] backups from the page, in the order asked > [R11-01] an empty canvas writes nothing and holds nothing up 19ms
+ × tests/unit/review-round11-page.test.ts > [R11-01] backups from the page, in the order asked > [R11-01] a browser tab writing through a folder handle keeps the same order 26ms
+   → expected 'OLDER' to be 'LATEST' // Object.is equality
+ × tests/unit/review-round11-page.test.ts > [R11-01] backups from the page, in the order asked > [R11-01] through the real host module into a real folder, with the older backups the slower to arrive: the last one asked for is on disk 78ms
+   → expected 'FIRST' to be 'FOURTH' // Object.is equality
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 10 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/review-round11-page.test.ts > [R11-01] backups from the page, in the order asked > [R11-01] the host being slower with the older backup: the backup asked for last is the one on disk
+AssertionError: expected 'OLDER' to be 'LATEST' // Object.is equality
+
+Expected: "LATEST"
+Received: "OLDER"
+
+ ❯ tests/unit/review-round11-page.test.ts:125:74
+    123|     await Promise.all([older, latest]);
+    124|     expect(host.asked.map((a) => questionIn(a.json))).toEqual(['OLDER'…
+    125|     expect(questionIn(host.disk.get(`${FOLDER}/alpha.thoughtdag.json`)…
+       |                                                                          ^
+    126|   });
+    127|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/10]⎯
+
+ FAIL  tests/unit/review-round11-page.test.ts > [R11-01] backups from the page, in the order asked > [R11-01] one backup is on its way at a time: the next is sent once the one before it is answered
+AssertionError: expected [ 'FIRST', 'SECOND', 'THIRD' ] to deeply equal [ 'FIRST' ]
+
+- Expected
++ Received
+
+  [
+    "FIRST",
++   "SECOND",
++   "THIRD",
+  ]
+
+ ❯ tests/unit/review-round11-page.test.ts:138:60
+    136|     const third = backupActiveProject();
+    137|     await settle();
+    138|     expect(host.inFlight().map((a) => questionIn(a.json))).toEqual(['F…
+       |                                                            ^
+    139|     host.inFlight()[0].answer();
+    140|     await settle();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/10]⎯
+
+ FAIL  tests/unit/review-round11-page.test.ts > [R11-01] backups from the page, in the order asked > [R11-01] the automatic backup on its way and "back up now": the later one is the one on disk
+AssertionError: expected 'AUTOMATIC' to be 'BACK_UP_NOW' // Object.is equality
+
+Expected: "BACK_UP_NOW"
+Received: "AUTOMATIC"
+
+ ❯ tests/unit/review-round11-page.test.ts:166:74
+    164|     }
+    165|     await now;
+    166|     expect(questionIn(host.disk.get(`${FOLDER}/alpha.thoughtdag.json`)…
+       |                                                                          ^
+    167|   });
+    168|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/10]⎯
+
+ FAIL  tests/unit/review-round11-page.test.ts > [R11-01] backups from the page, in the order asked > [R11-01] the older backup slow to read its attachments from the vault: the later one still ends on disk
+AssertionError: expected 'OLDER' to be 'LATEST' // Object.is equality
+
+Expected: "LATEST"
+Received: "OLDER"
+
+ ❯ tests/unit/review-round11-page.test.ts:185:74
+    183|     await host.answerNewestFirst();
+    184|     await Promise.all([older, latest]);
+    185|     expect(questionIn(host.disk.get(`${FOLDER}/alpha.thoughtdag.json`)…
+       |                                                                          ^
+    186|   });
+    187|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/10]⎯
+
+ FAIL  tests/unit/review-round11-page.test.ts > [R11-01] backups from the page, in the order asked > [R11-01] a backup of one canvas stays that canvas's when the person switches while it reads the vault
+AssertionError: the name reported is the canvas written: expected 'beta' to be 'alpha' // Object.is equality
+
+Expected: "alpha"
+Received: "beta"
+
+ ❯ tests/unit/review-round11-page.test.ts:218:69
+    216|     slow.release();
+    217|     await host.answerNewestFirst();
+    218|     expect(await backup, 'the name reported is the canvas written').to…
+       |                                                                     ^
+    219|     expect(host.asked.map((a) => a.name)).toEqual(['alpha.thoughtdag.j…
+    220|     const written = JSON.parse(host.asked[0].json);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/10]⎯
+
+ FAIL  tests/unit/review-round11-page.test.ts > [R11-01] backups from the page, in the order asked > [R11-01] a session mirror asked for before a switch goes to its own file in the cli/ drawer
+AssertionError: expected [ 'cli/beta-1a2b3c4d.thoughtdag.json' ] to deeply equal [ Array(1) ]
+
+- Expected
++ Received
+
+  [
+-   "cli/mirror-1a2b3c4d.thoughtdag.json",
++   "cli/beta-1a2b3c4d.thoughtdag.json",
+  ]
+
+ ❯ tests/unit/review-round11-page.test.ts:244:43
+    242|     await host.answerNewestFirst();
+    243|     await backup;
+    244|     expect(host.asked.map((a) => a.name)).toEqual(['cli/mirror-1a2b3c4…
+       |                                           ^
+    245|   });
+    246|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/10]⎯
+
+ FAIL  tests/unit/review-round11-page.test.ts > [R11-01] backups from the page, in the order asked > [R11-01] a folder let go while a backup waits its turn is not written to
+AssertionError: expected [ { …(5) }, { …(5) } ] to have a length of 1 but got 2
+
+- Expected
++ Received
+
+- 1
++ 2
+
+ ❯ tests/unit/review-round11-page.test.ts:274:29
+    272|     const waiting = backupActiveProject();
+    273|     await settle();
+    274|     expect(host.inFlight()).toHaveLength(1);
+       |                             ^
+    275|     await disableAutoBackup();
+    276|     host.inFlight()[0].answer();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/10]⎯
+
+ FAIL  tests/unit/review-round11-page.test.ts > [R11-01] backups from the page, in the order asked > [R11-01] a new folder picked while a backup waits its turn: what waited for the old folder goes nowhere, and the new folder gets the canvas
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ tests/unit/review-round11-page.test.ts:282:3
+    280|   });
+    281|
+    282|   it('[R11-01] a new folder picked while a backup waits its turn: what…
+       |   ^
+    283|     const host = slowHost();
+    284|     await useHost(host, async () => '/synthetic/another');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/10]⎯
+
+ FAIL  tests/unit/review-round11-page.test.ts > [R11-01] backups from the page, in the order asked > [R11-01] a browser tab writing through a folder handle keeps the same order
+AssertionError: expected 'OLDER' to be 'LATEST' // Object.is equality
+
+Expected: "LATEST"
+Received: "OLDER"
+
+ ❯ tests/unit/review-round11-page.test.ts:343:59
+    341|     for (let next = closing.pop(); next; next = closing.pop()) { next.…
+    342|     await Promise.all([older, latest]);
+    343|     expect(questionIn(disk.get('alpha.thoughtdag.json'))).toBe('LATEST…
+       |                                                           ^
+    344|   });
+    345|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/10]⎯
+
+ FAIL  tests/unit/review-round11-page.test.ts > [R11-01] backups from the page, in the order asked > [R11-01] through the real host module into a real folder, with the older backups the slower to arrive: the last one asked for is on disk
+AssertionError: expected 'FIRST' to be 'FOURTH' // Object.is equality
+
+Expected: "FOURTH"
+Received: "FIRST"
+
+ ❯ tests/unit/review-round11-page.test.ts:366:92
+    364|       }
+    365|       await Promise.all(writes);
+    366|       expect(questionIn(fs.readFileSync(path.join(dir, 'alpha.thoughtd…
+       |                                                                                            ^
+    367|       expect(fs.readdirSync(dir), 'and nothing is left beside it').toE…
+    368|     } finally {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/10]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  10 failed | 3 passed (13)
+   Start at  22:28:32
+   Duration  6.00s (tests 90%, transform 6%, environment 4%, import 1%)
+

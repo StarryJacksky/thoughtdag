@@ -61,25 +61,33 @@ let dirty = false;
 /** the toast saying the automatic backup failed: shown once, until a backup is written again */
 let failedToast: string | null = null;
 
-/** What the file should contain and be called — shared by both modes. */
-async function backupPayload(): Promise<{ name: string; isMirror: boolean; json: string } | null> {
+/** The end of the last backup asked for: one runs at a time, in the order asked, so the last one asked for is the
+    one left in the folder. The host keeps the order it is called in, but it reads a whole request before calling,
+    so two requests on their way at once could reach it in either order. */
+let lastBackup: Promise<unknown> = Promise.resolve();
+
+/** What the file should contain and be called — shared by both modes. Everything
+    is read when the backup is asked for, in one go: by the time it is written the
+    person may have switched canvas, and these bytes belong to this canvas's file. */
+function backupPayload(): { title: string; name: string; isMirror: boolean; json: () => Promise<string> } | null {
   const { nodes: rawNodes, edges, events } = useStore.getState();
   if (rawNodes.length === 0) return null;
   const { projects, activeId } = useProjects.getState();
   const activeMeta = projects.find((p) => p.id === activeId);
-  const nodes = await inlineVaultedContent(rawNodes);
-  const base = (activeProjectName().replace(/[\\/:*?"<>|]/g, '_') || 'canvas').slice(0, 48);
+  const title = activeProjectName();
+  const base = (title.replace(/[\\/:*?"<>|]/g, '_') || 'canvas').slice(0, 48);
   // mirror canvases are named after their first prompt — suffix the
   // session id so long/similar prompts can't collide on disk
   const isMirror = !!activeMeta?.sourceSession;
   const name = activeMeta?.sourceSession?.sessionId ? `${base}-${activeMeta.sourceSession.sessionId.slice(0, 8)}` : base;
-  const json = JSON.stringify({
+  const exportedAt = new Date().toISOString();
+  const json = async () => JSON.stringify({
     version: EXPORT_FORMAT_VERSION,
-    name: activeProjectName(),
+    name: title,
     // the canvas's stable identity — names collide, ids do not; a deep
     // link back to this canvas rides on it
     projectId: activeId,
-    exportedAt: new Date().toISOString(),
+    exportedAt,
     instantiatedFrom: activeMeta?.instantiatedFrom,
     // the LEDGER travels with the archive: a restored canvas keeps its
     // subscriptions, so listening and appending come back to life — the
@@ -87,11 +95,35 @@ async function backupPayload(): Promise<{ name: string; isMirror: boolean; json:
     // survives machines and moves; a source that isn't on this machine
     // simply stays silent until it appears.
     sourceSession: activeMeta?.sourceSession,
-    nodes: stripTransient(nodes),
+    nodes: stripTransient(await inlineVaultedContent(rawNodes)),
     edges,
     events,
   });
-  return { name, isMirror, json };
+  return { title, name, isMirror, json };
+}
+
+/** Write one backup, its turn having come, to the folder it was asked for. */
+async function writeAsked(out: NonNullable<ReturnType<typeof backupPayload>>, to: { handle: DirHandle | null; hostDir: string | null }): Promise<string | null> {
+  const json = await out.json();
+  // the folder was let go or changed while this one waited: it is not the person's backup folder any more
+  if (to.handle !== handle || to.hostDir !== hostDir) return null;
+  // one filing rule: native canvases at the folder root, session-mirror
+  // canvases in the cli/ drawer — every canvas reaches disk (a canvas
+  // JSON is a PROJECTION, ~2.5% of its source session's size)
+  const rel = out.isMirror ? `cli/${out.name}.thoughtdag.json` : `${out.name}.thoughtdag.json`;
+  if (to.hostDir) {
+    // the host creates cli/ under the picked folder and writes the file there
+    await hostWrite()?.(to.hostDir, rel, json);
+  } else {
+    const dir = out.isMirror ? await to.handle!.getDirectoryHandle('cli', { create: true }) : to.handle!;
+    const file = await dir.getFileHandle(`${out.name}.thoughtdag.json`, { create: true });
+    const w = await file.createWritable();
+    await w.write(json);
+    await w.close();
+  }
+  localStorage.setItem('thoughtdag.lastBackupAt', String(Date.now()));
+  useUiStore.getState().setLastAutoBackupAt(Date.now());
+  return out.title;
 }
 
 /** Write the ACTIVE canvas as one real file. Both paths go through here —
@@ -101,25 +133,13 @@ async function backupPayload(): Promise<{ name: string; isMirror: boolean; json:
     was (no folder yet / empty canvas). */
 export async function backupActiveProject(): Promise<string | null> {
   if (!handle && !hostDir) return null;
-  const out = await backupPayload();
+  const out = backupPayload();
   if (!out) return null;
-  // one filing rule: native canvases at the folder root, session-mirror
-  // canvases in the cli/ drawer — every canvas reaches disk (a canvas
-  // JSON is a PROJECTION, ~2.5% of its source session's size)
-  const rel = out.isMirror ? `cli/${out.name}.thoughtdag.json` : `${out.name}.thoughtdag.json`;
-  if (hostDir) {
-    // the host creates cli/ under the picked folder and writes the file there
-    await hostWrite()?.(hostDir, rel, out.json);
-  } else {
-    const dir = out.isMirror ? await handle!.getDirectoryHandle('cli', { create: true }) : handle!;
-    const file = await dir.getFileHandle(`${out.name}.thoughtdag.json`, { create: true });
-    const w = await file.createWritable();
-    await w.write(out.json);
-    await w.close();
-  }
-  localStorage.setItem('thoughtdag.lastBackupAt', String(Date.now()));
-  useUiStore.getState().setLastAutoBackupAt(Date.now());
-  return activeProjectName();
+  const to = { handle, hostDir };
+  // joined with nothing awaited since the call, so the queue's order is the order asked
+  const run = lastBackup.then(() => writeAsked(out, to));
+  lastBackup = run.catch(() => {});
+  return run;
 }
 
 function schedule(): void {

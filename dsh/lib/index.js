@@ -1122,7 +1122,7 @@ function canvasPermission(ctx, agent, mode, emit) {
  *  session, forking a dsh mirror at the parent's exact turn, or creating a
  *  fresh session. Report progress as SSE-style frames via `emit`; resolves
  *  when the turn ends. */
-async function runAgentTurn(ctx, body, emit, isClosed, { answerApprovals = true } = {}) {
+async function runAgentTurn(ctx, body, emit, isClosed, { answerApprovals = true, whenClosed = null } = {}) {
   const { question, context } = compileForAgent(body)
   // A parent that is a current ledger tail continues in place. A historical
   // dsh mirror forks at the exact turn named by its user-message id, so later
@@ -1183,8 +1183,9 @@ async function runAgentTurn(ctx, body, emit, isClosed, { answerApprovals = true 
   let ourTurn = null
   let ourTurnEnded = false
   let ourMessagePending = false
-  // our turn has started running: only now is the session switched to the canvas's mode
-  const claimTurn = (turn) => { ourTurn = turn; turnEntry.turn = turn; permission?.start() }
+  // our turn has started running: only now is the session switched to the canvas's mode. A canvas
+  // that has left claims nothing: its message, if the session still runs it, runs as the person set it
+  const claimTurn = (turn) => { if (isClosed()) return; ourTurn = turn; turnEntry.turn = turn; permission?.start() }
   const isOurs = (event) => ourTurn !== null && (typeof event.data?.turn === 'number' ? event.data.turn === ourTurn : currentTurn === ourTurn)
   turnEntry.current = () => currentTurn
   const onDelta = (c) => {
@@ -1263,7 +1264,8 @@ async function runAgentTurn(ctx, body, emit, isClosed, { answerApprovals = true 
     }
     await ctx.sessionController.prompt({ requestId, sessionId, mode: 'queue', content: promptContent }, AbortSignal.timeout(30000))
     const timeout = new Promise(resolve => setTimeout(resolve, 20 * 60 * 1000))
-    const closed = new Promise(resolve => { const t = setInterval(() => { if (isClosed()) { clearInterval(t); resolve() } }, 500); finished.then(() => clearInterval(t)) })
+    // a caller that says when it leaves ends the wait there and then; one that can only be asked is asked every 500 ms
+    const closed = whenClosed ?? new Promise(resolve => { const t = setInterval(() => { if (isClosed()) { clearInterval(t); resolve() } }, 500); finished.then(() => clearInterval(t)) })
     await Promise.race([finished, agent.whenIdle().then(() => finished), timeout, closed])
     // the canvas stopped waiting: stop our turn if it is the one running; while our message is
     // still queued the turn running is someone else's (the person's), and it is left alone
@@ -1619,10 +1621,12 @@ export async function apply(ctx, config) {
           }
           res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' })
           let closed = false
+          let left
+          const whenClosed = new Promise(resolve => { left = resolve })
           // the response, not the request: a request whose body has been read has already closed
-          res.on('close', () => { closed = true })
+          res.on('close', () => { closed = true; left() })
           try {
-            await runAgentTurn(ctx, body, frame => { if (!closed) res.write(`data: ${JSON.stringify(frame)}\n\n`) }, () => closed)
+            await runAgentTurn(ctx, body, frame => { if (!closed) res.write(`data: ${JSON.stringify(frame)}\n\n`) }, () => closed, { whenClosed })
             if (!closed) res.write('data: [DONE]\n\n')
           } catch (error) {
             if (!closed) res.write(`data: ${JSON.stringify({ error: error instanceof Error ? error.message : String(error) })}\n\n`)

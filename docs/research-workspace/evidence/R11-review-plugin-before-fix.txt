@@ -1,0 +1,484 @@
+# node --test tests/host/review-round11-permission.test.cjs on the code of c440c81 (the reviewed commit; no fix applied), with the final test
+TAP version 13
+# (node:5491) ExperimentalWarning: The MockTimers API is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: [R11-02] a message left in the queue that enters its turn right after it left gets none of the canvas's permission (turn first, then message)
+not ok 1 - [R11-02] a message left in the queue that enters its turn right after it left gets none of the canvas's permission (turn first, then message)
+  ---
+  duration_ms: 33.742584
+  type: 'test'
+  location: '<repo>/tests/host/review-round11-permission.test.cjs:151:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    the message runs as the person set the session
+    + actual - expected
+    
+    + 'danger-full-access'
+    - 'workspace-write'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'workspace-write'
+  actual: 'danger-full-access'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round11-permission.test.cjs:166:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: [R11-02] a message left in the queue that enters its turn right after it left gets none of the canvas's permission (message first, then turn)
+not ok 2 - [R11-02] a message left in the queue that enters its turn right after it left gets none of the canvas's permission (message first, then turn)
+  ---
+  duration_ms: 7.250625
+  type: 'test'
+  location: '<repo>/tests/host/review-round11-permission.test.cjs:174:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'danger-full-access'
+    - 'workspace-write'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'workspace-write'
+  actual: 'danger-full-access'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round11-permission.test.cjs:186:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R11-02] a message left in the queue that enters its turn 1 ms before the poll would look gets none of the canvas's permission (turn first, then message)
+not ok 3 - [R11-02] a message left in the queue that enters its turn 1 ms before the poll would look gets none of the canvas's permission (turn first, then message)
+  ---
+  duration_ms: 7.155375
+  type: 'test'
+  location: '<repo>/tests/host/review-round11-permission.test.cjs:151:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    the message runs as the person set the session
+    + actual - expected
+    
+    + 'danger-full-access'
+    - 'workspace-write'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'workspace-write'
+  actual: 'danger-full-access'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round11-permission.test.cjs:166:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R11-02] a message left in the queue that enters its turn 1 ms before the poll would look gets none of the canvas's permission (message first, then turn)
+not ok 4 - [R11-02] a message left in the queue that enters its turn 1 ms before the poll would look gets none of the canvas's permission (message first, then turn)
+  ---
+  duration_ms: 6.669041
+  type: 'test'
+  location: '<repo>/tests/host/review-round11-permission.test.cjs:174:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'danger-full-access'
+    - 'workspace-write'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'workspace-write'
+  actual: 'danger-full-access'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round11-permission.test.cjs:186:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R11-02] a message left in the queue that enters its turn 1 ms after it left gets none of the canvas's permission (turn first, then message)
+not ok 5 - [R11-02] a message left in the queue that enters its turn 1 ms after it left gets none of the canvas's permission (turn first, then message)
+  ---
+  duration_ms: 7.135292
+  type: 'test'
+  location: '<repo>/tests/host/review-round11-permission.test.cjs:151:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    the message runs as the person set the session
+    + actual - expected
+    
+    + 'danger-full-access'
+    - 'workspace-write'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'workspace-write'
+  actual: 'danger-full-access'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round11-permission.test.cjs:166:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R11-02] a message left in the queue that enters its turn 1 ms after it left gets none of the canvas's permission (message first, then turn)
+not ok 6 - [R11-02] a message left in the queue that enters its turn 1 ms after it left gets none of the canvas's permission (message first, then turn)
+  ---
+  duration_ms: 6.574875
+  type: 'test'
+  location: '<repo>/tests/host/review-round11-permission.test.cjs:174:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'danger-full-access'
+    - 'workspace-write'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'workspace-write'
+  actual: 'danger-full-access'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round11-permission.test.cjs:186:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R11-02] a message left in the queue that enters its turn 499 ms after it left gets none of the canvas's permission (turn first, then message)
+not ok 7 - [R11-02] a message left in the queue that enters its turn 499 ms after it left gets none of the canvas's permission (turn first, then message)
+  ---
+  duration_ms: 6.4255
+  type: 'test'
+  location: '<repo>/tests/host/review-round11-permission.test.cjs:151:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    the message runs as the person set the session
+    + actual - expected
+    
+    + 'danger-full-access'
+    - 'workspace-write'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'workspace-write'
+  actual: 'danger-full-access'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round11-permission.test.cjs:166:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R11-02] a message left in the queue that enters its turn 499 ms after it left gets none of the canvas's permission (message first, then turn)
+not ok 8 - [R11-02] a message left in the queue that enters its turn 499 ms after it left gets none of the canvas's permission (message first, then turn)
+  ---
+  duration_ms: 6.605375
+  type: 'test'
+  location: '<repo>/tests/host/review-round11-permission.test.cjs:174:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'danger-full-access'
+    - 'workspace-write'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'workspace-write'
+  actual: 'danger-full-access'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round11-permission.test.cjs:186:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R11-02] a message left in the queue that enters its turn after the poll would have looked gets none of the canvas's permission (turn first, then message)
+ok 9 - [R11-02] a message left in the queue that enters its turn after the poll would have looked gets none of the canvas's permission (turn first, then message)
+  ---
+  duration_ms: 7.825041
+  type: 'test'
+  ...
+# Subtest: [R11-02] a message left in the queue that enters its turn after the poll would have looked gets none of the canvas's permission (message first, then turn)
+ok 10 - [R11-02] a message left in the queue that enters its turn after the poll would have looked gets none of the canvas's permission (message first, then turn)
+  ---
+  duration_ms: 7.746417
+  type: 'test'
+  ...
+# Subtest: [R11-02] the response closing ends the wait and the subscriptions at once, with the clock standing still
+not ok 11 - [R11-02] the response closing ends the wait and the subscriptions at once, with the clock standing still
+  ---
+  duration_ms: 6.087417
+  type: 'test'
+  location: '<repo>/tests/host/review-round11-permission.test.cjs:195:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    it no longer does, without the poll having run
+    
+    18 !== 16
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 16
+  actual: 18
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round11-permission.test.cjs:205:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R11-02] a canvas that leaves its running turn stops it and puts the session back at once, with the clock standing still
+not ok 12 - [R11-02] a canvas that leaves its running turn stops it and puts the session back at once, with the clock standing still
+  ---
+  duration_ms: 6.567209
+  type: 'test'
+  location: '<repo>/tests/host/review-round11-permission.test.cjs:208:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    its own turn is stopped
+    + actual - expected
+    
+    + []
+    - [
+    -   'R11-12'
+    - ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'R11-12'
+  actual:
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round11-permission.test.cjs:218:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R11-02] allow running, auto queued and left: the running turn is not stopped, and the left message gets no mode
+not ok 13 - [R11-02] allow running, auto queued and left: the running turn is not stopped, and the left message gets no mode
+  ---
+  duration_ms: 12.821667
+  type: 'test'
+  location: '<repo>/tests/host/review-round11-permission.test.cjs:225:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    the left message runs as the person set the session
+    + actual - expected
+    
+    + 'auto'
+    - 'workspace-write'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'workspace-write'
+  actual: 'auto'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round11-permission.test.cjs:246:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R11-02] allow running and left, auto queued and still waited for: the second turn runs in its own mode, and the session ends as the person set it
+not ok 14 - [R11-02] allow running and left, auto queued and still waited for: the second turn runs in its own mode, and the session ends as the person set it
+  ---
+  duration_ms: 12.393333
+  type: 'test'
+  location: '<repo>/tests/host/review-round11-permission.test.cjs:251:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    put back as the first canvas leaves
+    + actual - expected
+    
+    + 'danger-full-access'
+    - 'workspace-write'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'workspace-write'
+  actual: 'danger-full-access'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round11-permission.test.cjs:262:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R11-02] auto running, allow queued and left: the running turn is not stopped, and the left message gets no mode
+not ok 15 - [R11-02] auto running, allow queued and left: the running turn is not stopped, and the left message gets no mode
+  ---
+  duration_ms: 12.384625
+  type: 'test'
+  location: '<repo>/tests/host/review-round11-permission.test.cjs:225:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    the left message runs as the person set the session
+    + actual - expected
+    
+    + 'danger-full-access'
+    - 'workspace-write'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'workspace-write'
+  actual: 'danger-full-access'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round11-permission.test.cjs:246:12)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R11-02] auto running and left, allow queued and still waited for: the second turn runs in its own mode, and the session ends as the person set it
+not ok 16 - [R11-02] auto running and left, allow queued and still waited for: the second turn runs in its own mode, and the session ends as the person set it
+  ---
+  duration_ms: 12.313958
+  type: 'test'
+  location: '<repo>/tests/host/review-round11-permission.test.cjs:251:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    put back as the first canvas leaves
+    + actual - expected
+    
+    + 'auto'
+    - 'workspace-write'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'workspace-write'
+  actual: 'auto'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round11-permission.test.cjs:262:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R11-02] a setting the person picks after the canvas left stays when the left message enters its turn
+not ok 17 - [R11-02] a setting the person picks after the canvas left stays when the left message enters its turn
+  ---
+  duration_ms: 6.107792
+  type: 'test'
+  location: '<repo>/tests/host/review-round11-permission.test.cjs:277:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'danger-full-access'
+    - 'read-only'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'read-only'
+  actual: 'danger-full-access'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round11-permission.test.cjs:290:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R11-02] a setting the person picks while the canvas's turn runs stays when the canvas leaves
+ok 18 - [R11-02] a setting the person picks while the canvas's turn runs stays when the canvas leaves
+  ---
+  duration_ms: 6.090167
+  type: 'test'
+  ...
+# Subtest: [R11-02] a canvas that leaves while its message is being queued, and the queue refuses it: nothing changes and nothing is left subscribed
+ok 19 - [R11-02] a canvas that leaves while its message is being queued, and the queue refuses it: nothing changes and nothing is left subscribed
+  ---
+  duration_ms: 5.863041
+  type: 'test'
+  ...
+# Subtest: [R11-02] a canvas that leaves while its message is being queued, and the message enters a turn before the queue answers: no mode, and the wait ends as the queue answers
+not ok 20 - [R11-02] a canvas that leaves while its message is being queued, and the message enters a turn before the queue answers: no mode, and the wait ends as the queue answers
+  ---
+  duration_ms: 5.728833
+  type: 'test'
+  location: '<repo>/tests/host/review-round11-permission.test.cjs:328:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    the request is checked where the turn is claimed
+    + actual - expected
+    
+    + [
+    +   'R11-20:danger-full-access'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'R11-20:danger-full-access'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round11-permission.test.cjs:341:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R11-02] a caller known to have left before the poll looks: the claim itself refuses the mode (turn first, then message)
+not ok 21 - [R11-02] a caller known to have left before the poll looks: the claim itself refuses the mode (turn first, then message)
+  ---
+  duration_ms: 1.787958
+  type: 'test'
+  location: '<repo>/tests/host/review-round11-permission.test.cjs:393:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'danger-full-access'
+    - 'workspace-write'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'workspace-write'
+  actual: 'danger-full-access'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round11-permission.test.cjs:402:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R11-02] a caller known to have left before the poll looks: the claim itself refuses the mode (message first, then turn)
+not ok 22 - [R11-02] a caller known to have left before the poll looks: the claim itself refuses the mode (message first, then turn)
+  ---
+  duration_ms: 0.918583
+  type: 'test'
+  location: '<repo>/tests/host/review-round11-permission.test.cjs:410:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + [
+    +   'danger-full-access'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'danger-full-access'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round11-permission.test.cjs:417:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R11-02] the same caller still waited for: both canvas turns run in their own mode, and each ends as the person set it
+ok 23 - [R11-02] the same caller still waited for: both canvas turns run in their own mode, and each ends as the person set it
+  ---
+  duration_ms: 0.821625
+  type: 'test'
+  ...
+1..23
+# tests 23
+# suites 0
+# pass 5
+# fail 18
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 267.748792

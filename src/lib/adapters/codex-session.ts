@@ -1,4 +1,4 @@
-import type { ThoughtNode, ThoughtEdge } from '../../types';
+import type { ThoughtNode, ThoughtEdge, NativeImages } from '../../types';
 import { makeNode, type ImportableConversation } from '../import-chat';
 import { autoLayout } from '../layout';
 import { generateId } from '../../utils';
@@ -17,6 +17,8 @@ import {
 // Projection rules (v0):
 //   - Turns are explicit: turn_context / task_started carry turn_id.
 //   - question = the turn's response_item message role=user (input_text).
+//     What else such a message sent (input_image) has no place on the card,
+//     and is noted on the turn: what the session holds is not only its words.
 //   - response = role=assistant output_text, in order (commentary and
 //     final answer both lived in the model's context — both project).
 //   - function_call pairs with function_call_output by call_id into one
@@ -71,6 +73,8 @@ export interface CodexTurn {
   compactionBefore?: string;
   /** child threads adopted onto this turn (Codex names the parent in the child's header, never the child in the parent) */
   subagents?: SubagentRun[];
+  /** an image, or something that may be one, among what the user messages of this turn sent; absent when they held only words */
+  nativeImages?: NativeImages;
 }
 
 const clip = clipText;
@@ -97,6 +101,17 @@ const outputText = (output: unknown): string => {
   if (typeof output === 'string') return output;
   if (Array.isArray(output)) return (output as Array<{ text?: string }>).map((p) => p?.text ?? '').filter(Boolean).join('\n');
   return output == null ? '' : JSON.stringify(output);
+};
+
+/** What a user message sent besides its words. */
+const imagesIn = (content: unknown): NativeImages => {
+  if (!Array.isArray(content)) return 'none';
+  let seen: NativeImages = 'none';
+  for (const p of content as Array<{ type?: string } | null>) {
+    if (p?.type === 'input_image' || p?.type === 'image') return 'present';
+    if (p?.type !== 'input_text' && p?.type !== 'text') seen = 'unknown';
+  }
+  return seen;
 };
 
 /** Streaming turn collector: lines go in one at a time (a 619MB rollout
@@ -126,7 +141,7 @@ export class CodexSessionCollector {
 
   private flush(): void {
     const c = this.current;
-    if (c && (c.question || c.response || c.tools.length)) this.turns.push(c);
+    if (c && (c.question || c.response || c.tools.length || c.nativeImages)) this.turns.push(c);
     this.current = null;
   }
 
@@ -168,6 +183,11 @@ export class CodexSessionCollector {
     if (line.type !== 'response_item') return;
     if (p.type === 'message') {
       if (p.role === 'user') {
+        const images = imagesIn(p.content);
+        if (images !== 'none') {
+          const t = this.ensure();
+          if (t.nativeImages !== 'present') t.nativeImages = images;
+        }
         const text = userPartText(p.content); // injected <tag> / AGENTS.md blocks dropped
         if (text.trim()) {
           if (!this.firstQuestion) this.firstQuestion = text.trim();
@@ -224,6 +244,7 @@ export class CodexSessionCollector {
         if (turn.response) prev.response = prev.response ? `${prev.response}\n\n${turn.response}` : turn.response;
         prev.tools.push(...turn.tools);
         prev.itemIds.push(...turn.itemIds);
+        if (turn.nativeImages && prev.nativeImages !== 'present') prev.nativeImages = turn.nativeImages;
       } else {
         if (carriedCompaction && !turn.compactionBefore) turn.compactionBefore = carriedCompaction;
         carriedCompaction = undefined;
@@ -290,7 +311,7 @@ export function buildGraphFromTurns(turns: CodexTurn[], sessionId: string, cwd?:
     }
     const node = makeNode(turn.question || '(tool-only turn)', turn.response, prev === null);
     node.data.importSource = { runner: 'codex', sessionId, itemIds: turn.itemIds, ...origin };
-    node.data.source = { question: node.data.question, response: node.data.response };
+    node.data.source = { question: node.data.question, response: node.data.response, images: turn.nativeImages ?? 'none' };
     node.data.attachments = toolAttachments(turn);
     seedPlaque(node);
     nodes.push(node);

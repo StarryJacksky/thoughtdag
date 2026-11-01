@@ -408,7 +408,7 @@ export async function agentCallStream(
  *  subscribes to the session so turns added later, from the terminal,
  *  append here. The live sweep never appends this turn a second time: the
  *  ledger records it as imported with this node as the tail. */
-export async function adoptAgentTurn(nodeId: string, session: { runtime: AgentRuntime; sessionFile: string | null; sessionId: string | null; cwd: string }, question: string): Promise<boolean> {
+export async function adoptAgentTurn(nodeId: string, session: { runtime: AgentRuntime; sessionFile: string | null; sessionId: string | null; cwd: string }, question: string, { gaveImages = false }: { gaveImages?: boolean } = {}): Promise<boolean> {
   const why = (reason: string): false => { console.warn('[agent] turn not adopted:', reason, session.runtime, session.sessionFile); return false; };
   const bridge = window.desktopSessions;
   if (!bridge || !session.sessionFile) return why(!bridge ? 'no sessions bridge' : 'no session file');
@@ -455,7 +455,8 @@ export async function adoptAgentTurn(nodeId: string, session: { runtime: AgentRu
             // the snapshot is what Pi recorded — the compiled context ahead of
             // the question — so the node reads as edited (the question as
             // asked) and the live sweep never rewrites it from the file
-            source: turn.data.source ?? { question: turn.data.question, response: turn.data.response },
+            // an image this run was given is in the session, whatever the runtime's record makes of it
+            source: { ...(turn.data.source ?? { question: turn.data.question, response: turn.data.response }), ...(gaveImages ? { images: 'present' as const } : {}) },
             agentTrace: undefined,
           } }
         : n),

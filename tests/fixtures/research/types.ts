@@ -31,7 +31,7 @@ export interface FixtureNode {
   approvals?: { id: string; outcome: ApprovalOutcome; rule: string }[];
   importSource?: { runner: string; sessionId: string; itemIds: string[]; cwd?: string };
   agentSession?: { runtime: AgentRuntime; sessionId: string | null; sessionFile: string | null; cwd: string };
-  source?: { question: string; response: string };
+  source?: { question: string; response: string; images?: 'none' | 'present' | 'unknown' };
 }
 
 export interface FixtureEdge {

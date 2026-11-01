@@ -1,4 +1,4 @@
-import type { ThoughtNode, ThoughtEdge, Attachment, ToolOp } from '../../types';
+import type { ThoughtNode, ThoughtEdge, Attachment, ToolOp, NativeImages } from '../../types';
 import { makeNode } from '../import-chat';
 import { autoLayout } from '../layout';
 import { generateId } from '../../utils';
@@ -62,6 +62,8 @@ export interface RunnerTurn {
   at?: string;
   /** the runs this turn delegated, in call order */
   subagents?: SubagentRun[];
+  /** an image, or something that may be one, among what the user messages of this turn sent; absent when they held only words */
+  nativeImages?: NativeImages;
 }
 
 // Tool names → what they DID. Deterministic, runner-neutral: the same
@@ -204,7 +206,7 @@ export function turnsToBranch(
   for (const turn of turns) {
     const node = makeNode(turn.question || '(tool-only turn)', turn.response, false);
     node.data.importSource = { runner, sessionId, itemIds: turn.itemIds, ...(cwd ? { cwd } : {}) };
-    node.data.source = { question: node.data.question, response: node.data.response };
+    node.data.source = { question: node.data.question, response: node.data.response, images: turn.nativeImages ?? 'none' };
     node.data.attachments = toolAttachments(turn);
     seedPlaque(node);
     if (nodes.length === 0) node.data.isBranch = true; // the experiment forks off sideways

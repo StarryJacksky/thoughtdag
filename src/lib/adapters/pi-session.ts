@@ -1,4 +1,4 @@
-import type { ThoughtNode, ThoughtEdge } from '../../types';
+import type { ThoughtNode, ThoughtEdge, NativeImages } from '../../types';
 import { makeNode, type ImportableConversation } from '../import-chat';
 import { autoLayout } from '../layout';
 import { generateId } from '../../utils';
@@ -94,6 +94,19 @@ interface PiTurn {
   tools: RunnerTool[];
   at?: string;
   subagents?: SubagentRun[];
+  /** an image, or something that may be one, among what the user messages of this turn sent; absent when they held only words */
+  nativeImages?: NativeImages;
+}
+
+/** What a user message sent besides its words. */
+function imagesIn(content: PiBlock[] | string | undefined): NativeImages {
+  if (!Array.isArray(content)) return 'none';
+  let seen: NativeImages = 'none';
+  for (const b of content) {
+    if (b?.type === 'image') return 'present';
+    if (b?.type !== 'text') seen = 'unknown';
+  }
+  return seen;
 }
 
 /** The runs a `subagent` tool call delegated (Pi's example extension: one agent, a parallel set,
@@ -127,6 +140,8 @@ export class PiSessionCollector {
   private sessionId: string | null = null;
   private cwd: string | null = null;
   private firstQuestion: string | null = null;
+  // sent in a message of no words, before any turn: it goes with the turn that message opens
+  private imagesAhead: NativeImages = 'none';
 
   feedLine(raw: string): void {
     const t = raw.trim();
@@ -161,8 +176,13 @@ export class PiSessionCollector {
     const m = e.message;
     if (!m) return;
     if (m.role === 'user') {
+      const images = imagesIn(m.content);
       const text = textOf(m.content).trim();
-      if (!text) return;
+      if (!text) {
+        if (images !== 'none' && this.current) { if (this.current.nativeImages !== 'present') this.current.nativeImages = images; }
+        else if (images !== 'none' && this.imagesAhead !== 'present') this.imagesAhead = images;
+        return;
+      }
       this.flush();
       if (!this.firstQuestion) this.firstQuestion = text.split('\n')[0].slice(0, 80);
       const at = typeof e.timestamp === 'string' ? e.timestamp : typeof m.timestamp === 'number' ? new Date(m.timestamp).toISOString() : undefined;
@@ -170,6 +190,9 @@ export class PiSessionCollector {
         question: text, response: '', itemIds: typeof e.id === 'string' ? [e.id] : [], tools: [],
         ...(typeof e.parentId === 'string' ? { parentItemId: e.parentId } : {}), ...(at ? { at } : {}),
       };
+      const sent = images === 'present' || this.imagesAhead === 'none' ? images : this.imagesAhead;
+      if (sent !== 'none') this.current.nativeImages = sent;
+      this.imagesAhead = 'none';
       return;
     }
     if (m.role === 'assistant') {
@@ -244,7 +267,7 @@ export function buildGraphFromTurns(turns: PiTurn[], sessionId: string, cwd?: st
   for (const turn of turns) {
     const node = makeNode(turn.question || '(tool-only turn)', turn.response, prev === null);
     node.data.importSource = { runner: 'pi', sessionId, itemIds: turn.itemIds, ...origin };
-    node.data.source = { question: node.data.question, response: node.data.response };
+    node.data.source = { question: node.data.question, response: node.data.response, images: turn.nativeImages ?? 'none' };
     node.data.attachments = toolAttachments(turn);
     seedPlaque(node);
     nodes.push(node);

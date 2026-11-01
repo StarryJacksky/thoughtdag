@@ -27,6 +27,8 @@
 | 加了记忆或回忆 | 新开（`memory`） |
 | 上面的轮次和原会话对不上（归档了一轮、多了一轮、不是同一段） | 新开（`conversation`） |
 | 有一轮导入时没留下原文，无法确认原会话里有什么 | 新开（`unknown-history`） |
+| 原会话自己的记录里，发给它的内容有图片（画布上看不看得到都算；Codex、Claude Code、Pi 的导入器在导入时记下，见 `source.images`） | 新开（`materials`） |
+| 有一轮的记录没说有没有图片（R12-03 之前导入的旧画布），或发过既不是文字也不是图片的内容 | 新开（`unknown-history`） |
 | 不是接在最后一轮后面 | 新开（`not-the-last-turn`）。从中间分叉还没验证可行，所以不分叉 |
 | 研究隔离 | 新开（`research`）；Agent 还没验证能隔离时直接不发送（`research-unverified`） |
 | 运行时报告不支持续接 | 新开（`resume-unsupported`） |

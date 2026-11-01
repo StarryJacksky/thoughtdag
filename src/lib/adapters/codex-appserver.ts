@@ -44,6 +44,11 @@ export function threadToTurns(thread: AppServerThread): CodexTurn[] {
       if (ty === 'userMessage') {
         const text = (it.content ?? []).filter((c) => c.type === 'text' && c.text).map((c) => c.text).join('\n');
         if (text.trim() && !turn.question) turn.question = text;
+        // what it sent besides its words has no place on the card, and is noted on the turn
+        for (const c of it.content ?? []) {
+          if (c.type === 'text' || turn.nativeImages === 'present') continue;
+          turn.nativeImages = /image/i.test(c.type ?? '') ? 'present' : 'unknown';
+        }
       } else if (ty === 'agentMessage') {
         const text = typeof it.text === 'string' ? it.text : '';
         if (text.trim()) turn.response = turn.response ? `${turn.response}\n\n${text}` : text;
@@ -62,7 +67,7 @@ export function threadToTurns(thread: AppServerThread): CodexTurn[] {
         if (body.length > 4) turn.tools.push({ name: ty, call: '', result: clip(body), truncated: body.length > TOOL_RESULT_LIMIT });
       }
     }
-    if (turn.question || turn.response || turn.tools.length) turns.push(turn);
+    if (turn.question || turn.response || turn.tools.length || turn.nativeImages) turns.push(turn);
   }
   return turns;
 }

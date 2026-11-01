@@ -1,0 +1,423 @@
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/review-round12-images.test.ts (37 tests | 26 failed) 170ms
+   ❯ [R12-03] codex: what the session's own record says (7)
+     × [R12-03] codex: a question and an image in the session: the import shows only words, and the next run starts anew 13ms
+     × [R12-03] codex: through the run path: no old session is named, and the turn's words are given 10ms
+     × [R12-03] codex: an image on an earlier turn counts, not only the last 2ms
+     × [R12-03] codex: an image sent in a message of no words of its own counts 1ms
+     × [R12-03] codex: something sent that is neither words nor an image is not known not to be an image: it starts anew 1ms
+   ❯ [R12-03] claude-code: what the session's own record says (7)
+     × [R12-03] claude-code: a question and an image in the session: the import shows only words, and the next run starts anew 2ms
+     × [R12-03] claude-code: through the run path: no old session is named, and the turn's words are given 2ms
+     × [R12-03] claude-code: an image on an earlier turn counts, not only the last 1ms
+     × [R12-03] claude-code: an image sent in a message of no words of its own counts 1ms
+     × [R12-03] claude-code: something sent that is neither words nor an image is not known not to be an image: it starts anew 1ms
+   ❯ [R12-03] pi: what the session's own record says (7)
+     × [R12-03] pi: a question and an image in the session: the import shows only words, and the next run starts anew 1ms
+     × [R12-03] pi: through the run path: no old session is named, and the turn's words are given 2ms
+     × [R12-03] pi: an image on an earlier turn counts, not only the last 1ms
+     × [R12-03] pi: an image sent in a message of no words of its own counts 0ms
+     × [R12-03] pi: something sent that is neither words nor an image is not known not to be an image: it starts anew 0ms
+   ❯ [R12-03] codex: an image in a scheduling step of its own (2)
+     × [R12-03] an image that came after a turn, on its own with nothing answered, goes with that turn 0ms
+     × [R12-03] an image before any words, with nothing answered, is kept as a turn of its own and said 0ms
+   ❯ [R12-03] a thread read through the app server (1)
+     × [R12-03] words and an image, words and something else, and words only are told apart 0ms
+   ❯ [R12-03] the canvas does not speak for the session (5)
+     × [R12-03] an image shown on the canvas and taken off: the session still holds what it held 1ms
+     × [R12-03] nothing done to a node's attachments changes what its import said 0ms
+   ❯ [R12-03] what was imported before this was recorded (3)
+     × [R12-03] a session none of whose turns say: not known, so it starts anew, and no old session is named 0ms
+     × [R12-03] one turn that does not say is enough 0ms
+     × [R12-03] through the run path: no old session is named 2ms
+   ❯ [R12-03] chapters (3)
+     × [R12-03] a chapter with an image, asked at its own tail: starts anew, whatever the chapter before says 0ms
+   ❯ [R12-03] a turn this application ran itself (2)
+     × [R12-03] an image the run was given is in the session, even if the runtime's record shows only words: taken off the node, the next run starts anew 56ms
+     × [R12-03] control: a run of words whose record shows only words goes on 54ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 26 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/review-round12-images.test.ts > [R12-03] codex: what the session's own record says > [R12-03] codex: a question and an image in the session: the import shows only words, and the next run starts anew
+ FAIL  tests/unit/review-round12-images.test.ts > [R12-03] claude-code: what the session's own record says > [R12-03] claude-code: a question and an image in the session: the import shows only words, and the next run starts anew
+ FAIL  tests/unit/review-round12-images.test.ts > [R12-03] pi: what the session's own record says > [R12-03] pi: a question and an image in the session: the import shows only words, and the next run starts anew
+AssertionError: expected true to be falsy
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/unit/review-round12-images.test.ts:139:31
+    137|       expect((tail.data.attachments ?? []).filter((a) => a.type.starts…
+    138|       const route = await routeAt(model, tail.id);
+    139|       expect(route?.continue).toBeFalsy();
+       |                               ^
+    140|       expect(route?.sessionPath).toBeUndefined();
+    141|       expect(route?.decision).toEqual({ action: 'fresh', reason: 'mate…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/26]⎯
+
+ FAIL  tests/unit/review-round12-images.test.ts > [R12-03] codex: what the session's own record says > [R12-03] codex: through the run path: no old session is named, and the turn's words are given
+ FAIL  tests/unit/review-round12-images.test.ts > [R12-03] claude-code: what the session's own record says > [R12-03] claude-code: through the run path: no old session is named, and the turn's words are given
+ FAIL  tests/unit/review-round12-images.test.ts > [R12-03] pi: what the session's own record says > [R12-03] pi: through the run path: no old session is named, and the turn's words are given
+AssertionError: expected '/synthetic/sessions/rollout-11111111-…' to be undefined
+
+- Expected:
+undefined
+
++ Received:
+"/synthetic/sessions/rollout-11111111-2222-4333-8444-555555555555.jsonl"
+
+ ❯ tests/unit/review-round12-images.test.ts:147:32
+    145|       const { tail } = await imported(runtime, WITH_IMAGE);
+    146|       const sent = await ask(tail.id);
+    147|       expect(sent.sessionPath).toBeUndefined();
+       |                                ^
+    148|       expect(sent.prompt).toContain('A blue square.');
+    149|     });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/26]⎯
+
+ FAIL  tests/unit/review-round12-images.test.ts > [R12-03] codex: what the session's own record says > [R12-03] codex: an image on an earlier turn counts, not only the last
+AssertionError: expected { action: 'resume', …(2) } to deeply equal { Object (action, reason) }
+
+- Expected
++ Received
+
+  {
+-   "action": "fresh",
+-   "reason": "materials",
++   "action": "resume",
++   "bindingId": "binding:codex:11111111-2222-4333-8444-555555555555",
++   "reason": "same-conversation",
+  }
+
+ ❯ tests/unit/review-round12-images.test.ts:153:57
+    151|     it(`[R12-03] ${runtime}: an image on an earlier turn counts, not o…
+    152|       const { tail, model } = await imported(runtime, [...WITH_IMAGE, …
+    153|       expect((await routeAt(model, tail.id))?.decision).toEqual({ acti…
+       |                                                         ^
+    154|     });
+    155|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/26]⎯
+
+ FAIL  tests/unit/review-round12-images.test.ts > [R12-03] codex: what the session's own record says > [R12-03] codex: an image sent in a message of no words of its own counts
+ FAIL  tests/unit/review-round12-images.test.ts > [R12-03] claude-code: what the session's own record says > [R12-03] claude-code: an image sent in a message of no words of its own counts
+ FAIL  tests/unit/review-round12-images.test.ts > [R12-03] pi: what the session's own record says > [R12-03] pi: an image sent in a message of no words of its own counts
+AssertionError: expected true to be falsy
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/unit/review-round12-images.test.ts:159:31
+    157|       const { tail, model } = await imported(runtime, [{ parts: [{ ima…
+    158|       const route = await routeAt(model, tail.id);
+    159|       expect(route?.continue).toBeFalsy();
+       |                               ^
+    160|       expect(route?.sessionPath).toBeUndefined();
+    161|     });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/26]⎯
+
+ FAIL  tests/unit/review-round12-images.test.ts > [R12-03] codex: what the session's own record says > [R12-03] codex: something sent that is neither words nor an image is not known not to be an image: it starts anew
+ FAIL  tests/unit/review-round12-images.test.ts > [R12-03] claude-code: what the session's own record says > [R12-03] claude-code: something sent that is neither words nor an image is not known not to be an image: it starts anew
+ FAIL  tests/unit/review-round12-images.test.ts > [R12-03] pi: what the session's own record says > [R12-03] pi: something sent that is neither words nor an image is not known not to be an image: it starts anew
+AssertionError: expected true to be falsy
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/unit/review-round12-images.test.ts:166:31
+    164|       const { tail, model } = await imported(runtime, [{ parts: [{ tex…
+    165|       const route = await routeAt(model, tail.id);
+    166|       expect(route?.continue).toBeFalsy();
+       |                               ^
+    167|       expect(route?.decision).toEqual({ action: 'fresh', reason: 'unkn…
+    168|     });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/26]⎯
+
+ FAIL  tests/unit/review-round12-images.test.ts > [R12-03] claude-code: what the session's own record says > [R12-03] claude-code: an image on an earlier turn counts, not only the last
+AssertionError: expected { action: 'resume', …(2) } to deeply equal { Object (action, reason) }
+
+- Expected
++ Received
+
+  {
+-   "action": "fresh",
+-   "reason": "materials",
++   "action": "resume",
++   "bindingId": "binding:claude-code:11111111-2222-4333-8444-555555555555",
++   "reason": "same-conversation",
+  }
+
+ ❯ tests/unit/review-round12-images.test.ts:153:57
+    151|     it(`[R12-03] ${runtime}: an image on an earlier turn counts, not o…
+    152|       const { tail, model } = await imported(runtime, [...WITH_IMAGE, …
+    153|       expect((await routeAt(model, tail.id))?.decision).toEqual({ acti…
+       |                                                         ^
+    154|     });
+    155|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/26]⎯
+
+ FAIL  tests/unit/review-round12-images.test.ts > [R12-03] pi: what the session's own record says > [R12-03] pi: an image on an earlier turn counts, not only the last
+AssertionError: expected { action: 'resume', …(2) } to deeply equal { Object (action, reason) }
+
+- Expected
++ Received
+
+  {
+-   "action": "fresh",
+-   "reason": "materials",
++   "action": "resume",
++   "bindingId": "binding:pi:11111111-2222-4333-8444-555555555555",
++   "reason": "same-conversation",
+  }
+
+ ❯ tests/unit/review-round12-images.test.ts:153:57
+    151|     it(`[R12-03] ${runtime}: an image on an earlier turn counts, not o…
+    152|       const { tail, model } = await imported(runtime, [...WITH_IMAGE, …
+    153|       expect((await routeAt(model, tail.id))?.decision).toEqual({ acti…
+       |                                                         ^
+    154|     });
+    155|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/26]⎯
+
+ FAIL  tests/unit/review-round12-images.test.ts > [R12-03] codex: an image in a scheduling step of its own > [R12-03] an image that came after a turn, on its own with nothing answered, goes with that turn
+AssertionError: expected [ undefined ] to deeply equal [ 'present' ]
+
+- Expected
++ Received
+
+  [
+-   "present",
++   undefined,
+  ]
+
+ ❯ tests/unit/review-round12-images.test.ts:193:66
+    191|
+    192|   it('[R12-03] an image that came after a turn, on its own with nothin…
+    193|     expect(says([...lines([WORDS]), answer, ...lines([IMAGE])])).toEqu…
+       |                                                                  ^
+    194|   });
+    195|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/26]⎯
+
+ FAIL  tests/unit/review-round12-images.test.ts > [R12-03] codex: an image in a scheduling step of its own > [R12-03] an image before any words, with nothing answered, is kept as a turn of its own and said
+AssertionError: expected [ undefined ] to deeply equal [ 'present', 'none' ]
+
+- Expected
++ Received
+
+  [
+-   "present",
+-   "none",
++   undefined,
+  ]
+
+ ❯ tests/unit/review-round12-images.test.ts:197:56
+    195|
+    196|   it('[R12-03] an image before any words, with nothing answered, is ke…
+    197|     expect(says([...lines([IMAGE], [WORDS]), answer])).toEqual(['prese…
+       |                                                        ^
+    198|   });
+    199| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/26]⎯
+
+ FAIL  tests/unit/review-round12-images.test.ts > [R12-03] a thread read through the app server > [R12-03] words and an image, words and something else, and words only are told apart
+AssertionError: expected undefined to be 'present' // Object.is equality
+
+- Expected:
+"present"
+
++ Received:
+undefined
+
+ ❯ tests/unit/review-round12-images.test.ts:209:78
+    207|
+    208|   it('[R12-03] words and an image, words and something else, and words…
+    209|     expect(says(thread({ type: 'text', text: 'Look.' }, { type: 'image…
+       |                                                                              ^
+    210|     expect(says(thread({ type: 'text', text: 'Look.' }, { type: 'local…
+    211|     expect(says(thread({ type: 'text', text: 'Look.' }, { type: 'some_…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/26]⎯
+
+ FAIL  tests/unit/review-round12-images.test.ts > [R12-03] the canvas does not speak for the session > [R12-03] an image shown on the canvas and taken off: the session still holds what it held
+AssertionError: expected '/synthetic/sessions/rollout-11111111-…' to be undefined
+
+- Expected:
+undefined
+
++ Received:
+"/synthetic/sessions/rollout-11111111-2222-4333-8444-555555555555.jsonl"
+
+ ❯ tests/unit/review-round12-images.test.ts:222:32
+    220|     useStore.getState().removeAttachment(tail.id, SHOT.id);
+    221|     const route = await routeAt(model, tail.id);
+    222|     expect(route?.sessionPath).toBeUndefined();
+       |                                ^
+    223|     expect(route?.decision).toEqual({ action: 'fresh', reason: 'materi…
+    224|     expect((await ask(tail.id)).sessionPath).toBeUndefined();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/26]⎯
+
+ FAIL  tests/unit/review-round12-images.test.ts > [R12-03] the canvas does not speak for the session > [R12-03] nothing done to a node's attachments changes what its import said
+AssertionError: expected undefined to be 'present' // Object.is equality
+
+- Expected:
+"present"
+
++ Received:
+undefined
+
+ ❯ tests/unit/review-round12-images.test.ts:243:90
+    241|     const { tail } = await imported('codex', WITH_IMAGE, (n) => n.map(…
+    242|     useStore.getState().removeAttachment(tail.id, SHOT.id);
+    243|     expect(useStore.getState().nodes.find((n) => n.id === tail.id)!.da…
+       |                                                                                          ^
+    244|   });
+    245|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/26]⎯
+
+ FAIL  tests/unit/review-round12-images.test.ts > [R12-03] what was imported before this was recorded > [R12-03] a session none of whose turns say: not known, so it starts anew, and no old session is named
+AssertionError: expected true to be falsy
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/unit/review-round12-images.test.ts:261:29
+    259|     const { tail, model } = await imported('codex', TEXT_ONLY, (n) => …
+    260|     const route = await routeAt(model, tail.id);
+    261|     expect(route?.continue).toBeFalsy();
+       |                             ^
+    262|     expect(route?.sessionPath).toBeUndefined();
+    263|     expect(route?.decision).toEqual({ action: 'fresh', reason: 'unknow…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/26]⎯
+
+ FAIL  tests/unit/review-round12-images.test.ts > [R12-03] what was imported before this was recorded > [R12-03] one turn that does not say is enough
+AssertionError: expected { action: 'resume', …(2) } to deeply equal { action: 'fresh', …(1) }
+
+- Expected
++ Received
+
+  {
+-   "action": "fresh",
+-   "reason": "unknown-history",
++   "action": "resume",
++   "bindingId": "binding:codex:11111111-2222-4333-8444-555555555555",
++   "reason": "same-conversation",
+  }
+
+ ❯ tests/unit/review-round12-images.test.ts:268:55
+    266|   it('[R12-03] one turn that does not say is enough', async () => {
+    267|     const { tail, model } = await imported('codex', [...TEXT_ONLY, ...…
+    268|     expect((await routeAt(model, tail.id))?.decision).toEqual({ action…
+       |                                                       ^
+    269|   });
+    270|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/26]⎯
+
+ FAIL  tests/unit/review-round12-images.test.ts > [R12-03] what was imported before this was recorded > [R12-03] through the run path: no old session is named
+AssertionError: expected '/synthetic/sessions/rollout-11111111-…' to be undefined
+
+- Expected:
+undefined
+
++ Received:
+"/synthetic/sessions/rollout-11111111-2222-4333-8444-555555555555.jsonl"
+
+ ❯ tests/unit/review-round12-images.test.ts:273:46
+    271|   it('[R12-03] through the run path: no old session is named', async (…
+    272|     const { tail } = await imported('codex', TEXT_ONLY, (n) => n.map(u…
+    273|     expect((await ask(tail.id)).sessionPath).toBeUndefined();
+       |                                              ^
+    274|   });
+    275| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/26]⎯
+
+ FAIL  tests/unit/review-round12-images.test.ts > [R12-03] chapters > [R12-03] a chapter with an image, asked at its own tail: starts anew, whatever the chapter before says
+AssertionError: expected '/synthetic/sessions/rollout-chapter-t…' to be undefined
+
+- Expected:
+undefined
+
++ Received:
+"/synthetic/sessions/rollout-chapter-two.jsonl"
+
+ ❯ tests/unit/review-round12-images.test.ts:297:70
+    295|   it('[R12-03] a chapter with an image, asked at its own tail: starts …
+    296|     const { tail } = await twoSessions(TEXT_ONLY, WITH_IMAGE, { wired:…
+    297|     expect((await routeAt(FILES.codex.model, tail.id))?.sessionPath).t…
+       |                                                                      ^
+    298|   });
+    299|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/26]⎯
+
+ FAIL  tests/unit/review-round12-images.test.ts > [R12-03] a turn this application ran itself > [R12-03] an image the run was given is in the session, even if the runtime's record shows only words: taken off the node, the next run starts anew
+AssertionError: expected undefined to be 'present' // Object.is equality
+
+- Expected:
+"present"
+
++ Received:
+undefined
+
+ ❯ tests/unit/review-round12-images.test.ts:339:38
+    337|   it('[R12-03] an image the run was given is in the session, even if t…
+    338|     const { node } = await ran(TEXT_ONLY, [SHOT]);
+    339|     expect(node.data.source?.images).toBe('present');
+       |                                      ^
+    340|     useStore.getState().removeAttachment(node.id, SHOT.id);
+    341|     expect((await ask(node.id)).sessionPath).toBeUndefined();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/26]⎯
+
+ FAIL  tests/unit/review-round12-images.test.ts > [R12-03] a turn this application ran itself > [R12-03] control: a run of words whose record shows only words goes on
+AssertionError: expected undefined to be 'none' // Object.is equality
+
+- Expected:
+"none"
+
++ Received:
+undefined
+
+ ❯ tests/unit/review-round12-images.test.ts:346:38
+    344|   it('[R12-03] control: a run of words whose record shows only words g…
+    345|     const { node, file } = await ran(TEXT_ONLY);
+    346|     expect(node.data.source?.images).toBe('none');
+       |                                      ^
+    347|     expect((await ask(node.id)).sessionPath).toBe(file);
+    348|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/26]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  26 failed | 11 passed (37)
+   Start at  22:54:12
+   Duration  850ms (transform 43%, environment 28%, tests 22%, import 7%, setup 1%)
+

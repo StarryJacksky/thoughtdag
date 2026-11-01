@@ -765,7 +765,7 @@ export async function runNodeGeneration(
     // answer, so a follow-up asked right away already continues the session
     if (agentRoute) {
       const session = get().nodes.find((n) => n.id === nodeId)?.data.agentSession;
-      if (session) await adoptAgentTurn(nodeId, session, question).catch(() => false);
+      if (session) await adoptAgentTurn(nodeId, session, question, { gaveImages: prep.envelopeImages(envelope).length > 0 }).catch(() => false);
     }
     writeFinal(response);
     // this node is the mirror of the dsh turn it just ran: stamp provenance,

@@ -8,7 +8,10 @@
 // and the ledger says how many there are. Cutting a wire or deleting a turn
 // changes what the run is given, never what the session holds. A session with
 // a turn imported without that, or with fewer turns on the canvas than it
-// holds, is a session whose content is not known.
+// holds, is a session whose content is not known. Its images are known the
+// same way: from what the session's own record said of each turn when it was
+// imported, never from the attachments the canvas shows now, which can be
+// taken off and were never all brought over.
 //
 // That a binding exists is necessary for going on in a session, never
 // enough: whether the run's context is what the session holds is for
@@ -18,14 +21,16 @@ import { useStore } from '../../store';
 import { useProjects } from '../../store/projects';
 import type { RuntimeBinding } from '../context/contracts';
 import { digestOf } from '../context/canonicalize';
-import type { AgentRuntime, ThoughtNode } from '../../types';
+import type { AgentRuntime, NativeImages, ThoughtNode } from '../../types';
 import { agentSessionFile } from './agent-runtime';
 
 export interface SessionBinding extends RuntimeBinding {
   /** the turns the session holds, as the canvas gives a conversation: each imported question and answer as imported, oldest first; null where that is not known */
   holds: { role: 'user' | 'assistant'; content: string; nodeId: string }[] | null;
-  /** a turn of the session came with an image: the words above do not say what the session has of it */
+  /** a turn of the session shows an image on the canvas: the words above do not say what the session has of it */
   holdsImages: boolean;
+  /** what the session's own record said of the images sent into its turns: any that did not say is not known */
+  nativeImages: NativeImages;
   /** the folder the session ran in, when it says */
   cwd: string | null;
 }
@@ -46,6 +51,13 @@ function holdsOf(turns: ThoughtNode[], count: number): SessionBinding['holds'] {
     if (source.response) out.push({ role: 'assistant', content: source.response, nodeId: n.id });
   }
   return out;
+}
+
+/** What the session's turns said, when they were imported, of the images sent into them. */
+function nativeImagesOf(turns: ThoughtNode[]): NativeImages {
+  const said = turns.map((n) => n.data.source?.images);
+  if (said.includes('present')) return 'present';
+  return said.every((images) => images === 'none') ? 'none' : 'unknown';
 }
 
 /**
@@ -88,6 +100,7 @@ export async function findBinding(nodeId: string, runtime: AgentRuntime, cwd?: s
       ownership: 'external',
       holds,
       holdsImages: turns.some((n) => (n.data.attachments ?? []).some((a) => a.type.startsWith('image/'))),
+      nativeImages: nativeImagesOf(turns),
       cwd: sessionCwd,
     },
     reason: null,

@@ -7,7 +7,7 @@
         "question": "Which estimator does the draft use?",
         "response": "ORIGINAL_UPSTREAM_A1: the draft uses the plain mean.",
         "importSource": { "runner": "codex", "sessionId": "sess-synthetic-1", "itemIds": ["item-1"], "cwd": "/synthetic/project" },
-        "source": { "question": "Which estimator does the draft use?", "response": "ORIGINAL_UPSTREAM_A1: the draft uses the plain mean." }
+        "source": { "question": "Which estimator does the draft use?", "response": "ORIGINAL_UPSTREAM_A1: the draft uses the plain mean.", "images": "none" }
       },
       {
         "id": "n2",
@@ -15,7 +15,7 @@
         "response": "With the plain mean, no.",
         "importSource": { "runner": "codex", "sessionId": "sess-synthetic-1", "itemIds": ["item-2"], "cwd": "/synthetic/project" },
         "agentSession": { "runtime": "codex", "sessionId": "sess-synthetic-1", "sessionFile": "/synthetic/sessions/rollout-sess-synthetic-1.jsonl", "cwd": "/synthetic/project" },
-        "source": { "question": "Is that estimator robust to outliers?", "response": "With the plain mean, no." }
+        "source": { "question": "Is that estimator robust to outliers?", "response": "With the plain mean, no.", "images": "none" }
       },
       {
         "id": "n3",

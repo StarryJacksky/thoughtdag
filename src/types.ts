@@ -237,6 +237,9 @@ export interface Reference {
   date?: string;
 }
 
+/** What a session's own record says of the images sent into it: none, some, or that it cannot say. */
+export type NativeImages = 'none' | 'present' | 'unknown';
+
 export interface ThoughtData extends Record<string, unknown> {
   question: string;
   response: string;
@@ -349,7 +352,14 @@ export interface ThoughtData extends Record<string, unknown> {
       "has this node diverged from its source?" is a field comparison, and
       the mirror outlives runner-side cleanup (sessions are short-lived
       upstream — the canvas is the archive). */
-  source?: { question: string; response: string };
+  source?: {
+    question: string;
+    response: string;
+    /** whether what was sent into this turn in the session, as the session's own record has it, held an image.
+        Absent on what was imported before this was recorded: not known. It does not follow the canvas: taking an
+        attachment off the node changes what the next run is given, never what the session holds. */
+    images?: NativeImages;
+  };
   linkUrl?: string; // link node: the source URL
   linkTitle?: string; // link node: page title (or a ⚠-prefixed fetch error)
   linkFetchedAt?: string; // link node: ISO timestamp of the snapshot (web content drifts)

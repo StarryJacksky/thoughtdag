@@ -1,4 +1,4 @@
-import type { ThoughtNode, ThoughtEdge } from '../../types';
+import type { ThoughtNode, ThoughtEdge, NativeImages } from '../../types';
 import { makeNode, type ImportableConversation } from '../import-chat';
 import { autoLayout } from '../layout';
 import { generateId } from '../../utils';
@@ -86,6 +86,19 @@ interface Turn {
   compactionBefore?: string; // note text for a compaction boundary preceding this turn
   /** the subagents this turn launched (Agent / Task tool calls), in call order */
   subagents?: SubagentRun[];
+  /** an image, or something that may be one, among what the user lines of this turn sent; absent when they held only words */
+  nativeImages?: NativeImages;
+}
+
+/** What a user line sent besides its words. A tool's result rides a user line and is the tool's, not the person's. */
+function imagesIn(content: string | ContentPart[] | undefined): NativeImages {
+  if (!Array.isArray(content)) return 'none';
+  let seen: NativeImages = 'none';
+  for (const p of content) {
+    if (p.type === 'image') return 'present';
+    if (p.type !== 'text' && p.type !== 'tool_result') seen = 'unknown';
+  }
+  return seen;
 }
 
 function textParts(content: string | ContentPart[] | undefined): string {
@@ -122,6 +135,8 @@ export class ClaudeSessionCollector {
   private cwd: string | null = null;
   // decided by the first message line: what kind of file this is
   private mode: 'main' | 'sidechain' | null = null;
+  // sent on a line of no words, before any turn: it goes with the turn that line opens
+  private imagesAhead: NativeImages = 'none';
 
   feedLine(raw: string): void {
     const t = raw.trim();
@@ -184,8 +199,13 @@ export class ClaudeSessionCollector {
           }
         }
       }
+      const images = imagesIn(content);
       const text = textParts(content);
-      if (!text.trim()) return;
+      if (!text.trim()) {
+        if (images !== 'none' && this.current) { if (this.current.nativeImages !== 'present') this.current.nativeImages = images; }
+        else if (images !== 'none' && this.imagesAhead !== 'present') this.imagesAhead = images;
+        return;
+      }
       if (/^\s*<task-notification>/.test(text)) {
         if (this.current) {
           const res = clip(text, NOTIFICATION_LIMIT);
@@ -201,6 +221,9 @@ export class ClaudeSessionCollector {
           parentItemId: line.parentUuid ?? undefined,
           ...(line.timestamp ? { at: line.timestamp } : {}),
         };
+        const sent = images === 'present' || this.imagesAhead === 'none' ? images : this.imagesAhead;
+        if (sent !== 'none') this.current.nativeImages = sent;
+        this.imagesAhead = 'none';
         if (this.pendingCompaction) {
           this.current.compactionBefore = this.pendingCompaction;
           this.pendingCompaction = undefined;
@@ -309,7 +332,7 @@ function buildGraphFromTurns(turns: Turn[], sessionId: string, cwd?: string): { 
     }
     const node = makeNode(turn.question, turn.response, prev === null);
     node.data.importSource = { runner: 'claude-code', sessionId, itemIds: turn.itemIds, ...origin };
-    node.data.source = { question: node.data.question, response: node.data.response };
+    node.data.source = { question: node.data.question, response: node.data.response, images: turn.nativeImages ?? 'none' };
     seedPlaque(node);
     node.data.attachments = toolAttachments(turn);
     nodes.push(node);

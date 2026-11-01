@@ -6,7 +6,8 @@
 // a memory or recall, a turn left out or added, an image, which the words of
 // the turns do not show) starts a new session that is given the whole of it,
 // so nothing the run should see is lost by going on where it was. What the
-// session holds is not known is not gone on in.
+// session holds is not known is not gone on in, and that includes a session
+// whose record has not said whether images were sent into it.
 // Research always starts anew, and is not run at all on an agent not known
 // to keep to its inputs. Forking a session at an earlier turn is not done
 // while it is not known to work.
@@ -27,10 +28,10 @@ export type PrefixComparison =
  * What the run is to be given above its question, against what the session holds. The question is
  * the run's last message; everything before it must be the session's turns, as they were.
  */
-export function inspectExpectedPrefix(envelope: Pick<RunEnvelope, 'messages' | 'inputs'>, binding: Pick<SessionBinding, 'holds' | 'holdsImages'>): PrefixComparison {
-  if (!binding.holds) return { result: 'unknown', reason: 'unknown-history' };
-  // what is known of a session is its words: an input of the run, or an image given to or kept from it, is not known to be there as it is
-  if (envelope.inputs.length > 0 || envelopeImages(envelope as RunEnvelope).length > 0 || binding.holdsImages) return { result: 'changed', reason: 'materials' };
+export function inspectExpectedPrefix(envelope: Pick<RunEnvelope, 'messages' | 'inputs'>, binding: Pick<SessionBinding, 'holds' | 'holdsImages' | 'nativeImages'>): PrefixComparison {
+  if (!binding.holds || binding.nativeImages === 'unknown') return { result: 'unknown', reason: 'unknown-history' };
+  // what is known of a session is its words: an input of the run, or an image given to or kept from it, or one the session has in its own record, is not known to be there as it is
+  if (envelope.inputs.length > 0 || envelopeImages(envelope as RunEnvelope).length > 0 || binding.holdsImages || binding.nativeImages === 'present') return { result: 'changed', reason: 'materials' };
   const above = envelope.messages.slice(0, -1);
   if (above.some((m) => m.source.layer === 'system' && m.source.part === 'role')) return { result: 'changed', reason: 'role' };
   if (above.some((m) => m.source.layer === 'system')) return { result: 'changed', reason: 'memory' };

@@ -1,0 +1,383 @@
+TAP version 13
+# Subtest: [T16] a new session carries nothing of an old one: no resume, no fork, even when asked at a turn with no session
+ok 1 - [T16] a new session carries nothing of an old one: no resume, no fork, even when asked at a turn with no session
+  ---
+  duration_ms: 326.887834
+  type: 'test'
+  ...
+# Subtest: [T16] going on names the session, and does not branch it
+ok 2 - [T16] going on names the session, and does not branch it
+  ---
+  duration_ms: 82.804042
+  type: 'test'
+  ...
+# Subtest: [T16] a branch is asked for as what it is, and says it keeps all of the history it came from
+ok 3 - [T16] a branch is asked for as what it is, and says it keeps all of the history it came from
+  ---
+  duration_ms: 83.241625
+  type: 'test'
+  ...
+# Subtest: [T16] a branch at a turn cannot be had: it is refused, and not turned into a copy of the whole history
+ok 4 - [T16] a branch at a turn cannot be had: it is refused, and not turned into a copy of the whole history
+  ---
+  duration_ms: 1.005625
+  type: 'test'
+  ...
+# Subtest: [T16] a flag this version does not list is not sent
+ok 5 - [T16] a flag this version does not list is not sent
+  ---
+  duration_ms: 86.558083
+  type: 'test'
+  ...
+# Subtest: [T16] a level this version does not list is not sent
+ok 6 - [T16] a level this version does not list is not sent
+  ---
+  duration_ms: 86.743209
+  type: 'test'
+  ...
+# Subtest: [T16] a version without what a run cannot do without is not started
+ok 7 - [T16] a version without what a run cannot do without is not started
+  ---
+  duration_ms: 41.551792
+  type: 'test'
+  ...
+# Subtest: [T16] with no help to read, only what a run cannot do without is sent
+ok 8 - [T16] with no help to read, only what a run cannot do without is sent
+  ---
+  duration_ms: 120.023416
+  type: 'test'
+  ...
+# Subtest: [T16] a path and a prompt that a shell would mangle arrive as they are
+ok 9 - [T16] a path and a prompt that a shell would mangle arrive as they are
+  ---
+  duration_ms: 85.139084
+  type: 'test'
+  ...
+# Subtest: [T16] an image is given as data, beside the words
+ok 10 - [T16] an image is given as data, beside the words
+  ---
+  duration_ms: 84.672833
+  type: 'test'
+  ...
+# Subtest: [T16] a turn that failed is a failure, whatever its subtype says: what it said is not kept as an answer
+ok 11 - [T16] a turn that failed is a failure, whatever its subtype says: what it said is not kept as an answer
+  ---
+  duration_ms: 86.211959
+  type: 'test'
+  ...
+# Subtest: [T16] a session that is not there is said as that, and no new one is started instead
+ok 12 - [T16] a session that is not there is said as that, and no new one is started instead
+  ---
+  duration_ms: 85.45075
+  type: 'test'
+  ...
+# Subtest: [T16] a session in use elsewhere is said as that, and no new one is started instead
+ok 13 - [T16] a session in use elsewhere is said as that, and no new one is started instead
+  ---
+  duration_ms: 85.439833
+  type: 'test'
+  ...
+# Subtest: [T16] a run that finished answers with its session and its last entry
+ok 14 - [T16] a run that finished answers with its session and its last entry
+  ---
+  duration_ms: 86.759625
+  type: 'test'
+  ...
+# Subtest: [T16][L01] stopped before the process has started: it never starts, and the prompt is never sent
+ok 15 - [T16][L01] stopped before the process has started: it never starts, and the prompt is never sent
+  ---
+  duration_ms: 0.82475
+  type: 'test'
+  ...
+# Subtest: [T16] stopped while it works: the process ends, and the run says stopped, with no turn called finished
+ok 16 - [T16] stopped while it works: the process ends, and the run says stopped, with no turn called finished
+  ---
+  duration_ms: 87.318125
+  type: 'test'
+  ...
+# Subtest: [T16] research on a version not known to keep to its inputs is not run at all
+ok 17 - [T16] research on a version not known to keep to its inputs is not run at all
+  ---
+  duration_ms: 172.569375
+  type: 'test'
+  ...
+# Subtest: [T16] research runs in its own materials and nowhere above them: that folder is all its file tools reach
+not ok 18 - [T16] research runs in its own materials and nowhere above them: that folder is all its file tools reach
+  ---
+  duration_ms: 126.221583
+  type: 'test'
+  location: '<repo>/tests/host/claude-adapter.test.cjs:195:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + '/private<tmp>
+    - '/private<tmp>
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '/private<tmp>
+  actual: '/private<tmp>
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/claude-adapter.test.cjs:200:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T16] research with nothing to read runs in an empty folder of its own, which it leaves behind it
+not ok 19 - [T16] research with nothing to read runs in an empty folder of its own, which it leaves behind it
+  ---
+  duration_ms: 129.514042
+  type: 'test'
+  location: '<repo>/tests/host/claude-adapter.test.cjs:203:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected "actual" to be strictly unequal to:
+    
+    '/private<tmp>
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '/private<tmp>
+  actual: '/private<tmp>
+  operator: 'notStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/claude-adapter.test.cjs:209:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T16] research told to read above the folder is not run
+not ok 20 - [T16] research told to read above the folder is not run
+  ---
+  duration_ms: 125.598875
+  type: 'test'
+  location: '<repo>/tests/host/claude-adapter.test.cjs:215:3'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'code')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/claude-adapter.test.cjs:218:33)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T16] research told to read an absolute path is not run
+not ok 21 - [T16] research told to read an absolute path is not run
+  ---
+  duration_ms: 129.425291
+  type: 'test'
+  location: '<repo>/tests/host/claude-adapter.test.cjs:215:3'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'code')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/claude-adapter.test.cjs:218:33)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T16] research told to read not there is not run
+not ok 22 - [T16] research told to read not there is not run
+  ---
+  duration_ms: 126.292459
+  type: 'test'
+  location: '<repo>/tests/host/claude-adapter.test.cjs:215:3'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'code')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/claude-adapter.test.cjs:218:33)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T16] research told to read the folder itself is not run
+not ok 23 - [T16] research told to read the folder itself is not run
+  ---
+  duration_ms: 126.158125
+  type: 'test'
+  location: '<repo>/tests/host/claude-adapter.test.cjs:215:3'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'code')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/claude-adapter.test.cjs:218:33)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T16] a run at work stays in its folder, whatever else it is told
+ok 24 - [T16] a run at work stays in its folder, whatever else it is told
+  ---
+  duration_ms: 89.103625
+  type: 'test'
+  ...
+# Subtest: [T16] research goes on in no session, whatever it was given
+ok 25 - [T16] research goes on in no session, whatever it was given
+  ---
+  duration_ms: 41.707375
+  type: 'test'
+  ...
+# Subtest: [T16] research on a version known to keep to its inputs gets reading tools only, no settings of the person's, and nobody to ask
+not ok 26 - [T16] research on a version known to keep to its inputs gets reading tools only, no settings of the person's, and nobody to ask
+  ---
+  duration_ms: 128.897375
+  type: 'test'
+  location: '<repo>/tests/host/claude-adapter.test.cjs:236:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /inputs/. Input:
+    
+    '-p'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: '-p'
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/claude-adapter.test.cjs:244:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T16] research whose process comes up with more tools than it was given is stopped at once, and said
+ok 27 - [T16] research whose process comes up with more tools than it was given is stopped at once, and said
+  ---
+  duration_ms: 129.212542
+  type: 'test'
+  ...
+# Subtest: [T16] started from inside another Claude Code session, a run is its own: nothing of that session comes along
+ok 28 - [T16] started from inside another Claude Code session, a run is its own: nothing of that session comes along
+  ---
+  duration_ms: 88.50275
+  type: 'test'
+  ...
+# Subtest: [T16] started from anywhere else, what the person set stays
+ok 29 - [T16] started from anywhere else, what the person set stays
+  ---
+  duration_ms: 90.792083
+  type: 'test'
+  ...
+# Subtest: [T16] the probe, too, is not of the session it was started in
+ok 30 - [T16] the probe, too, is not of the session it was started in
+  ---
+  duration_ms: 127.0745
+  type: 'test'
+  ...
+# Subtest: [T16] the binary a desktop app brings with it is found, the newest of them, after whatever is on the path
+ok 31 - [T16] the binary a desktop app brings with it is found, the newest of them, after whatever is on the path
+  ---
+  duration_ms: 1.378042
+  type: 'test'
+  ...
+# Subtest: [T16] the probe reports what this version can do, and its version
+ok 32 - [T16] the probe reports what this version can do, and its version
+  ---
+  duration_ms: 123.854791
+  type: 'test'
+  ...
+# Subtest: [T16] what real runs have shown of a version is known of that version, and of no other
+not ok 33 - [T16] what real runs have shown of a version is known of that version, and of no other
+  ---
+  duration_ms: 0.160416
+  type: 'test'
+  location: '<repo>/tests/host/claude-adapter.test.cjs:317:1'
+  failureType: 'testCodeFailure'
+  error: 'Cannot convert undefined or null to object'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    Function.keys (<anonymous>)
+    TestContext.<anonymous> (<repo>/tests/host/claude-adapter.test.cjs:319:26)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T16] a version that comes up with more tools than it was given is not called offline
+ok 34 - [T16] a version that comes up with more tools than it was given is not called offline
+  ---
+  duration_ms: 124.268625
+  type: 'test'
+  ...
+# Subtest: [T16] what a version does not list is unsupported
+ok 35 - [T16] what a version does not list is unsupported
+  ---
+  duration_ms: 124.082875
+  type: 'test'
+  ...
+# Subtest: [T16] no help to read: nothing is claimed, and a version is still given
+ok 36 - [T16] no help to read: nothing is claimed, and a version is still given
+  ---
+  duration_ms: 80.368
+  type: 'test'
+  ...
+# Subtest: [T16] a binary that cannot be run: every capability unknown, no version, and no throw
+ok 37 - [T16] a binary that cannot be run: every capability unknown, no version, and no throw
+  ---
+  duration_ms: 0.866541
+  type: 'test'
+  ...
+# Subtest: [T16] the probe keeps away from the person's login and history: a home of its own, the mode that reads no login, and it leaves nothing behind
+ok 38 - [T16] the probe keeps away from the person's login and history: a home of its own, the mode that reads no login, and it leaves nothing behind
+  ---
+  duration_ms: 132.073
+  type: 'test'
+  ...
+# Subtest: [T16] a runtime keeps its report while its version stands, and asks again when the version changes
+ok 39 - [T16] a runtime keeps its report while its version stands, and asks again when the version changes
+  ---
+  duration_ms: 375.119208
+  type: 'test'
+  ...
+# Subtest: [T16] a runtime that is not installed reports nothing
+ok 40 - [T16] a runtime that is not installed reports nothing
+  ---
+  duration_ms: 0.228125
+  type: 'test'
+  ...
+1..40
+# tests 40
+# suites 0
+# pass 32
+# fail 8
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4084.352375
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/runtime-capabilities.test.ts (9 tests | 1 failed) 181ms
+   ❯ [T15] a run on what is known (6)
+     × [T16] research with inputs is told to run in them, and its prompt names them from there 15ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/runtime-capabilities.test.ts > [T15] a run on what is known > [T16] research with inputs is told to run in them, and its prompt names them from there
+AssertionError: expected undefined to be '.thoughtdag/runs/run_node-17935872642…' // Object.is equality
+
+- Expected:
+".thoughtdag/runs/run_node-1793587264239-5/materials"
+
++ Received:
+undefined
+
+ ❯ tests/unit/runtime-capabilities.test.ts:113:26
+    111|     await settled();
+    112|     const [run] = desktop.runs;
+    113|     expect(run.readRoot).toBe(`.thoughtdag/runs/${desktop.materials[0]…
+       |                          ^
+    114|     expect(run.prompt).toContain('./');
+    115|     expect(run.prompt).not.toContain('.thoughtdag/runs/');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 8 passed (9)
+   Start at  02:41:03
+   Duration  1.00s (environment 38%, transform 36%, tests 20%, import 5%, setup 1%)
+

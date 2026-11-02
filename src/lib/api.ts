@@ -280,7 +280,7 @@ export async function llmCallStream(
   /** Agent lanes only: which working directory the turn runs in, which
       session it continues, or which DSH session+turn anchor it forks from.
       The harness fields are ignored by every non-Harness backend. */
-  harness?: { cwd?: string; session?: string; forkSession?: string; forkAnchor?: string; sessionPath?: string; forkEntryId?: string; nodeId?: string; continue?: boolean; effort?: string | null; permission?: 'auto' | 'allow'; mode?: 'research' },
+  harness?: { cwd?: string; session?: string; forkSession?: string; forkAnchor?: string; sessionPath?: string; forkEntryId?: string; nodeId?: string; continue?: boolean; effort?: string | null; permission?: 'auto' | 'allow'; mode?: 'research'; readRoot?: string },
 ): Promise<string> {
   // On the Workers deployment, OpenRouter models stream straight from the
   // browser — the proxy's CPU allowance can't survive big contexts + heavy
@@ -291,7 +291,7 @@ export async function llmCallStream(
   if (modelId && isAgentModel(modelId) && window.desktopAgents) {
     // it leaves once its materials are on disk: a run whose inputs cannot be written is not sent
     const dispatch = () => callbacks?.onDispatch?.({ messages: contextMessages, images: images ?? [], model: modelId, toolPrefs: toolPrefs ?? {}, lane: 'proxy' });
-    return agentCallStream(contextMessages, onChunk, signal, images, callbacks, modelId, harness?.cwd ? { cwd: harness.cwd, sessionPath: harness.sessionPath, forkEntryId: harness.forkEntryId, continue: harness.continue, ...(harness.mode ? { mode: harness.mode } : {}), ...('effort' in harness ? { effort: harness.effort } : {}) } : undefined, harness?.nodeId, dispatch);
+    return agentCallStream(contextMessages, onChunk, signal, images, callbacks, modelId, harness?.cwd ? { cwd: harness.cwd, sessionPath: harness.sessionPath, forkEntryId: harness.forkEntryId, continue: harness.continue, ...(harness.mode ? { mode: harness.mode } : {}), ...(harness.readRoot ? { readRoot: harness.readRoot } : {}), ...('effort' in harness ? { effort: harness.effort } : {}) } : undefined, harness?.nodeId, dispatch);
   }
   images = await imagesForModel(modelId, images);
 

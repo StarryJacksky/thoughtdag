@@ -111,6 +111,8 @@ interface DesktopAgentRunRequest {
   target?: { targetId: string; writes: boolean };
   /** research: the runtime holds the run to its inputs, or does not run it */
   mode?: 'research';
+  /** research: its materials, relative to `cwd`: it runs from there */
+  readRoot?: string;
   model?: { provider: string; id: string };
   /** an effort level in the runtime's own words (one it listed for the model); absent or unknown = the runtime's default */
   effort?: string;

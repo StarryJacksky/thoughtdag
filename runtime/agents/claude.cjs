@@ -114,6 +114,7 @@ async function permissionModeFor(cwd) {
 class RunRefused extends Error {
   constructor(code, message) { super(message); this.code = code; }
 }
+const RESEARCH_PROMPT = 'You answer from the inputs you are given and nothing else. Your only tools read files in your working directory, which holds those inputs.';
 /** What this CLI cannot run a turn without. */
 const NEEDED = ['--output-format', '--input-format', '--verbose', '--permission-mode'];
 const MISSING_SESSION = /no conversation found/i;
@@ -197,6 +198,8 @@ function createClaudeRuntime({ log, find = findClaude, probe = probeClaude } = {
         // stopped while it was being prepared: nothing is started, and nothing is sent
         const STOPPED = Symbol('stopped');
         const goOn = () => { if (state.aborted) throw STOPPED; };
+        let workdir = cwd;
+        let ownFolder = null;
         try {
           goOn();
           const researching = req.mode === 'research';
@@ -207,6 +210,18 @@ function createClaudeRuntime({ log, find = findClaude, probe = probeClaude } = {
           const resumeId = req.sessionPath ? sessionIdOf(req.sessionPath) : null;
           // a branch through a turn cannot be had: --fork-session copies all of the history, which is another thing, asked for as itself
           if (resumeId && req.forkEntryId) throw new RunRefused('fork-unsupported', 'claude cannot branch a session at a turn');
+          // research runs where its file tools reach nothing but its inputs: its materials, or an empty folder of its own
+          if (researching) {
+            if (req.readRoot !== undefined) {
+              const root = path.resolve(cwd, String(req.readRoot));
+              const within = path.relative(cwd, root);
+              if (path.isAbsolute(String(req.readRoot)) || !within || within.startsWith('..') || !(await fsp.stat(root).then((st) => st.isDirectory(), () => false))) throw new RunRefused('research-unverified', 'the folder this run is to read is not one of its own');
+              workdir = root;
+            } else {
+              ownFolder = await fsp.mkdtemp(path.join(os.tmpdir(), 'tdag-research-'));
+              workdir = ownFolder;
+            }
+          }
           const mode = researching ? 'dontAsk' : await permissionModeFor(cwd);
           const model = req.model && typeof req.model === 'object' && req.model.id && req.model.id !== 'default' ? req.model.id : null;
           // what this version lists: with no help to read, nothing that a run can do without is sent
@@ -221,11 +236,12 @@ function createClaudeRuntime({ log, find = findClaude, probe = probeClaude } = {
           if (model && (lists('--model') || !help)) args.push('--model', model);
           // only a level the CLI itself lists; anything else means its default
           if (req.effort && (await effortsOf(b)).includes(req.effort)) args.push('--effort', req.effort);
-          if (researching) args.push('--restricted', '--safe-mode', '--strict-mcp-config', '--tools', READING_TOOLS.join(','));
+          // the default system prompt brings what the CLI knows of the person and the machine: research has its own, which says only what the run is
+          if (researching) args.push('--restricted', '--safe-mode', '--strict-mcp-config', '--tools', READING_TOOLS.join(','), '--system-prompt', RESEARCH_PROMPT);
           const inheritsHistory = !!(resumeId && req.forkSession);
           if (resumeId) { args.push('--resume', resumeId); if (inheritsHistory) args.push('--fork-session'); }
           goOn();
-          const proc = spawn(b, args, { cwd, env: childEnv(), stdio: ['pipe', 'pipe', 'pipe'] });
+          const proc = spawn(b, args, { cwd: workdir, env: childEnv(), stdio: ['pipe', 'pipe', 'pipe'] });
           state.proc = proc;
           proc.stdin.on('error', () => {});
           let buf = '';
@@ -269,7 +285,7 @@ function createClaudeRuntime({ log, find = findClaude, probe = probeClaude } = {
                   state.sessionId = m.session_id;
                   // the file appears once the first lines are written; the
                   // completion re-emits the session with its real path
-                  mark({ type: 'session', sessionId: m.session_id, sessionFile: null, model: model ? { provider: 'claude-code', id: model, name: model } : null, cwd });
+                  mark({ type: 'session', sessionId: m.session_id, sessionFile: null, model: model ? { provider: 'claude-code', id: model, name: model } : null, cwd: workdir });
                 } else if (m.subtype === 'permission_denied') {
                   mark({ type: 'tool_execution_end', toolCallId: m.tool_use_id ?? '', toolName: m.tool_name ?? 'tool', result: 'permission denied', isError: true });
                 }
@@ -393,9 +409,9 @@ function createClaudeRuntime({ log, find = findClaude, probe = probeClaude } = {
           // what a later run may go on from: the entry of a turn that really finished
           if (state.sessionId) mark({ type: 'binding', threadId: null, nativeSessionId: state.sessionId, inheritsHistory, turnStatus: state.turnStatus ?? (how === 'aborted' ? 'interrupted' : how === 'end' ? 'completed' : 'failed'), turnId: state.lastEntry, lastCompletedTurnId: (state.turnStatus === 'completed' || (!state.turnStatus && how === 'end')) ? state.lastEntry : null });
           if (state.sessionId) {
-            const file = await sessionFileFor(cwd, state.sessionId);
+            const file = await sessionFileFor(workdir, state.sessionId);
             const ran = await turnEffortOf(file);
-            mark({ type: 'session', effort: ran, sessionId: state.sessionId, sessionFile: file, model: { provider: 'claude-code', id: model ?? 'default', name: model ?? 'default', ...(state.resolvedModel ? { resolved: state.resolvedModel } : {}) }, cwd });
+            mark({ type: 'session', effort: ran, sessionId: state.sessionId, sessionFile: file, model: { provider: 'claude-code', id: model ?? 'default', name: model ?? 'default', ...(state.resolvedModel ? { resolved: state.resolvedModel } : {}) }, cwd: workdir });
           }
           if (before) {
             const after = await snapshotDir(cwd).catch(() => null);
@@ -410,6 +426,7 @@ function createClaudeRuntime({ log, find = findClaude, probe = probeClaude } = {
           }
         } finally {
           if (watchdog) clearInterval(watchdog);
+          if (ownFolder) await fsp.rm(ownFolder, { recursive: true, force: true }).catch(() => {});
           runs.delete(runId);
         }
       })();

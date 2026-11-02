@@ -102,6 +102,28 @@ describe('[T15] a run on what is known', () => {
     expect(desktop.runs[0].sessionPath).toBeUndefined();
   });
 
+  it('[T16] research with inputs is told to run in them, and its prompt names them from there', async () => {
+    noteCapabilities('codex', report());
+    const id = task('Look at this?');
+    useStore.setState((st) => ({ nodes: st.nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, attachments: [{ id: 'a', name: 'input.txt', type: 'text/plain', content: 'INPUT_TEXT', extractedText: 'INPUT_TEXT' }] } } : n)) }) as never);
+    setRunMode(id, 'research');
+    await useStore.getState().rerunNode(id, {});
+    await settled();
+    const [run] = desktop.runs;
+    expect(run.readRoot).toBe(`.thoughtdag/runs/${desktop.materials[0].runId}/materials`);
+    expect(run.prompt).toContain('./');
+    expect(run.prompt).not.toContain('.thoughtdag/runs/');
+  });
+
+  it('[T16] research with no inputs is told no folder', async () => {
+    noteCapabilities('codex', report());
+    const id = task('Look at this?');
+    setRunMode(id, 'research');
+    await useStore.getState().rerunNode(id, {});
+    await settled();
+    expect(desktop.runs[0].readRoot).toBeUndefined();
+  });
+
   it('[T15] a run at work is not told it is research', async () => {
     const id = task('Do this?');
     await useStore.getState().rerunNode(id, {});

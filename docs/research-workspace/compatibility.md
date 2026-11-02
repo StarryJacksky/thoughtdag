@@ -118,7 +118,7 @@ node scripts/probe-runtime.cjs codex <path-to-codex>
 | 真实二进制，无账号 | `--bare` 不读登录和钥匙串，`HOME`、`CLAUDE_CONFIG_DIR` 指向临时目录，不给任何凭据。读帮助，发起到第一次请求为止（回答 `Not logged in`），看各种失败的样子 |
 | 假 CLI | `tests/fixtures/runtimes/fake-claude.cjs`，失败的样子照真实 CLI 写 |
 
-**真实运行没有做，等用户登录**：文本、图像、审批、取消、日志回流。用户 2026-11-02 同意了真实验收，但这台机器的独立 CLI 没有登录（`auth status` 是 `loggedIn: false`）。桌面应用的登录是它自己托管的，通过环境变量交给它启动的子进程。这次验收不借用这个通道：那是当前会话的登录，而且会干扰会话本身。
+**真实运行（2026-11-02，用户同意并登录了独立 CLI，模型 `haiku`，合成内容，一次性目录）**：记录在 `evidence/real-acceptance-claude.txt`，邮箱和路径已去掉。桌面应用的登录是它托管的，这次没有借用。
 
 ### 3.2 在真实二进制上看到的
 
@@ -147,11 +147,34 @@ node scripts/probe-runtime.cjs codex <path-to-codex>
 | `networkRestriction` | 真的试：只给读取工具时，进程启动后没有 Bash、WebFetch 之类。这是工具层面的限制，不是系统沙箱；模型请求本身当然要联网 | supported |
 | `readOnlyRoots`、`autoContextControl` | 帮助里写了 `--restricted`（文件工具限制在工作目录）、`--safe-mode`（不加载 CLAUDE.md、技能等）。是否真的做到，要跑一轮才看得出来 | unknown |
 
-### 3.4 研究隔离模式在 Claude Code 上目前也不能用
+### 3.4 研究隔离模式在 Claude Code 上默认仍不能用
 
-原因是 `readOnlyRoots`、`autoContextControl` 未知。工作模式不受影响。
+**文件隔离做到了，上下文隔离做不到。**
 
-这和 Codex 不一样：Codex 是试出来挡不住，Claude Code 是还没试。等用户同意跑真实一轮，可以验证这两项；验证通过后要改的是探测结果怎么得出，适配器已经按能力分支：研究模式用 `--restricted --safe-mode --strict-mcp-config --tools Read,Glob,Grep --permission-mode dontAsk`，不带 `--resume`。`--bare` 不能用于真实运行，因为它不读登录。
+研究模式现在从这次运行自己的材料目录启动（`readRoot`，没有输入时用一个空的临时目录），带 `--restricted --safe-mode --strict-mcp-config --tools Read,Glob,Grep --permission-mode dontAsk`，并换掉默认系统提示。真实验证结果：
+
+| 试的 | 结果 |
+| --- | --- |
+| 读自己的材料 | 能读 |
+| 读材料目录以上的文件：相对路径、绝对路径 | 工具试了，被拒绝，没拿到内容 |
+| 读外部文件：绝对路径、符号链接、Grep | 同上 |
+| 通过符号链接读上层文件、Glob 列上层目录 | 同上 |
+| Bash、网络、写文件 | 没有这些工具 |
+| 项目的 CLAUDE.md（上层和材料目录内）、`.claude/rules`、这个目录的记忆文件 | 没进上下文 |
+| 项目 `settings.json` 的钩子、`.mcp.json` 的服务器 | 没启动 |
+| **账号邮箱** | **进了上下文**，换掉系统提示也一样 |
+
+第一版查出过一个真问题：研究模式原来从工作目录启动，工作目录里没连线的文件也能读。现在已改。
+
+邮箱是 CLI 自动附加的。能避开它的 `--bare` 不读登录，所以订阅账号绕不开。因此 `autoContextControl` 记为 `unsupported`，研究模式仍拒绝发送。要不要接受这一条，由用户决定。
+
+`readOnlyRoots` 只对跑过的版本成立（`VERIFIED_BY_RUNNING`，现在是 2.1.309）。Claude Code 会自动升级，新版本一律回到 `unknown`，直到重跑：
+
+```bash
+node scripts/accept-runtime.cjs claude <path-to-claude> research-claude
+```
+
+这些结果来自模型按要求去试，以及工具的失败记录，不是操作系统沙箱，`--restricted` 是 CLI 自己的工具层限制。
 
 ### 3.5 适配器的行为
 
@@ -166,7 +189,22 @@ node scripts/probe-runtime.cjs codex <path-to-codex>
 - **绑定**：`binding` 事件带会话 id 和最后一条回答的 id。没完成时 `lastCompletedTurnId` 是 `null`。
 - **`--help` 的缓存**：原来是模块级、整个进程只读一次；现在每个运行时一份，版本变了重读，读不到不缓存。
 
-### 3.6 没做的
+### 3.6 真实验收结果
+
+| 项 | 结果 |
+| --- | --- |
+| 新建 | 流式回答；回答正确；会话文件写入；`binding` 记了最后一条回答 |
+| 续接 | 同一会话；记得前面的内容；问题写进原生记录 |
+| 整个会话分叉 | 新会话，历史全部带上，并标明 `inheritsHistory`；在某一轮分叉被拒绝 |
+| 取消 | 回答开始后停止：`aborted`，`interrupted`，不算完成。开始前停止：提示词没有发出 |
+| 审批 | 拒绝：文件没写。允许：文件写了。重复回答只算第一次 |
+| 图片 | 模型认出了颜色 |
+| 工具和日志回流 | 工具开始、结束事件都有；回答和会话文件一致 |
+| **另一个客户端同时用同一会话** | **Claude Code 不拒绝**，两边都能写 |
+
+**占用要注意。** 和 Codex 不同，Claude Code 没有占用检查：外部客户端在跑时，这边续接同一会话不会报错，两边都往同一个会话写。应用内的运行有调度器保证一次一个，但**外部客户端（比如你在终端里开着同一会话）防不住**，也查不到。适配器里 `session-busy` 的判断只是防御，真实版本上没见过这个报错。两边同时写后，导入这个会话的结果没有验证。
+
+### 3.7 没做的
 
 - 页面不选分叉，也不用 `forkSession`。
 - 取消时撤回未决审批已有；审批幂等和事件去重归 T17。
@@ -174,7 +212,7 @@ node scripts/probe-runtime.cjs codex <path-to-codex>
 
 ## 4. 事件回流、审批与恢复（T17）
 
-都在假运行时和替身桌面壳上验证。**真实运行没有做**：真实的取消、崩溃重连、双客户端占用、两项并发审批、磁盘日志延迟，等用户同意后验收。
+主要在假运行时和替身桌面壳上验证。真实运行里验证了取消、两客户端占用（Codex 拒绝，Claude Code 不拒绝）、重复回答。**没有做**：崩溃重连、两项并发审批、磁盘日志延迟。
 
 ### 4.1 做了什么
 

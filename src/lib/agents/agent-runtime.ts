@@ -104,6 +104,8 @@ export type AgentRoute = {
   decision?: import('../context/contracts').RouteDecision;
   /** the runtime is told too, and holds the run to it, or does not run it */
   mode?: 'research';
+  /** research: its materials, relative to `cwd`: it runs from there, and its file tools reach nothing above */
+  readRoot?: string;
 };
 
 export type CwdChoice = { cwd: string; kind: 'chosen' | 'mirrored' | 'session' | 'workspace' };
@@ -207,7 +209,7 @@ export async function agentOutbound(model: string | undefined, nodeId?: string, 
     if (decision.action === 'resume' && found.binding?.sessionPath) {
       return { cwd: found.binding.cwd ?? choice.cwd, sessionPath: found.binding.sessionPath, continue: true, decision };
     }
-    return { cwd: choice.cwd, decision, ...(envelope.mode === 'research' ? { mode: 'research' as const } : {}) };
+    return { cwd: choice.cwd, decision, ...(envelope.mode === 'research' ? { mode: 'research' as const, ...(envelope.inputs.length ? { readRoot: `.thoughtdag/runs/${envelope.runId}/materials` } : {}) } : {}) };
   } catch {
     return { cwd: choice.cwd, decision: { action: 'fresh', reason: 'unknown-history' } };
   }
@@ -351,6 +353,7 @@ export async function agentCallStream(
       ...(route?.sessionPath ? { sessionPath: route.sessionPath } : {}),
       ...(route?.forkEntryId ? { forkEntryId: route.forkEntryId } : {}),
       ...(route?.mode ? { mode: route.mode } : {}),
+      ...(route?.readRoot ? { readRoot: route.readRoot } : {}),
       // an agent writes, unless it is in research
       ...(bound ? { target: { targetId: bound.targetId, writes: bound.policyId !== 'research' } } : {}),
       images: (images ?? []).map((img) => ({ type: 'image' as const, data: img.data, mimeType: img.mimeType })),

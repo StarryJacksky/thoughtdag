@@ -56,6 +56,7 @@ export function materialsFor(envelope: RunEnvelope, onWritten?: (cwd: string) =>
       throw new RunBlocked(REASONS[answer.code] ?? 'unavailable', from.nodeId, from.fileId, answer.message);
     }
     onWritten?.(cwd);
-    return noteOf(answer.dir, answer.receipt);
+    // research runs from inside its materials (lib/agents/agent-runtime): they are named from there
+    return noteOf(mode === 'research' ? '.' : answer.dir, answer.receipt);
   };
 }

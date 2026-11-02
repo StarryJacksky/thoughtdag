@@ -29,6 +29,19 @@ function withoutHostSession(env) {
   return own;
 }
 
+/**
+ * What real runs have shown, version by version: scripts/accept-runtime.cjs `research-claude`, on the person's
+ * login. Running from the materials folder with `--restricted`, the file tools did not reach a file above it, one
+ * outside it by absolute or relative path, or one through a symbolic link. `--safe-mode` kept out the project's
+ * CLAUDE.md and rules, its hook and its MCP server, and the memory kept for the folder; but the CLI attaches the
+ * account's email to a turn whatever the system prompt is, and `--bare`, which would not, reads no login. So what a
+ * run is given cannot be held to its inputs. It can only be found out by a turn, which reaches a model, so a new
+ * version is unknown until it has been run.
+ */
+const VERIFIED_BY_RUNNING = {
+  '2.1.309': { readOnlyRoots: 'supported', autoContextControl: 'unsupported' },
+};
+
 const allUnknown = () => Object.fromEntries(NAMES.map((n) => [n, 'unknown']));
 const say = (binary, args, env) => new Promise((resolve) => {
   execFile(binary, args, { env, timeout: STEP_MS, maxBuffer: 1 << 20 }, (error, stdout) => resolve(error ? '' : String(stdout)));
@@ -74,7 +87,7 @@ function toolsItComesUpWith(binaryPath, env, cwd) {
  *   forkAtCompletedTurn: `--fork-session` copies the whole history; there is no boundary to name.
  *   observeState: whether another client is at work in a session cannot be asked; it shows when it refuses.
  *   readOnlyRoots, autoContextControl: the help promises them (`--restricted`, `--safe-mode`), and whether
- *   they hold shows only in a turn, which reaches a model.
+ *   they hold shows only in a turn, which reaches a model: known of the versions real runs have shown.
  */
 async function probeClaude(binaryPath, { now = () => new Date().toISOString() } = {}) {
   const capabilities = allUnknown();
@@ -100,10 +113,11 @@ async function probeClaude(binaryPath, { now = () => new Date().toISOString() } 
       const tools = await toolsItComesUpWith(binaryPath, env, home).catch(() => null);
       if (tools) capabilities.networkRestriction = tools.every((t) => READING_TOOLS.includes(t)) ? 'supported' : 'unsupported';
     }
+    Object.assign(capabilities, VERIFIED_BY_RUNNING[report.binaryVersion] ?? {});
     return report;
   } finally {
     await fsp.rm(root, { recursive: true, force: true }).catch(() => {});
   }
 }
 
-module.exports = { probeClaude, versionOf, helpOf, flagsIn, withoutHostSession, READING_TOOLS };
+module.exports = { probeClaude, versionOf, helpOf, flagsIn, withoutHostSession, READING_TOOLS, VERIFIED_BY_RUNNING };

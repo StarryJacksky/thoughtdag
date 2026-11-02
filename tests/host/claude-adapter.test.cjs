@@ -190,6 +190,42 @@ test('[T16] research on a version not known to keep to its inputs is not run at 
   assert.deepEqual(launched(), []);
 });
 
+const materialsOf = (dir) => { fs.mkdirSync(path.join(fake.project, dir), { recursive: true }); return dir; };
+
+test('[T16] research runs in its own materials and nowhere above them: that folder is all its file tools reach', async (t) => {
+  const claude = fresh(t, {}, { probe: verified });
+  const readRoot = materialsOf('.thoughtdag/runs/run_a/materials');
+  const events = await go(claude, { mode: 'research', readRoot });
+  assert.equal(events.at(-1).how, 'end');
+  assert.equal(launched()[0].cwd, fs.realpathSync(path.join(fake.project, readRoot)));
+});
+
+test('[T16] research with nothing to read runs in an empty folder of its own, which it leaves behind it', async (t) => {
+  const claude = fresh(t, {}, { probe: verified });
+  const before = new Set(fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith('tdag-research-')));
+  const events = await go(claude, { mode: 'research' });
+  assert.equal(events.at(-1).how, 'end');
+  const cwd = launched()[0].cwd;
+  assert.notEqual(cwd, fs.realpathSync(fake.project));
+  assert.match(path.basename(cwd), /^tdag-research-/);
+  await until(() => fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith('tdag-research-') && !before.has(n)).length === 0);
+});
+
+for (const [name, readRoot] of [['above the folder', '../elsewhere'], ['an absolute path', '/synthetic/elsewhere'], ['not there', '.thoughtdag/runs/run_none/materials'], ['the folder itself', '.']]) {
+  test(`[T16] research told to read ${name} is not run`, async (t) => {
+    const claude = fresh(t, {}, { probe: verified });
+    const events = await go(claude, { mode: 'research', readRoot });
+    assert.equal(errorOf(events).code, 'research-unverified');
+    assert.deepEqual(launched(), []);
+  });
+}
+
+test('[T16] a run at work stays in its folder, whatever else it is told', async (t) => {
+  const claude = fresh(t);
+  await go(claude, { readRoot: materialsOf('.thoughtdag/runs/run_b/materials') });
+  assert.equal(launched()[0].cwd, fs.realpathSync(fake.project));
+});
+
 test('[T16] research goes on in no session, whatever it was given', async (t) => {
   const claude = fresh(t, {}, { probe: verified });
   const events = await go(claude, { mode: 'research', sessionPath: FILE });
@@ -204,6 +240,8 @@ test('[T16] research on a version known to keep to its inputs gets reading tools
   assert.equal(argv[argv.indexOf('--tools') + 1], 'Read,Glob,Grep');
   for (const flag of ['--restricted', '--safe-mode', '--strict-mcp-config']) assert.equal(argv.includes(flag), true, flag);
   assert.equal(argv[argv.indexOf('--permission-mode') + 1], 'dontAsk');
+  // the default system prompt says who the person is and what the machine is
+  assert.match(argv[argv.indexOf('--system-prompt') + 1], /inputs/);
   assert.equal(argv.includes('--resume'), false);
   assert.equal(events.at(-1).how, 'end');
 });
@@ -274,6 +312,17 @@ test('[T16] the probe reports what this version can do, and its version', async 
     fresh: 'supported', resume: 'supported', forkAtCompletedTurn: 'unsupported', observeState: 'unsupported', cancel: 'supported', approvals: 'supported',
     readOnlyRoots: 'unknown', networkRestriction: 'supported', autoContextControl: 'unknown',
   });
+});
+
+test('[T16] what real runs have shown of a version is known of that version, and of no other', async () => {
+  const { VERIFIED_BY_RUNNING } = require('../../runtime/agents/claude-capabilities.cjs');
+  const version = Object.keys(VERIFIED_BY_RUNNING)[0];
+  const shown = await probe({ version });
+  assert.equal(shown.capabilities.readOnlyRoots, 'supported');
+  assert.equal(shown.capabilities.autoContextControl, 'unsupported', 'the account\'s email comes along, whatever the system prompt');
+  const other = await probe({ version: '0.0.1-never-run' });
+  assert.equal(other.capabilities.readOnlyRoots, 'unknown');
+  assert.equal(other.capabilities.autoContextControl, 'unknown');
 });
 
 test('[T16] a version that comes up with more tools than it was given is not called offline', async () => {

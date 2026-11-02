@@ -1,5 +1,6 @@
 import type { StoreApi } from 'zustand';
 import { partitionContext, walkUpAncestors } from '../lib/graph';
+import { answerIdAt } from '../lib/feedback';
 import { isFeedback } from '../lib/feedback';
 import { upstreamFingerprint, upstreamParts, recordParts, recordsForAgent, recordsWithTools, type MessageSource } from './context-builder';
 import { sha256Hex, canonicalStringify } from '../lib/context-bundle';
@@ -409,7 +410,7 @@ export async function runNodeGeneration(
         // so repeated retries don't stack failure entries.
         const failText = new Set([t('node.failedPlaceholder'), t('node.emptyResponse')]);
         const kept = versionMode === 'append' || failed
-          ? n.data.responses.map((r, i) => ({ r, q: n.data.questions?.[i], by: n.data.generatedBy?.[i], rs: n.data.reasonings?.[i], at: n.data.generatedAts?.[i], ed: n.data.editedAts?.[i], gw: n.data.gatewaySearches?.[i], ef: n.data.generatedEfforts?.[i], rn: n.data.runs?.[i] })).filter(({ r }) => r && !(failed && failText.has(r)))
+          ? n.data.responses.map((r, i) => ({ r, q: n.data.questions?.[i], by: n.data.generatedBy?.[i], rs: n.data.reasonings?.[i], at: n.data.generatedAts?.[i], ed: n.data.editedAts?.[i], gw: n.data.gatewaySearches?.[i], ef: n.data.generatedEfforts?.[i], rn: n.data.runs?.[i], id: answerIdAt(n, i) })).filter(({ r }) => r && !(failed && failText.has(r)))
           : [];
         const now = new Date().toISOString();
         const responses = [...kept.map(({ r }) => r), response];
@@ -428,8 +429,11 @@ export async function runNodeGeneration(
         // what this answer depended on stays with it: another version shown later is judged by its own (lib/context/staleness)
         const summary = madeOf ? { ...madeOf, contextHash, contextParts } : undefined;
         const runs = [...kept.map(({ rn }) => rn), summary];
+        const answerId = `ans_${crypto.randomUUID()}`;
+        const answerIds = [...kept.map(({ id }) => id), answerId];
+        const failedAnswerIds = [...(n.data.failedAnswerIds ?? []).filter((id) => answerIds.includes(id)), ...(failed ? [answerId] : [])];
         versionWritten = responses.length - 1;
-        return { ...n, data: { ...n.data, response, responses, questions, generatedBy, gatewaySearches, generatedEfforts, reasonings, generatedAts, editedAts, runs: runs.some(Boolean) ? runs : undefined, reasoning: undefined, restreaming: undefined, pendingApprovals: undefined, agentTrace: undefined, responseIndex: responses.length - 1, isLoading: false, tokenCount, generationFailed: failed || undefined, references, highlights: pruneHighlights(n.data.highlights, response), lastContextHash: contextHash, lastContextParts: contextParts, lastFeedback: Object.keys(feedbackRead).length > 0 ? feedbackRead : undefined, lastGeneratedAt: now,
+        return { ...n, data: { ...n.data, response, responses, questions, generatedBy, gatewaySearches, generatedEfforts, reasonings, generatedAts, editedAts, answerIds, failedAnswerIds: failedAnswerIds.length ? failedAnswerIds : undefined, runs: runs.some(Boolean) ? runs : undefined, reasoning: undefined, restreaming: undefined, pendingApprovals: undefined, agentTrace: undefined, responseIndex: responses.length - 1, isLoading: false, tokenCount, generationFailed: failed || undefined, references, highlights: pruneHighlights(n.data.highlights, response), lastContextHash: contextHash, lastContextParts: contextParts, lastFeedback: Object.keys(feedbackRead).length > 0 ? feedbackRead : undefined, lastGeneratedAt: now,
           // the run this answer came from: its digests and what it was given, frozen
           ...(summary ? { lastRun: summary } : {}) } };
       }),

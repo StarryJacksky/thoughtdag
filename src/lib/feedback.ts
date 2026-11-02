@@ -31,8 +31,20 @@ export function latestFinished(node: ThoughtNode): number | null {
   let last = answers.length - 1;
   // a run that failed keeps its message as the last version and shows it
   if (node.data.generationFailed && last >= 0 && answers[last] === node.data.response) last -= 1;
-  for (let i = last; i >= 0; i--) if (answers[i]?.trim()) return i;
+  for (let i = last; i >= 0; i--) if (answers[i]?.trim() && !isFailedAnswer(node, i)) return i;
   return null;
+}
+
+/** The name of a node's answer at an index. An answer from before answers had names goes by when it was written, or its place. */
+export const answerIdAt = (node: ThoughtNode, index: number): string => node.data.answerIds?.[index] ?? `legacy:${node.data.generatedAts?.[index] ?? index}`;
+/** Whether the answer at an index is a failure's message. */
+export const isFailedAnswer = (node: ThoughtNode, index: number): boolean => (node.data.failedAnswerIds ?? []).includes(answerIdAt(node, index));
+
+/** Which of its source's answers a line holds now: by name when it has one (null when that answer is gone), else its place. */
+export function pinnedVersionOf(source: ThoughtNode, feedback: { version: number | null; versionId?: string }): number | null {
+  if (!feedback.versionId) return feedback.version;
+  const at = (source.data.responses ?? []).findIndex((_, i) => answerIdAt(source, i) === feedback.versionId);
+  return at < 0 ? null : at;
 }
 
 /** A node as one of its answers shows it: that version's question and answer, whole (nothing of what is marked in the live one). */

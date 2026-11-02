@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
-import { AlignVerticalJustifyStart, Archive, ClipboardList, Copy, FileDown, GitBranch, Highlighter, Layers, Trash2 } from 'lucide-react';
+import { AlignVerticalJustifyStart, Archive, ClipboardList, Copy, FileDown, GitBranch, GitCompare, Highlighter, Layers, Trash2 } from 'lucide-react';
 import { useStore } from '../store';
 import { confirmDialog } from '../lib/ui-store';
 import { updateSummaries } from '../lib/ladder-reselect';
 import { selectionMarkdown, downloadMarkdown } from '../lib/export';
 import { isImeComposing } from '../utils';
+import { isTask } from '../lib/agents/targets';
+import TargetPreviewCompare from './agents/TargetPreviewCompare';
 import { useT, t as ti, fmt } from '../i18n';
 
 // The two families of batch actions share one input row:
@@ -25,6 +27,7 @@ export default function SelectionToolbar() {
   }, [pending]);
 
   // Reset the input row when selection changes
+  const [comparing, setComparing] = useState(false);
   const [prevSelectionCount, setPrevSelectionCount] = useState(selectedNodeIds.length);
   if (prevSelectionCount !== selectedNodeIds.length) {
     setPrevSelectionCount(selectedNodeIds.length);
@@ -33,6 +36,8 @@ export default function SelectionToolbar() {
   }
 
   if (selectedNodeIds.length < 2) return null;
+  const selectedTasks = selectedNodeIds.filter((id) => isTask(nodes.find((n) => n.id === id)));
+  if (comparing) return <TargetPreviewCompare nodeIds={selectedTasks} onClose={() => setComparing(false)} />;
 
   const selectedNodes = selectedNodeIds
     .map((id) => nodes.find((n) => n.id === id))
@@ -115,6 +120,17 @@ export default function SelectionToolbar() {
           >
             <GitBranch size={14} strokeWidth={1.75} className="inline" /> {t('common.explore')}
           </button>
+
+          {selectedTasks.length >= 2 && (
+            <button
+              onClick={() => setComparing(true)}
+              className="text-xs px-3 py-1.5 rounded-lg transition-colors bg-wash hover:bg-line text-ink-muted"
+              title={t('compare.buttonTitle')}
+              data-compare-runs
+            >
+              <GitCompare size={14} strokeWidth={1.75} className="inline" /> {t('compare.button')}
+            </button>
+          )}
 
           {/* Low-frequency actions: icon-only so the row stays one line in
               both languages (full label lives in the tooltip). */}

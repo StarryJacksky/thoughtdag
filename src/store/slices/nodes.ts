@@ -5,7 +5,7 @@ import { generateId, countTokens } from '../../utils';
 import { COLORS } from '../../lib/constants';
 import { healLegacyNoteEdges, autoLayout, placeNewNodes, estimateNodeHeight, nodeHeight } from '../../lib/layout';
 import { getDescendantIds, walkUpAncestors } from '../../lib/graph';
-import { closesLoop, latestFinished } from '../../lib/feedback';
+import { answerIdAt, closesLoop, isFailedAnswer, latestFinished } from '../../lib/feedback';
 import { referenceBlockContent, buildContext } from '../context-builder';
 import { detectStale, staleKeyOf, type StaleReason } from '../../lib/context/staleness';
 import { pruneHighlights } from '../../lib/highlight-match';
@@ -315,7 +315,7 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
       style: { stroke: COLORS.feedback, strokeDasharray: '2 6', strokeWidth: 2.5, strokeLinecap: 'round' },
       animated: false,
       markerEnd: { type: 'arrowclosed' as const, color: COLORS.feedback, width: 16, height: 16 },
-      data: { isCrossLink: true, feedback: { version, pinnedAt: now }, createdAt: now },
+      data: { isCrossLink: true, feedback: { version, ...(version === null ? {} : { versionId: answerIdAt(source, version) }), pinnedAt: now }, createdAt: now },
     };
     get().pushHistory();
     set((state) => ({ edges: [...state.edges, line] }));
@@ -333,20 +333,21 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
     const now = new Date().toISOString();
     let moved = false;
     const next = edges.map((e) => {
-      if (!e.data?.feedback || !reads.has(e.target)) return e;
+      // an answer referred to on purpose stays that answer
+      if (!e.data?.feedback || e.data.feedback.fixed || !reads.has(e.target)) return e;
       const source = nodes.find((n) => n.id === e.source);
       if (!source) return e;
       const version = latestFinished(source);
       if (version === e.data.feedback.version) return e;
       moved = true;
-      return { ...e, data: { ...e.data, feedback: { ...e.data.feedback, version, pinnedAt: now } } };
+      return { ...e, data: { ...e.data, feedback: { ...e.data.feedback, version, versionId: version === null ? undefined : answerIdAt(source, version), pinnedAt: now } } };
     });
     if (moved) set({ edges: next });
   },
 
   setFeedbackRounds: (edgeId: string, rounds: number) => {
     const edge = get().edges.find((e) => e.id === edgeId);
-    if (!edge?.data?.feedback) return;
+    if (!edge?.data?.feedback || edge.data.feedback.fixed) return;
     const auto = Math.max(0, Math.min(10, Math.floor(Number(rounds) || 0)));
     if ((edge.data.feedback.auto ?? 0) === auto) return;
     get().pushHistory();
@@ -437,7 +438,7 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
           ...n,
           // navigating away from a failed placeholder reclaims the older answer;
           // the question mirrors its version's wording (a version is a PAIR)
-          data: { ...n.data, responseIndex: newIndex, response: responses[newIndex], question: n.data.questions?.[newIndex] ?? n.data.question, generationFailed: undefined, highlights: pruneHighlights(n.data.highlights, responses[newIndex]) },
+          data: { ...n.data, responseIndex: newIndex, response: responses[newIndex], question: n.data.questions?.[newIndex] ?? n.data.question, generationFailed: isFailedAnswer(n, newIndex) || undefined, highlights: pruneHighlights(n.data.highlights, responses[newIndex]) },
         };
       }),
     }));
@@ -471,12 +472,20 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
             reasonings: n.data.reasonings?.filter((_, i) => i !== versionIndex),
             generatedAts: n.data.generatedAts?.filter((_, i) => i !== versionIndex),
             editedAts: n.data.editedAts?.filter((_, i) => i !== versionIndex),
+            answerIds: n.data.answerIds?.filter((_, i) => i !== versionIndex),
             generatedEfforts: n.data.generatedEfforts?.filter((_, i) => i !== versionIndex),
             gatewaySearches: n.data.gatewaySearches?.filter((_, i) => i !== versionIndex),
             runs: newRuns,
             highlights: pruneHighlights(n.data.highlights, newResponses[newIndex]),
           },
         };
+      }),
+      // a line that holds one of its answers holds that answer: it keeps to it as the others move up, and holds nothing once it is gone
+      edges: (state.nodes.find((n) => n.id === nodeId)?.data.responses.length ?? 0) < 2 ? state.edges : state.edges.map((e) => {
+        const held = e.source === nodeId ? e.data?.feedback : undefined;
+        if (!held || held.version === null) return e;
+        const version = held.version === versionIndex ? null : held.version > versionIndex ? held.version - 1 : held.version;
+        return version === held.version ? e : { ...e, data: { ...e.data, feedback: { ...held, version, ...(version === null ? { versionId: undefined } : {}) } } };
       }),
     }));
     get().pushHistory();

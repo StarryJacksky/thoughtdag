@@ -1,0 +1,279 @@
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/target-preview-compare.test.tsx (3 tests | 3 failed) 13ms
+   ❯ [T29] comparing before sending (3)
+     × [T29] says what each would be given and what the other would not, and sends nothing 8ms
+     × [T29] each is sent by its own button, and only that one 1ms
+     × [T29] a task that cannot be prepared says so, and the other can still be looked at 1ms
+ ❯ tests/unit/result-reference.test.ts (22 tests | 17 failed) 115ms
+   ❯ [T29] an answer has an identity of its own (2)
+     × [T29] each answer gets one, and keeps it when another goes 14ms
+     × [T29] an answer from before these were kept still has one, that holds while its place holds 1ms
+   ❯ [T29] an answer referred to (8)
+     × [T29] referred to at one version, it stays that version when the source answers again, and the newer one is only said 0ms
+     × [T29] it does not move when the task asks again: it is what was referred to, not the latest 0ms
+     × [T29] it carries the words of the answer: not the question's conversation, not its tools 0ms
+     × [T29] at depth "path", what led up to the answer comes along 0ms
+     × [T29] at depth "selected", only what is marked in that answer comes 0ms
+     × [T29] referring to the same answer twice is one reference, at the depth last asked 0ms
+   ❯ [T29][R4-10] a version is what it was, whichever others go (4)
+     × [R4-10] a feedback line holds its answer when an earlier one is deleted 0ms
+     × [R4-10] the answer itself deleted: it reads nothing rather than another answer 0ms
+     × [R4-10] a line from before versions had names keeps to its place through a deletion too 2ms
+     × [R4-10] undoing a deletion puts the line back with the answer 0ms
+   ❯ [T29][R4-11] a failure is its version's (2)
+     × [R4-11] looked away from and back: the failure is still not a finished answer 3ms
+     × [R4-11] a failure is not offered to be referred to 1ms
+   ❯ [T29][R4-12] asked again beside (1)
+     × [R4-12] the sibling reads what the original reads, and does not go back and forth by itself 2ms
+   ❯ [T29] comparing what two runs would be given (5)
+     × [T29] one material to two tasks is two envelopes, and what differs is said 1ms
+     × [T29] two runs given the same: nothing differs 1ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 20 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/result-reference.test.ts > [T29] an answer has an identity of its own > [T29] each answer gets one, and keeps it when another goes
+Error: not yet
+ ❯ answerVersionsOf src/lib/agents/result-reference.ts:3:61
+      1| export const comparePreparedRuns = (_r: any): any => { throw new Error…
+      2| export const referenceAnswer = (..._a: any[]): any => { throw new Erro…
+      3| export const answerVersionsOf = (_n: any): any[] => { throw new Error(…
+       |                                                             ^
+      4|
+ ❯ tests/unit/result-reference.test.ts:79:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/20]⎯
+
+ FAIL  tests/unit/result-reference.test.ts > [T29] an answer has an identity of its own > [T29] an answer from before these were kept still has one, that holds while its place holds
+Error: not yet
+ ❯ answerVersionsOf src/lib/agents/result-reference.ts:3:61
+      1| export const comparePreparedRuns = (_r: any): any => { throw new Error…
+      2| export const referenceAnswer = (..._a: any[]): any => { throw new Erro…
+      3| export const answerVersionsOf = (_n: any): any[] => { throw new Error(…
+       |                                                             ^
+      4|
+ ❯ tests/unit/result-reference.test.ts:87:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/20]⎯
+
+ FAIL  tests/unit/result-reference.test.ts > [T29] an answer referred to > [T29] referred to at one version, it stays that version when the source answers again, and the newer one is only said
+Error: not yet
+ ❯ referenceAnswer src/lib/agents/result-reference.ts:2:63
+      1| export const comparePreparedRuns = (_r: any): any => { throw new Error…
+      2| export const referenceAnswer = (..._a: any[]): any => { throw new Erro…
+       |                                                               ^
+      3| export const answerVersionsOf = (_n: any): any[] => { throw new Error(…
+      4|
+ ❯ tests/unit/result-reference.test.ts:106:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/20]⎯
+
+ FAIL  tests/unit/result-reference.test.ts > [T29] an answer referred to > [T29] it does not move when the task asks again: it is what was referred to, not the latest
+Error: not yet
+ ❯ referenceAnswer src/lib/agents/result-reference.ts:2:63
+      1| export const comparePreparedRuns = (_r: any): any => { throw new Error…
+      2| export const referenceAnswer = (..._a: any[]): any => { throw new Erro…
+       |                                                               ^
+      3| export const answerVersionsOf = (_n: any): any[] => { throw new Error(…
+      4|
+ ❯ tests/unit/result-reference.test.ts:121:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/20]⎯
+
+ FAIL  tests/unit/result-reference.test.ts > [T29] an answer referred to > [T29] it carries the words of the answer: not the question's conversation, not its tools
+Error: not yet
+ ❯ referenceAnswer src/lib/agents/result-reference.ts:2:63
+      1| export const comparePreparedRuns = (_r: any): any => { throw new Error…
+      2| export const referenceAnswer = (..._a: any[]): any => { throw new Erro…
+       |                                                               ^
+      3| export const answerVersionsOf = (_n: any): any[] => { throw new Error(…
+      4|
+ ❯ tests/unit/result-reference.test.ts:135:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/20]⎯
+
+ FAIL  tests/unit/result-reference.test.ts > [T29] an answer referred to > [T29] at depth "path", what led up to the answer comes along
+Error: not yet
+ ❯ referenceAnswer src/lib/agents/result-reference.ts:2:63
+      1| export const comparePreparedRuns = (_r: any): any => { throw new Error…
+      2| export const referenceAnswer = (..._a: any[]): any => { throw new Erro…
+       |                                                               ^
+      3| export const answerVersionsOf = (_n: any): any[] => { throw new Error(…
+      4|
+ ❯ tests/unit/result-reference.test.ts:149:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/20]⎯
+
+ FAIL  tests/unit/result-reference.test.ts > [T29] an answer referred to > [T29] at depth "selected", only what is marked in that answer comes
+Error: not yet
+ ❯ referenceAnswer src/lib/agents/result-reference.ts:2:63
+      1| export const comparePreparedRuns = (_r: any): any => { throw new Error…
+      2| export const referenceAnswer = (..._a: any[]): any => { throw new Erro…
+       |                                                               ^
+      3| export const answerVersionsOf = (_n: any): any[] => { throw new Error(…
+      4|
+ ❯ tests/unit/result-reference.test.ts:159:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/20]⎯
+
+ FAIL  tests/unit/result-reference.test.ts > [T29] an answer referred to > [T29] referring to the same answer twice is one reference, at the depth last asked
+Error: not yet
+ ❯ referenceAnswer src/lib/agents/result-reference.ts:2:63
+      1| export const comparePreparedRuns = (_r: any): any => { throw new Error…
+      2| export const referenceAnswer = (..._a: any[]): any => { throw new Erro…
+       |                                                               ^
+      3| export const answerVersionsOf = (_n: any): any[] => { throw new Error(…
+      4|
+ ❯ tests/unit/result-reference.test.ts:177:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/20]⎯
+
+ FAIL  tests/unit/result-reference.test.ts > [T29][R4-10] a version is what it was, whichever others go > [R4-10] a feedback line holds its answer when an earlier one is deleted
+Error: not yet
+ ❯ referenceAnswer src/lib/agents/result-reference.ts:2:63
+      1| export const comparePreparedRuns = (_r: any): any => { throw new Error…
+      2| export const referenceAnswer = (..._a: any[]): any => { throw new Erro…
+       |                                                               ^
+      3| export const answerVersionsOf = (_n: any): any[] => { throw new Error(…
+      4|
+ ❯ tests/unit/result-reference.test.ts:189:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/20]⎯
+
+ FAIL  tests/unit/result-reference.test.ts > [T29][R4-10] a version is what it was, whichever others go > [R4-10] the answer itself deleted: it reads nothing rather than another answer
+Error: not yet
+ ❯ referenceAnswer src/lib/agents/result-reference.ts:2:63
+      1| export const comparePreparedRuns = (_r: any): any => { throw new Error…
+      2| export const referenceAnswer = (..._a: any[]): any => { throw new Erro…
+       |                                                               ^
+      3| export const answerVersionsOf = (_n: any): any[] => { throw new Error(…
+      4|
+ ❯ tests/unit/result-reference.test.ts:201:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/20]⎯
+
+ FAIL  tests/unit/result-reference.test.ts > [T29][R4-10] a version is what it was, whichever others go > [R4-10] a line from before versions had names keeps to its place through a deletion too
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/unit/result-reference.test.ts:212:51
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/20]⎯
+
+ FAIL  tests/unit/result-reference.test.ts > [T29][R4-10] a version is what it was, whichever others go > [R4-10] undoing a deletion puts the line back with the answer
+Error: not yet
+ ❯ referenceAnswer src/lib/agents/result-reference.ts:2:63
+      1| export const comparePreparedRuns = (_r: any): any => { throw new Error…
+      2| export const referenceAnswer = (..._a: any[]): any => { throw new Erro…
+       |                                                               ^
+      3| export const answerVersionsOf = (_n: any): any[] => { throw new Error(…
+      4|
+ ❯ tests/unit/result-reference.test.ts:220:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/20]⎯
+
+ FAIL  tests/unit/result-reference.test.ts > [T29][R4-11] a failure is its version's > [R4-11] looked away from and back: the failure is still not a finished answer
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/unit/result-reference.test.ts:241:37
+    239|     useStore.getState().navigateVersion(x, 'prev');
+    240|     expect(node(x).data.generationFailed).toBeFalsy();
+    241|     expect(latestFinished(node(x))).toBe(failedAt - 1);
+       |                                     ^
+    242|     useStore.getState().navigateVersion(x, 'next');
+    243|     expect(node(x).data.generationFailed).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/20]⎯
+
+ FAIL  tests/unit/result-reference.test.ts > [T29][R4-11] a failure is its version's > [R4-11] a failure is not offered to be referred to
+Error: not yet
+ ❯ answerVersionsOf src/lib/agents/result-reference.ts:3:61
+      1| export const comparePreparedRuns = (_r: any): any => { throw new Error…
+      2| export const referenceAnswer = (..._a: any[]): any => { throw new Erro…
+      3| export const answerVersionsOf = (_n: any): any[] => { throw new Error(…
+       |                                                             ^
+      4|
+ ❯ tests/unit/result-reference.test.ts:253:22
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/20]⎯
+
+ FAIL  tests/unit/result-reference.test.ts > [T29][R4-12] asked again beside > [R4-12] the sibling reads what the original reads, and does not go back and forth by itself
+AssertionError: expected 3 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 3
+
+ ❯ tests/unit/result-reference.test.ts:271:44
+    269|     const line = edgesOf(sibling.id).find((e) => e.source === x)!;
+    270|     expect(line.data?.feedback?.version).toBe(0);
+    271|     expect(line.data?.feedback?.auto ?? 0).toBe(0);
+       |                                            ^
+    272|     expect(edgesOf(y)[0].data?.feedback?.auto).toBe(3);
+    273|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/20]⎯
+
+ FAIL  tests/unit/result-reference.test.ts > [T29] comparing what two runs would be given > [T29] one material to two tasks is two envelopes, and what differs is said
+Error: not yet
+ ❯ comparePreparedRuns src/lib/agents/result-reference.ts:1:62
+      1| export const comparePreparedRuns = (_r: any): any => { throw new Error…
+       |                                                              ^
+      2| export const referenceAnswer = (..._a: any[]): any => { throw new Erro…
+      3| export const answerVersionsOf = (_n: any): any[] => { throw new Error(…
+ ❯ tests/unit/result-reference.test.ts:283:25
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/20]⎯
+
+ FAIL  tests/unit/result-reference.test.ts > [T29] comparing what two runs would be given > [T29] two runs given the same: nothing differs
+Error: not yet
+ ❯ comparePreparedRuns src/lib/agents/result-reference.ts:1:62
+      1| export const comparePreparedRuns = (_r: any): any => { throw new Error…
+       |                                                              ^
+      2| export const referenceAnswer = (..._a: any[]): any => { throw new Erro…
+      3| export const answerVersionsOf = (_n: any): any[] => { throw new Error(…
+ ❯ tests/unit/result-reference.test.ts:299:21
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/20]⎯
+
+ FAIL  tests/unit/target-preview-compare.test.tsx > [T29] comparing before sending > [T29] says what each would be given and what the other would not, and sends nothing
+ FAIL  tests/unit/target-preview-compare.test.tsx > [T29] comparing before sending > [T29] each is sent by its own button, and only that one
+ FAIL  tests/unit/target-preview-compare.test.tsx > [T29] comparing before sending > [T29] a task that cannot be prepared says so, and the other can still be looked at
+Error: not yet
+ ❯ TargetPreviewCompare src/components/agents/TargetPreviewCompare.tsx:1:68
+      1| export default function TargetPreviewCompare(_p: any): any { throw new…
+       |                                                                    ^
+      2|
+ ❯ Object.react_stack_bottom_frame ../../../../../../..<repo>/node_modules/react-dom/cjs/react-dom-client.development.js:25904:20
+ ❯ renderWithHooks ../../../../../../..<repo>/node_modules/react-dom/cjs/react-dom-client.development.js:7662:22
+ ❯ updateFunctionComponent ../../../../../../..<repo>/node_modules/react-dom/cjs/react-dom-client.development.js:10166:19
+ ❯ beginWork ../../../../../../..<repo>/node_modules/react-dom/cjs/react-dom-client.development.js:11778:18
+ ❯ runWithFiberInDEV ../../../../../../..<repo>/node_modules/react-dom/cjs/react-dom-client.development.js:874:13
+ ❯ performUnitOfWork ../../../../../../..<repo>/node_modules/react-dom/cjs/react-dom-client.development.js:17641:22
+ ❯ workLoopSync ../../../../../../..<repo>/node_modules/react-dom/cjs/react-dom-client.development.js:17469:41
+ ❯ renderRootSync ../../../../../../..<repo>/node_modules/react-dom/cjs/react-dom-client.development.js:17450:11
+ ❯ performWorkOnRoot ../../../../../../..<repo>/node_modules/react-dom/cjs/react-dom-client.development.js:16583:35
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/20]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  20 failed | 5 passed (25)
+   Start at  00:40:02
+   Duration  889ms (transform 45%, environment 36%, import 9%, tests 8%, setup 1%)
+

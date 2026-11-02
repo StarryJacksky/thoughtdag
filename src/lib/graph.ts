@@ -1,5 +1,5 @@
 import type { ThoughtNode, ThoughtEdge } from '../types';
-import { asOfVersion } from './feedback';
+import { asOfVersion, pinnedVersionOf } from './feedback';
 
 /**
  * Post-order DFS up ALL incoming edges (blue, orange, cross-link).
@@ -114,7 +114,19 @@ export function partitionContext(
       // A feedback line (lib/feedback): the one finished answer it holds, as
       // a quote with no trail. What came before that answer is, in a loop,
       // this conversation itself.
-      references.push({ source: asOfVersion(source, edge.data.feedback.version), edge, depth: 'quote', chain: [] });
+      const held = edge.data.feedback;
+      const version = pinnedVersionOf(source, held);
+      const answer = asOfVersion(source, version);
+      if (held.depth === 'selected') {
+        // what is marked in that answer: marks belong to the answer on show, so another version has none
+        const marked = version === source.data.responseIndex ? (source.data.highlights ?? []).map((h) => h.text) : [];
+        references.push({ source: { ...answer, data: { ...answer.data, response: marked.join('\n\n') } }, edge, depth: 'quote', chain: [] });
+      } else if (held.depth === 'path') {
+        const led = walkUpAncestors(edge.source, nodes, structural).ordered.filter((n) => n.id !== edge.source && !mainlineIds.has(n.id) && !CONTENT_KINDS.has(n.data.stepKind ?? ''));
+        references.push({ source: answer, edge, depth: 'full', chain: led });
+      } else {
+        references.push({ source: answer, edge, depth: 'quote', chain: [] });
+      }
       continue;
     }
     const { ordered: refOrdered } = walkUpAncestors(edge.source, nodes, structural);

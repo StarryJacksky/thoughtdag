@@ -483,7 +483,9 @@ export const createLlmSlice: StateCreator<StoreState, [], [], LlmSlice> = (set, 
       },
     };
 
-    const newEdges = [...get().edges, ...incoming.map((e, i) => ({ ...e, id: incoming.findIndex((o) => o.source === e.source) === i ? `edge-${e.source}-${id}` : `edge-${e.source}-${id}-${i}`, target: id }))];
+    // it reads what the original reads; going back and forth by itself is the original's own line's, and was not asked of this one
+    const withoutRounds = (e: ThoughtEdge): ThoughtEdge => { if (!e.data?.feedback?.auto) return e; const feedback = { ...e.data.feedback }; delete feedback.auto; return { ...e, data: { ...e.data, feedback } }; };
+    const newEdges = [...get().edges, ...incoming.map((e, i) => ({ ...withoutRounds(e), id: incoming.findIndex((o) => o.source === e.source) === i ? `edge-${e.source}-${id}` : `edge-${e.source}-${id}-${i}`, target: id }))];
 
     const newNodes = placeNewNodes([...get().nodes, newNode], newEdges, [id]);
     set({ nodes: newNodes, edges: newEdges, selectedNodeId: id });

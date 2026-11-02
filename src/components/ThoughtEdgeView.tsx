@@ -5,7 +5,8 @@ import { useStore } from '../store';
 import { routeEdge } from '../lib/edge-path';
 import { walkUpAncestors } from '../lib/graph';
 import { referenceBlockContent } from '../store/context-builder';
-import { latestFinished } from '../lib/feedback';
+import { answerIdAt, isFailedAnswer, latestFinished } from '../lib/feedback';
+import { referenceAnswer } from '../lib/agents/result-reference';
 import { COLORS } from '../lib/constants';
 import { countTokens } from '../utils';
 import { useT, fmt } from '../i18n';
@@ -45,6 +46,8 @@ export default function ThoughtEdgeView({
   const feedback = data?.feedback;
   const newest = feedback && src ? latestFinished(src) : null;
   const newer = !!feedback && newest !== null && (feedback.version === null || newest > feedback.version);
+  // which answer a live reference would be held at: the one on show, if it is a finished one
+  const pinnable = !feedback && src && (src.data.responses?.length ?? 0) > 0 && !isFailedAnswer(src, src.data.responseIndex) && src.data.responseIndex >= 0 ? src.data.responseIndex : null;
   const convertible = feedback ? false : isRef
     ? !data?.isWatch && !srcIsMaterial
     : !data?.isBranchFromSelection && !data?.isWatch && !srcIsMaterial;
@@ -121,9 +124,9 @@ export default function ThoughtEdgeView({
             title={t('edge.feedbackTitle')}
           >
             {/* the label is also where the line is set to go back and forth by itself */}
-            <button onClick={(e) => { e.stopPropagation(); setRoundsOpen((o) => !o); }} data-feedback-label
+            <button onClick={(e) => { e.stopPropagation(); if (!feedback.fixed) setRoundsOpen((o) => !o); }} data-feedback-label
               className="h-5 px-2 rounded-full bg-card border shadow-sm flex items-center gap-1 text-2xs whitespace-nowrap" style={{ borderColor: COLORS.feedback, color: COLORS.feedback }}>
-              <span>{feedback.version === null ? t('edge.feedbackEmpty') : fmt(t('edge.feedbackLabel'), { n: feedback.version + 1 })}</span>
+              <span>{feedback.version === null ? t('edge.feedbackEmpty') : fmt(t(feedback.fixed ? 'edge.referenceLabel' : 'edge.feedbackLabel'), { n: feedback.version + 1 })}</span>
               {!!feedback.auto && <span data-feedback-auto-label>{fmt(t('edge.feedbackAuto'), { n: feedback.auto })}</span>}
               {newer && <span className="rounded-full px-1.5 text-white" style={{ background: COLORS.feedback }}>{t('edge.feedbackNewer')}</span>}
             </button>
@@ -168,6 +171,16 @@ export default function ThoughtEdgeView({
                   {isRef
                     ? fmt(t(depth === 'full' ? 'edge.fullChip' : 'edge.quoteChip'), { n: refTok })
                     : fmt(t('edge.solidChip'), { n: refTok })}
+                </button>
+              )}
+              {isRef && !feedback && !srcIsMaterial && !data?.isWatch && pinnable !== null && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); referenceAnswer(target, source, answerIdAt(src!, pinnable), 'summary'); }}
+                  className="h-6 px-2 rounded-full bg-card border border-line shadow-md flex items-center text-2xs text-ink-muted hover:text-accent"
+                  title={t('edge.pinTitle')}
+                  data-pin-answer
+                >
+                  {fmt(t('edge.pin'), { n: pinnable + 1 })}
                 </button>
               )}
               <button

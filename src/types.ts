@@ -255,6 +255,10 @@ export interface ThoughtData extends Record<string, unknown> {
   isEditingResponse: boolean;
   isLoading: boolean;
   generationFailed?: boolean; // set on LLM failure; cleared on retry/success (persisted so Retry survives refresh)
+  /** each answer's name, parallel to `responses`: it stays with the answer when another is deleted */
+  answerIds?: (string | undefined)[];
+  /** the answers that are failures: a version's, by name, not the node's */
+  failedAnswerIds?: string[];
   references?: Reference[]; // web sources cited by the current response ([n] markers)
   model?: string; // per-node LLM override; undefined = follow the global picker
   /** The AI this task is bound to, with what it runs under (see lib/agents/targets.ts). Made once, from the
@@ -512,6 +516,12 @@ export interface ThoughtEdge extends Edge {
         its responses; null while the source has none), not the live one. */
     feedback?: {
       version: number | null; pinnedAt: string;
+      /** which answer it holds, whatever else is deleted around it (ThoughtData.answerIds); absent on a line from before answers had names */
+      versionId?: string;
+      /** an answer referred to on purpose (lib/agents/result-reference): it stays that answer when its target asks again */
+      fixed?: boolean;
+      /** how much of it: the answer's words (`summary`, the default), what is marked in it, or the path that led to it as well */
+      depth?: 'summary' | 'selected' | 'path';
       /** go back and forth by itself: within a run the person starts, the two ends answer each other in turn, the target up to this many more times */
       auto?: number;
     };

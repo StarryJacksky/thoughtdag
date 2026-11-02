@@ -8,6 +8,7 @@ const path = require('node:path');
 const os = require('node:os');
 const ops = require('./ops.cjs');
 const { createRunJournal } = require('../execution/run-journal.cjs');
+const { createTargetScheduler } = require('../execution/target-scheduler.cjs');
 const terminal = require('../terminal.cjs');
 
 const RUNTIME_FACTORIES = {
@@ -18,7 +19,6 @@ const RUNTIME_FACTORIES = {
 
 function createAgentsHttp({ workspaceRoot = path.join(os.homedir(), '.thoughtdag', 'workspaces'), log = () => {} } = {}) {
   const runtimes = new Map();
-  const owners = new Map();      // runId → runtime name
   const clients = new Set();     // SSE responses
   const runtime = (name = 'pi') => {
     const key = RUNTIME_FACTORIES[name] ? name : 'pi';
@@ -43,6 +43,7 @@ function createAgentsHttp({ workspaceRoot = path.join(os.homedir(), '.thoughtdag
    * when the path is not ours.
    */
   const journal = createRunJournal();
+  const scheduler = createTargetScheduler({ runtimeFor: runtime, onEvent: ({ runId, event }) => broadcast({ runId, event: journal.note(runId, event) }) });
   /** What the runtime a run is for was probed to be able to do. */
   const capabilitiesFor = async (envelope) => {
     const name = envelope?.runtime?.runtime;
@@ -77,19 +78,13 @@ function createAgentsHttp({ workspaceRoot = path.join(os.homedir(), '.thoughtdag
         return true;
       }
       if (p === '/agents/run' && method === 'POST') {
-        const r = body && typeof body === 'object' ? body : {};
-        const name = RUNTIME_FACTORIES[r.runtime] ? r.runtime : 'pi';
-        const runId = await runtime(name).run(r, ({ runId: id, event }) => broadcast({ runId: id, event: journal.note(id, event) }));
-        owners.set(runId, name);
-        return json(res, 200, { runId }), true;
+        return json(res, 200, { runId: await scheduler.enqueue(body) }), true;
       }
       if (p === '/agents/abort' && method === 'POST') {
-        const id = String(body?.runId ?? '');
-        return json(res, 200, { ok: runtime(owners.get(id)).abort(id) }), true;
+        return json(res, 200, { ok: scheduler.cancel(String(body?.runId ?? '')) }), true;
       }
       if (p === '/agents/answer' && method === 'POST') {
-        const id = String(body?.runId ?? '');
-        return json(res, 200, { ok: runtime(owners.get(id)).answer(id, String(body?.requestId ?? ''), body?.response) }), true;
+        return json(res, 200, { ok: scheduler.answer(String(body?.runId ?? ''), String(body?.requestId ?? ''), body?.response) }), true;
       }
       if (p === '/agents/workspace' && method === 'POST') return json(res, 200, { dir: await ops.workspaceFor(workspaceRoot, String(body?.canvasId ?? 'default')) }), true;
       if (p === '/agents/guard' && method === 'POST') return json(res, 200, { ok: await ops.writeGuard(String(body?.cwd ?? ''), body?.config) }), true;

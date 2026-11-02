@@ -885,6 +885,13 @@ function agentsRuntime(name = 'pi') {
   if (!runtimes.has(key)) runtimes.set(key, RUNTIME_FACTORIES[key]());
   return runtimes.get(key);
 }
+const runScheduler = require(path.join(RUNTIME_DIR, 'execution', 'target-scheduler.cjs')).createTargetScheduler({
+  runtimeFor: (name) => agentsRuntime(name),
+  onEvent: ({ runId, event }) => {
+    const told = runJournal.note(runId, event);
+    if (win && !win.isDestroyed()) win.webContents.send('agents:event', { runId, event: told });
+  },
+});
 const runOwners = new Map(); // runId → runtime name
 
 const workspaceFor = (canvasId) => agentOps.workspaceFor(path.join(app.getPath('userData'), 'workspaces'), canvasId);
@@ -902,19 +909,12 @@ function setupAgents() {
     try { return (await agentsRuntime(runtime).capabilities?.()) ?? null; } catch { return null; }
   });
   handle('agents:run', async (_e, req) => {
-    const r = req && typeof req === 'object' ? req : {};
-    const name = RUNTIME_FACTORIES[r.runtime] ? r.runtime : 'pi';
-    const runId = await agentsRuntime(name).run(r, ({ runId: id, event }) => {
-      const told = runJournal.note(id, event);
-      if (win && !win.isDestroyed()) win.webContents.send('agents:event', { runId: id, event: told });
-    });
-    runOwners.set(runId, name);
-    return runId;
+    return runScheduler.enqueue(req);
   });
   handle('agents:events-since', async (_e, runId, after) => runJournal.since(String(runId), Number(after) || 0));
-  handle('agents:abort', async (_e, runId) => agentsRuntime(runOwners.get(String(runId))).abort(String(runId)));
+  handle('agents:abort', async (_e, runId) => runScheduler.cancel(String(runId)));
   handle('agents:workspace', async (_e, canvasId) => workspaceFor(canvasId));
-  handle('agents:answer', async (_e, runId, requestId, response) => agentsRuntime(runOwners.get(String(runId))).answer(String(runId), String(requestId), response));
+  handle('agents:answer', async (_e, runId, requestId, response) => runScheduler.answer(String(runId), String(requestId), response));
   handle('agents:guard-write', async (_e, cwd, config) => agentOps.writeGuard(cwd, config));
   // a folder the person picks as a canvas's working directory
   handle('agents:pick-cwd', async () => {

@@ -5,7 +5,6 @@ import { useUiStore } from '../../src/lib/ui-store';
 import { reconcileModelId } from '../../src/lib/use-models';
 import { fixture, type FixtureTask, type ResearchFixture } from '../fixtures/research';
 import { installFakeDesktop, type FakeDesktop } from '../helpers/fake-desktop';
-import { gap } from '../helpers/gap';
 
 // Several AI tasks on one canvas, as the app runs them today. Each case asks
 // through the store's own addQuestion, so what is measured at the desktop
@@ -150,7 +149,7 @@ describe('two unrelated lines on one runtime', () => {
     expect(x.request.allowRules).toEqual(['codex:cmd:npm test']);
   });
 
-  gap('[T28] a task does not inherit a standing approval given on an unrelated line', async () => {
+  it('[T28] a task does not inherit a standing approval given on an unrelated line', async () => {
     load(f);
     const y = await ask(task(f, 'Y'));
     expect(y.request.allowRules ?? []).toEqual([]);

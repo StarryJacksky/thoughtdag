@@ -277,6 +277,18 @@ function toolQuery(name: string, args: unknown): string {
   return typeof first === 'string' ? first.slice(0, 120) : name;
 }
 
+/** A node and every node its context walks up through. */
+function lineOf(nodeId: string): Set<string> {
+  const { edges } = useStore.getState();
+  const line = new Set([nodeId]);
+  const open = [nodeId];
+  while (open.length) {
+    const at = open.pop()!;
+    for (const e of edges) if (e.target === at && !line.has(e.source)) { line.add(e.source); open.push(e.source); }
+  }
+  return line;
+}
+
 /** A run was asked for and the shell never said it took it: it may have left. */
 export class ReceiptUnknown extends Error {}
 
@@ -316,9 +328,9 @@ export async function agentCallStream(
   // bound to an AI (the global one is only what a new target starts from)
   const bound = nodeId ? useStore.getState().nodes.find((n) => n.id === nodeId)?.data.target : undefined;
   const effort = route && 'effort' in route ? (route.effort ?? undefined) : bound ? (bound.effort ?? undefined) : (useUiStore.getState().agentEffort || undefined);
-  // what this conversation already allowed for good: every 'allowed-session'
-  // decision on this canvas whose rule belongs to this runtime
-  const allowRules = [...new Set(useStore.getState().nodes.flatMap((n) => (n.data.approvals ?? []).filter((a) => a.outcome === 'allowed-session' && typeof a.rule === 'string' && a.rule.startsWith(target.runtime === 'claude-code' ? 'claude:' : target.runtime + ':')).map((a) => a.rule as string)))];
+  // what this conversation already allowed for good: every 'allowed-session' decision on this
+  // task's own line, whose rule belongs to this runtime. A line beside it allowed nothing for it.
+  const allowRules = [...new Set(useStore.getState().nodes.filter((n) => !nodeId || lineOf(nodeId).has(n.id)).flatMap((n) => (n.data.approvals ?? []).filter((a) => a.outcome === 'allowed-session' && typeof a.rule === 'string' && a.rule.startsWith(target.runtime === 'claude-code' ? 'claude:' : target.runtime + ':')).map((a) => a.rule as string)))];
   subscribe();
 
   let runState: RunState = 'prepared';
@@ -329,6 +341,7 @@ export async function agentCallStream(
     if (runState !== was || hostRunId) callbacks?.onRunState?.(runState, hostRunId);
   };
   step({ kind: 'submitting' });
+  let waited = false;
   let full = '';
   let reasoning = '';
   let finalText = '';
@@ -338,6 +351,8 @@ export async function agentCallStream(
       ...(route?.sessionPath ? { sessionPath: route.sessionPath } : {}),
       ...(route?.forkEntryId ? { forkEntryId: route.forkEntryId } : {}),
       ...(route?.mode ? { mode: route.mode } : {}),
+      // an agent writes, unless it is in research
+      ...(bound ? { target: { targetId: bound.targetId, writes: bound.policyId !== 'research' } } : {}),
       images: (images ?? []).map((img) => ({ type: 'image' as const, data: img.data, mimeType: img.mimeType })),
       model: { provider: target.provider, id: target.id },
       ...(effort ? { effort } : {}),
@@ -352,6 +367,7 @@ export async function agentCallStream(
         else if (event.type === 'question_answered' && !event.auto) { openQuestions = Math.max(0, openQuestions - 1); step({ kind: 'answered', open: openQuestions }); }
         switch (event.type) {
           case 'session': {
+            if (waited) { waited = false; callbacks?.onAgentTool?.({ id: 'queued', name: 'queue', query: '', phase: 'end', isError: false }); }
             // an alias (`opus`) resolved inside the CLI: the picker learns the real name
             const resolved = (event.model as { resolved?: string } | null | undefined)?.resolved;
             if (resolved) window.dispatchEvent(new CustomEvent('td:agent-model-resolved', { detail: { id: modelId, resolved } }));
@@ -411,6 +427,11 @@ export async function agentCallStream(
               suggest: typeof event.suggest === 'string' ? event.suggest : null,
               rule: typeof event.rule === 'string' ? event.rule : null,
             });
+            break;
+          case 'queued':
+            // it waits for another run: said on the node, and over once it has its session
+            callbacks?.onAgentTool?.({ id: 'queued', name: 'queue', query: 'waiting for another run to finish', phase: 'start' });
+            waited = true;
             break;
           case 'fs_changes':
             callbacks?.onAgentChanges?.({ changed: (event.changed as string[]) ?? [], added: (event.added as string[]) ?? [], removed: (event.removed as string[]) ?? [], truncated: !!event.truncated });

@@ -107,6 +107,8 @@ interface DesktopAgentRunRequest {
   sessionPath?: string;
   /** branch the current session at this entry (with sessionPath) */
   forkEntryId?: string;
+  /** what it runs for: one target has one run at a time, and runs that write in one folder go one at a time */
+  target?: { targetId: string; writes: boolean };
   /** research: the runtime holds the run to its inputs, or does not run it */
   mode?: 'research';
   model?: { provider: string; id: string };

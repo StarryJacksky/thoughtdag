@@ -1,0 +1,368 @@
+TAP version 13
+# Subtest: [T28] two runs at most at once by default; the third waits, and starts when one ends
+not ok 1 - [T28] two runs at most at once by default; the third waits, and starts when one ends
+  ---
+  duration_ms: 0.660417
+  type: 'test'
+  location: '<repo>/tests/host/target-scheduler.test.cjs:38:1'
+  failureType: 'testCodeFailure'
+  error: 'not yet'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createTargetScheduler (<repo>/runtime/execution/target-scheduler.cjs:1:50)
+    setup (<repo>/tests/host/target-scheduler.test.cjs:31:21)
+    TestContext.<anonymous> (<repo>/tests/host/target-scheduler.test.cjs:39:13)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: [T28] how many at once can be set
+not ok 2 - [T28] how many at once can be set
+  ---
+  duration_ms: 0.088875
+  type: 'test'
+  location: '<repo>/tests/host/target-scheduler.test.cjs:48:1'
+  failureType: 'testCodeFailure'
+  error: 'not yet'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createTargetScheduler (<repo>/runtime/execution/target-scheduler.cjs:1:50)
+    setup (<repo>/tests/host/target-scheduler.test.cjs:31:21)
+    TestContext.<anonymous> (<repo>/tests/host/target-scheduler.test.cjs:49:13)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: [T28] one target has one run at a time, and its runs keep their order
+not ok 3 - [T28] one target has one run at a time, and its runs keep their order
+  ---
+  duration_ms: 0.065834
+  type: 'test'
+  location: '<repo>/tests/host/target-scheduler.test.cjs:55:1'
+  failureType: 'testCodeFailure'
+  error: 'not yet'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createTargetScheduler (<repo>/runtime/execution/target-scheduler.cjs:1:50)
+    setup (<repo>/tests/host/target-scheduler.test.cjs:31:21)
+    TestContext.<anonymous> (<repo>/tests/host/target-scheduler.test.cjs:56:13)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T28] one native session is written to by one run at a time, whichever targets ask
+not ok 4 - [T28] one native session is written to by one run at a time, whichever targets ask
+  ---
+  duration_ms: 0.042333
+  type: 'test'
+  location: '<repo>/tests/host/target-scheduler.test.cjs:67:1'
+  failureType: 'testCodeFailure'
+  error: 'not yet'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createTargetScheduler (<repo>/runtime/execution/target-scheduler.cjs:1:50)
+    setup (<repo>/tests/host/target-scheduler.test.cjs:31:21)
+    TestContext.<anonymous> (<repo>/tests/host/target-scheduler.test.cjs:68:13)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T28] runs that write in one folder go one at a time; other folders, and reading, go side by side
+not ok 5 - [T28] runs that write in one folder go one at a time; other folders, and reading, go side by side
+  ---
+  duration_ms: 0.10775
+  type: 'test'
+  location: '<repo>/tests/host/target-scheduler.test.cjs:79:1'
+  failureType: 'testCodeFailure'
+  error: 'not yet'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createTargetScheduler (<repo>/runtime/execution/target-scheduler.cjs:1:50)
+    setup (<repo>/tests/host/target-scheduler.test.cjs:31:21)
+    TestContext.<anonymous> (<repo>/tests/host/target-scheduler.test.cjs:80:13)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T28] a run that says nothing of what it writes counts as writing
+not ok 6 - [T28] a run that says nothing of what it writes counts as writing
+  ---
+  duration_ms: 0.037583
+  type: 'test'
+  location: '<repo>/tests/host/target-scheduler.test.cjs:92:1'
+  failureType: 'testCodeFailure'
+  error: 'not yet'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createTargetScheduler (<repo>/runtime/execution/target-scheduler.cjs:1:50)
+    setup (<repo>/tests/host/target-scheduler.test.cjs:31:21)
+    TestContext.<anonymous> (<repo>/tests/host/target-scheduler.test.cjs:93:13)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T28] a run waiting is told so, and what it hears from then on is under its one id
+not ok 7 - [T28] a run waiting is told so, and what it hears from then on is under its one id
+  ---
+  duration_ms: 0.078083
+  type: 'test'
+  location: '<repo>/tests/host/target-scheduler.test.cjs:100:1'
+  failureType: 'testCodeFailure'
+  error: 'not yet'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createTargetScheduler (<repo>/runtime/execution/target-scheduler.cjs:1:50)
+    setup (<repo>/tests/host/target-scheduler.test.cjs:31:21)
+    TestContext.<anonymous> (<repo>/tests/host/target-scheduler.test.cjs:101:13)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T28] stopping a run that is waiting: it never starts, it says it stopped, and nothing else is touched
+not ok 8 - [T28] stopping a run that is waiting: it never starts, it says it stopped, and nothing else is touched
+  ---
+  duration_ms: 0.043083
+  type: 'test'
+  location: '<repo>/tests/host/target-scheduler.test.cjs:112:1'
+  failureType: 'testCodeFailure'
+  error: 'not yet'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createTargetScheduler (<repo>/runtime/execution/target-scheduler.cjs:1:50)
+    setup (<repo>/tests/host/target-scheduler.test.cjs:31:21)
+    TestContext.<anonymous> (<repo>/tests/host/target-scheduler.test.cjs:113:13)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T28] stopping a run at work reaches that run only
+not ok 9 - [T28] stopping a run at work reaches that run only
+  ---
+  duration_ms: 0.196375
+  type: 'test'
+  location: '<repo>/tests/host/target-scheduler.test.cjs:127:1'
+  failureType: 'testCodeFailure'
+  error: 'not yet'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createTargetScheduler (<repo>/runtime/execution/target-scheduler.cjs:1:50)
+    setup (<repo>/tests/host/target-scheduler.test.cjs:31:21)
+    TestContext.<anonymous> (<repo>/tests/host/target-scheduler.test.cjs:128:13)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T28] a stop that names the wrong target, or a run nobody knows, does nothing
+not ok 10 - [T28] a stop that names the wrong target, or a run nobody knows, does nothing
+  ---
+  duration_ms: 0.216541
+  type: 'test'
+  location: '<repo>/tests/host/target-scheduler.test.cjs:136:1'
+  failureType: 'testCodeFailure'
+  error: 'not yet'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createTargetScheduler (<repo>/runtime/execution/target-scheduler.cjs:1:50)
+    setup (<repo>/tests/host/target-scheduler.test.cjs:31:21)
+    TestContext.<anonymous> (<repo>/tests/host/target-scheduler.test.cjs:137:13)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T28] stopping before the runtime has said the run's id still stops it, once it does
+not ok 11 - [T28] stopping before the runtime has said the run's id still stops it, once it does
+  ---
+  duration_ms: 0.081833
+  type: 'test'
+  location: '<repo>/tests/host/target-scheduler.test.cjs:145:1'
+  failureType: 'testCodeFailure'
+  error: 'not yet'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createTargetScheduler (<repo>/runtime/execution/target-scheduler.cjs:1:50)
+    setup (<repo>/tests/host/target-scheduler.test.cjs:31:21)
+    TestContext.<anonymous> (<repo>/tests/host/target-scheduler.test.cjs:146:13)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T28] an answer reaches the run it is for, under the id the runtime knows it by
+not ok 12 - [T28] an answer reaches the run it is for, under the id the runtime knows it by
+  ---
+  duration_ms: 0.043333
+  type: 'test'
+  location: '<repo>/tests/host/target-scheduler.test.cjs:159:1'
+  failureType: 'testCodeFailure'
+  error: 'not yet'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createTargetScheduler (<repo>/runtime/execution/target-scheduler.cjs:1:50)
+    setup (<repo>/tests/host/target-scheduler.test.cjs:31:21)
+    TestContext.<anonymous> (<repo>/tests/host/target-scheduler.test.cjs:160:13)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T28] an answer that names the wrong target, an unknown run, a waiting run or one over reaches nothing
+not ok 13 - [T28] an answer that names the wrong target, an unknown run, a waiting run or one over reaches nothing
+  ---
+  duration_ms: 0.0365
+  type: 'test'
+  location: '<repo>/tests/host/target-scheduler.test.cjs:173:1'
+  failureType: 'testCodeFailure'
+  error: 'not yet'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createTargetScheduler (<repo>/runtime/execution/target-scheduler.cjs:1:50)
+    setup (<repo>/tests/host/target-scheduler.test.cjs:31:21)
+    TestContext.<anonymous> (<repo>/tests/host/target-scheduler.test.cjs:174:13)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T28] what is not a string where one belongs is refused, and starts nothing
+not ok 14 - [T28] what is not a string where one belongs is refused, and starts nothing
+  ---
+  duration_ms: 0.036
+  type: 'test'
+  location: '<repo>/tests/host/target-scheduler.test.cjs:187:1'
+  failureType: 'testCodeFailure'
+  error: 'not yet'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createTargetScheduler (<repo>/runtime/execution/target-scheduler.cjs:1:50)
+    setup (<repo>/tests/host/target-scheduler.test.cjs:31:21)
+    TestContext.<anonymous> (<repo>/tests/host/target-scheduler.test.cjs:188:13)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T28] a failure of one leaves the other going, and its place is taken
+not ok 15 - [T28] a failure of one leaves the other going, and its place is taken
+  ---
+  duration_ms: 0.038375
+  type: 'test'
+  location: '<repo>/tests/host/target-scheduler.test.cjs:197:1'
+  failureType: 'testCodeFailure'
+  error: 'not yet'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createTargetScheduler (<repo>/runtime/execution/target-scheduler.cjs:1:50)
+    setup (<repo>/tests/host/target-scheduler.test.cjs:31:21)
+    TestContext.<anonymous> (<repo>/tests/host/target-scheduler.test.cjs:198:13)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T28] a runtime that refuses to start: the run ends with that said, and the next starts
+not ok 16 - [T28] a runtime that refuses to start: the run ends with that said, and the next starts
+  ---
+  duration_ms: 0.038958
+  type: 'test'
+  location: '<repo>/tests/host/target-scheduler.test.cjs:211:1'
+  failureType: 'testCodeFailure'
+  error: 'not yet'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createTargetScheduler (<repo>/runtime/execution/target-scheduler.cjs:1:50)
+    setup (<repo>/tests/host/target-scheduler.test.cjs:31:21)
+    TestContext.<anonymous> (<repo>/tests/host/target-scheduler.test.cjs:212:13)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T28] what comes after a run has ended reaches nobody, and starts nothing twice
+not ok 17 - [T28] what comes after a run has ended reaches nobody, and starts nothing twice
+  ---
+  duration_ms: 0.031791
+  type: 'test'
+  location: '<repo>/tests/host/target-scheduler.test.cjs:224:1'
+  failureType: 'testCodeFailure'
+  error: 'not yet'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createTargetScheduler (<repo>/runtime/execution/target-scheduler.cjs:1:50)
+    setup (<repo>/tests/host/target-scheduler.test.cjs:31:21)
+    TestContext.<anonymous> (<repo>/tests/host/target-scheduler.test.cjs:225:13)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T28] two runs in events out of order keep to their own
+not ok 18 - [T28] two runs in events out of order keep to their own
+  ---
+  duration_ms: 0.038625
+  type: 'test'
+  location: '<repo>/tests/host/target-scheduler.test.cjs:238:1'
+  failureType: 'testCodeFailure'
+  error: 'not yet'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    createTargetScheduler (<repo>/runtime/execution/target-scheduler.cjs:1:50)
+    setup (<repo>/tests/host/target-scheduler.test.cjs:31:21)
+    TestContext.<anonymous> (<repo>/tests/host/target-scheduler.test.cjs:239:13)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..18
+# tests 18
+# suites 0
+# pass 0
+# fail 18
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 61.194625

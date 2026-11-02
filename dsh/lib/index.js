@@ -1650,7 +1650,7 @@ export async function apply(ctx, config) {
           }
           res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' })
           let closed = false
-          req.on('close', () => { closed = true })
+          res.on('close', () => { closed = true })
           try {
             await ownStream(res, own, body, () => closed)
             if (!closed) res.write('data: [DONE]\n\n')
@@ -1669,7 +1669,7 @@ export async function apply(ctx, config) {
         }
         res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' })
         let closed = false
-        req.on('close', () => { closed = true })
+        res.on('close', () => { closed = true })
         try {
           const search = body?.webSearch === true && typeof ctx.web?.search === 'function'
           await harnessStream(ctx, target, options, search, frame => { if (!closed) res.write(`data: ${JSON.stringify(frame)}\n\n`) }, () => closed)

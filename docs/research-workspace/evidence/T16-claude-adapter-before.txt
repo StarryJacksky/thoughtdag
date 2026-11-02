@@ -1,0 +1,364 @@
+TAP version 13
+# Subtest: [T16] a new session carries nothing of an old one: no resume, no fork, even when asked at a turn with no session
+ok 1 - [T16] a new session carries nothing of an old one: no resume, no fork, even when asked at a turn with no session
+  ---
+  duration_ms: 186.201917
+  type: 'test'
+  ...
+# Subtest: [T16] going on names the session, and does not branch it
+ok 2 - [T16] going on names the session, and does not branch it
+  ---
+  duration_ms: 45.327833
+  type: 'test'
+  ...
+# Subtest: [T16] a branch is asked for as what it is, and says it keeps all of the history it came from
+not ok 3 - [T16] a branch is asked for as what it is, and says it keeps all of the history it came from
+  ---
+  duration_ms: 42.136875
+  type: 'test'
+  location: '<repo>/tests/host/claude-adapter.test.cjs:62:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    false !== true
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/claude-adapter.test.cjs:67:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T16] a branch at a turn cannot be had: it is refused, and not turned into a copy of the whole history
+not ok 4 - [T16] a branch at a turn cannot be had: it is refused, and not turned into a copy of the whole history
+  ---
+  duration_ms: 41.09425
+  type: 'test'
+  location: '<repo>/tests/host/claude-adapter.test.cjs:73:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'code')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/claude-adapter.test.cjs:76:31)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T16] a flag this version does not list is not sent
+not ok 5 - [T16] a flag this version does not list is not sent
+  ---
+  duration_ms: 79.643166
+  type: 'test'
+  location: '<repo>/tests/host/claude-adapter.test.cjs:81:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/claude-adapter.test.cjs:86:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T16] a level this version does not list is not sent
+ok 6 - [T16] a level this version does not list is not sent
+  ---
+  duration_ms: 40.881541
+  type: 'test'
+  ...
+# Subtest: [T16] a version without what a run cannot do without is not started
+not ok 7 - [T16] a version without what a run cannot do without is not started
+  ---
+  duration_ms: 40.841042
+  type: 'test'
+  location: '<repo>/tests/host/claude-adapter.test.cjs:96:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - 'cli-unsupported'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'cli-unsupported'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/claude-adapter.test.cjs:99:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T16] with no help to read, only what a run cannot do without is sent
+not ok 8 - [T16] with no help to read, only what a run cannot do without is sent
+  ---
+  duration_ms: 40.864209
+  type: 'test'
+  location: '<repo>/tests/host/claude-adapter.test.cjs:103:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/claude-adapter.test.cjs:108:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T16] a path and a prompt that a shell would mangle arrive as they are
+ok 9 - [T16] a path and a prompt that a shell would mangle arrive as they are
+  ---
+  duration_ms: 42.256083
+  type: 'test'
+  ...
+# Subtest: [T16] an image is given as data, beside the words
+ok 10 - [T16] an image is given as data, beside the words
+  ---
+  duration_ms: 41.888708
+  type: 'test'
+  ...
+# Subtest: [T16] a turn that failed is a failure, whatever its subtype says: what it said is not kept as an answer
+not ok 11 - [T16] a turn that failed is a failure, whatever its subtype says: what it said is not kept as an answer
+  ---
+  duration_ms: 41.549875
+  type: 'test'
+  location: '<repo>/tests/host/claude-adapter.test.cjs:128:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'message')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/claude-adapter.test.cjs:131:31)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T16] a session that is not there is said as that, and no new one is started instead
+not ok 12 - [T16] a session that is not there is said as that, and no new one is started instead
+  ---
+  duration_ms: 44.116584
+  type: 'test'
+  location: '<repo>/tests/host/claude-adapter.test.cjs:138:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - 'session-missing'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'session-missing'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/claude-adapter.test.cjs:141:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T16] a session in use elsewhere is said as that, and no new one is started instead
+not ok 13 - [T16] a session in use elsewhere is said as that, and no new one is started instead
+  ---
+  duration_ms: 41.593166
+  type: 'test'
+  location: '<repo>/tests/host/claude-adapter.test.cjs:146:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - 'session-busy'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'session-busy'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/claude-adapter.test.cjs:149:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T16] a run that finished answers with its session and its last entry
+not ok 14 - [T16] a run that finished answers with its session and its last entry
+  ---
+  duration_ms: 42.21175
+  type: 'test'
+  location: '<repo>/tests/host/claude-adapter.test.cjs:154:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'nativeSessionId')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/claude-adapter.test.cjs:158:24)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T16][L01] stopped before the process has started: it never starts, and the prompt is never sent
+not ok 15 - [T16][L01] stopped before the process has started: it never starts, and the prompt is never sent
+  ---
+  duration_ms: 42.1855
+  type: 'test'
+  location: '<repo>/tests/host/claude-adapter.test.cjs:164:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + [
+    +   {
+    +     argv: [
+    +       '-p',
+    +       '--output-format',
+    +       'stream-json',
+    +       '--input-format',
+    +       'stream-json',
+    +       '--verbose',
+    +       '--include-partial-messages',
+    +       '--permission-mode',
+    +       'default',
+    +       '--permission-prompt-tool',
+    +       'stdio',
+    +       '--model',
+    +       'sonnet'
+    +     ],
+    +     cwd: '/private<tmp>
+    +     home: '<tmp>
+    +     kind: 'argv',
+    +     runtime: 'claude'
+    +   }
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0:
+      runtime: 'claude'
+      kind: 'argv'
+      argv:
+        0: '-p'
+        1: '--output-format'
+        2: 'stream-json'
+        3: '--input-format'
+        4: 'stream-json'
+        5: '--verbose'
+        6: '--include-partial-messages'
+        7: '--permission-mode'
+        8: 'default'
+        9: '--permission-prompt-tool'
+        10: 'stdio'
+        11: '--model'
+        12: 'sonnet'
+      cwd: '/private<tmp>
+      home: '<tmp>
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/claude-adapter.test.cjs:169:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T16] stopped while it works: the process ends, and the run says stopped, with no turn called finished
+not ok 16 - [T16] stopped while it works: the process ends, and the run says stopped, with no turn called finished
+  ---
+  duration_ms: 49.609
+  type: 'test'
+  location: '<repo>/tests/host/claude-adapter.test.cjs:174:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'lastCompletedTurnId')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/claude-adapter.test.cjs:182:24)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T16] research on a version not known to keep to its inputs is not run at all
+not ok 17 - [T16] research on a version not known to keep to its inputs is not run at all
+  ---
+  duration_ms: 44.35475
+  type: 'test'
+  location: '<repo>/tests/host/claude-adapter.test.cjs:186:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'code')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/claude-adapter.test.cjs:189:31)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T16] research goes on in no session, whatever it was given
+not ok 18 - [T16] research goes on in no session, whatever it was given
+  ---
+  duration_ms: 40.278416
+  type: 'test'
+  location: '<repo>/tests/host/claude-adapter.test.cjs:193:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'code')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/claude-adapter.test.cjs:196:31)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T16] research on a version known to keep to its inputs gets reading tools only, no settings of the person's, and nobody to ask
+not ok 19 - [T16] research on a version known to keep to its inputs gets reading tools only, no settings of the person's, and nobody to ask
+  ---
+  duration_ms: 43.4875
+  type: 'test'
+  location: '<repo>/tests/host/claude-adapter.test.cjs:200:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + '-p'
+    - 'Read,Glob,Grep'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'Read,Glob,Grep'
+  actual: '-p'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/claude-adapter.test.cjs:204:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: tests/host/claude-adapter.test.cjs
+not ok 1 - tests/host/claude-adapter.test.cjs
+  ---
+  duration_ms: 8005.3435
+  type: 'test'
+  location: '<repo>/tests/host/claude-adapter.test.cjs:1:1'
+  failureType: 'testTimeoutFailure'
+  error: 'test timed out after 8000ms'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..20
+# tests 20
+# suites 0
+# pass 5
+# fail 14
+# cancelled 1
+# skipped 0
+# todo 0
+# duration_ms 8009.377208

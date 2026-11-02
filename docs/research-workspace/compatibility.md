@@ -80,3 +80,66 @@ node scripts/probe-runtime.cjs codex <path-to-codex>
 ## 2. 对计划的调整
 
 计划写的测试文件是 `tests/integration/codex-adapter.test.ts`。实际放在 `tests/host/codex-adapter.test.cjs`：它测的是 Node 模块，和其他宿主测试同一个运行器。
+
+## 3. Claude Code（T16）
+
+### 3.1 验证过的版本和方式
+
+本机 `2.1.309`（2026-11-02）。
+
+| 方式 | 内容 |
+| --- | --- |
+| 真实二进制，无账号 | `--bare` 不读登录和钥匙串，`HOME`、`CLAUDE_CONFIG_DIR` 指向临时目录，不给任何凭据。读帮助，发起到第一次请求为止（回答 `Not logged in`），看各种失败的样子 |
+| 假 CLI | `tests/fixtures/runtimes/fake-claude.cjs`，失败的样子照真实 CLI 写 |
+
+**真实运行没有做**：文本、图像、审批、取消、日志回流。这些要用用户的账号，等用户同意。
+
+### 3.2 在真实二进制上看到的
+
+| 行为 | 结果 | 怎么处理 |
+| --- | --- | --- |
+| 未登录发一轮 | `result` 的 `subtype` 是 **`success`**，但 `is_error: true`，退出码 1 | 原来这会被当成回答存下来。现在按失败处理，文字不当回答 |
+| `--resume` 一个不存在的会话 | `result` 是 `error_during_execution`，`result` 为空，原因写在 stderr：`No conversation found…` | 记下 stderr，报 `session-missing`，不开新会话 |
+| 未知参数 | 退出码 1，stderr `unknown option` | 报 `cli-unsupported`。发之前也会按帮助过滤 |
+| `--restricted --permission-mode bypassPermissions` | 直接拒绝 | 研究模式不用 bypass |
+| `--tools Read,Glob,Grep` | `init` 的 `tools` 只有 `Read`（`--bare` 下） | 研究模式核对 `init.tools`，多了别的工具就停 |
+
+会话被其他客户端占用时真实的报错文案没有见过。判断用的是 `already in use`、`is busy`、`locked`，以及假 CLI 的写法，认不出时按普通错误结束，同样不开新会话。
+
+### 3.3 能力探测
+
+`probeClaude(binaryPath)`：读 `--version`、`--help`，并用 `--bare` 启动一次只给读取工具的进程，看它 `init` 里报的工具。
+
+| 能力 | 怎么得出 | 本机结果 |
+| --- | --- | --- |
+| `fresh`、`resume`、`approvals` | 帮助里列没列相应参数（`--permission-prompt-tool` 只在说明文字里出现，也算） | supported |
+| `forkAtCompletedTurn` | `--fork-session` 复制全部历史，没有边界可以指定 | **unsupported** |
+| `observeState` | 没有办法询问会话是否被占用，只能等它拒绝 | **unsupported** |
+| `cancel` | 进程是我们自己启动的，能结束 | supported |
+| `networkRestriction` | 真的试：只给读取工具时，进程启动后没有 Bash、WebFetch 之类。这是工具层面的限制，不是系统沙箱；模型请求本身当然要联网 | supported |
+| `readOnlyRoots`、`autoContextControl` | 帮助里写了 `--restricted`（文件工具限制在工作目录）、`--safe-mode`（不加载 CLAUDE.md、技能等）。是否真的做到，要跑一轮才看得出来 | unknown |
+
+### 3.4 研究隔离模式在 Claude Code 上目前也不能用
+
+原因是 `readOnlyRoots`、`autoContextControl` 未知。工作模式不受影响。
+
+这和 Codex 不一样：Codex 是试出来挡不住，Claude Code 是还没试。等用户同意跑真实一轮，可以验证这两项；验证通过后要改的是探测结果怎么得出，适配器已经按能力分支：研究模式用 `--restricted --safe-mode --strict-mcp-config --tools Read,Glob,Grep --permission-mode dontAsk`，不带 `--resume`。`--bare` 不能用于真实运行，因为它不读登录。
+
+### 3.5 适配器的行为
+
+- **新会话**：不带 `--resume`、`--fork-session`。
+- **续接**：只带 `--resume`。
+- **分叉**：
+  - `forkEntryId`（在某一轮分叉）做不到，拒绝（`fork-unsupported`），不会变成复制全部历史；
+  - `forkSession: true` 明确要求复制整个会话，`binding` 里写 `inheritsHistory: true`。页面目前不用它。
+- **参数按帮助发**：帮助没列的可选参数不发；缺必需的不启动（`cli-unsupported`）；读不到帮助时只发必需的。参数都是数组传给 `spawn`，不经过 shell。
+- **失败**：见 3.2。
+- **取消（L01）**：准备阶段停了就不启动进程，提示词不会发出去。进程启动后停止，结束进程。
+- **绑定**：`binding` 事件带会话 id 和最后一条回答的 id。没完成时 `lastCompletedTurnId` 是 `null`。
+- **`--help` 的缓存**：原来是模块级、整个进程只读一次；现在每个运行时一份，版本变了重读，读不到不缓存。
+
+### 3.6 没做的
+
+- 页面不选分叉，也不用 `forkSession`。
+- 取消时撤回未决审批已有；审批幂等和事件去重归 T17。
+- 图像的真实送达没有验证，只验证了发送的格式。

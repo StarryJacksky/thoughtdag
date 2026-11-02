@@ -14,6 +14,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const { randomUUID } = require('node:crypto');
 const { snapshotDir, diffSnapshots } = require('./fs-diff.cjs');
+const { probeClaude, versionOf, helpOf, flagsIn, READING_TOOLS } = require('./claude-capabilities.cjs');
 
 const fsp = fs.promises;
 const { locate, childEnv: envWith } = require('./where.cjs');
@@ -28,23 +29,15 @@ const childEnv = () => envWith(EXTRA_HOMES);
  *  of each family inside the CLI, so they never go stale. The CLI's own
  *  "default" is not offered: which model it means lives in the CLI's settings
  *  and can change under the person, so the picker names families only. */
-/** The effort levels this CLI accepts, in its own words, read from its own
- *  `--help` (the `--effort <level>` entry lists them in parentheses) — so a
- *  CLI that adds a level shows it without a change here. Empty when the
- *  CLI has no such flag. Read once per launch. */
-let effortsPromise = null;
-function effortsOf(bin) {
-  if (!effortsPromise) effortsPromise = new Promise((resolve) => {
-    execFile(bin, ['--help'], { env: childEnv(), timeout: 8000, maxBuffer: 1 << 20 }, (_err, stdout) => {
-      const help = String(stdout || '');
-      const at = help.indexOf('--effort');
-      if (at < 0) return resolve([]);
-      const next = help.indexOf('\n  --', at + 1);
-      const m = help.slice(at, next > 0 ? next : undefined).match(/\(([a-z0-9_, \n-]+)\)/i);
-      resolve(m ? m[1].split(',').map((s) => s.trim()).filter(Boolean) : []);
-    });
-  });
-  return effortsPromise;
+/** The effort levels a CLI accepts, in its own words, from its help (the
+ *  `--effort <level>` entry lists them in parentheses), so a CLI that adds a
+ *  level shows it without a change here. Empty when it has no such flag. */
+function effortsIn(help) {
+  const at = help.indexOf('--effort');
+  if (at < 0) return [];
+  const next = help.indexOf('\n  --', at + 1);
+  const m = help.slice(at, next > 0 ? next : undefined).match(/\(([a-z0-9_, \n-]+)\)/i);
+  return m ? m[1].split(',').map((x) => x.trim()).filter(Boolean) : [];
 }
 
 const MODELS = [
@@ -108,19 +101,63 @@ async function permissionModeFor(cwd) {
   return 'default';
 }
 
-function createClaudeRuntime({ log } = {}) {
+/** A run that cannot go as asked: said to the person under a code, and nothing is sent in its place. */
+class RunRefused extends Error {
+  constructor(code, message) { super(message); this.code = code; }
+}
+/** What this CLI cannot run a turn without. */
+const NEEDED = ['--output-format', '--input-format', '--verbose', '--permission-mode'];
+const MISSING_SESSION = /no conversation found/i;
+const BUSY_SESSION = /already in use|\bis busy\b|\blocked\b/i;
+const UNKNOWN_OPTION = /unknown option/i;
+/** What the CLI said on its way out, as a code for the person: a session gone or in use is not a failure of the turn. */
+function codeOf(said) {
+  if (MISSING_SESSION.test(said)) return 'session-missing';
+  if (BUSY_SESSION.test(said)) return 'session-busy';
+  if (UNKNOWN_OPTION.test(said)) return 'cli-unsupported';
+  return null;
+}
+
+function createClaudeRuntime({ log, find = findClaude, probe = probeClaude } = {}) {
   const say = log || (() => {});
   const runs = new Map();     // runId → state
   let binPromise = null;
   const bin = () => {
-    if (!binPromise) binPromise = findClaude().then((r) => { if (!r.path) { located = null; binPromise = null; } return r.path; });
+    if (!binPromise) binPromise = find().then((r) => { if (!r.path) { located = null; binPromise = null; } return r.path; });
     return binPromise;
   };
   /** Where the lookup walked, for the picker's "not found" note. */
-  const searched = async () => (await findClaude()).searched;
+  const searched = async () => (await find()).searched;
+
+  // The CLI's `--help`, the one source of what it accepts: read once, until a new version, unless it gave none.
+  let helpPromise = null;
+  function helpFor(b) {
+    if (helpPromise) return helpPromise;
+    const asked = helpOf(b, childEnv());
+    helpPromise = asked;
+    asked.then((help) => { if (!help && helpPromise === asked) helpPromise = null; }, () => { if (helpPromise === asked) helpPromise = null; });
+    return asked;
+  }
+  const effortsOf = async (b) => effortsIn(await helpFor(b));
+
+  // What this version can do. A report stands while the binary says the same version; a new one is probed for.
+  let probed = null;
+  async function capabilities() {
+    const b = await bin();
+    if (!b) return null;
+    const version = await versionOf(b, childEnv());
+    if (probed && probed.binary === b && probed.version === version) return probed.report;
+    if (probed) helpPromise = null;
+    const report = probe(b);
+    probed = { binary: b, version, report };
+    report.catch(() => { if (probed?.report === report) probed = null; });
+    return report;
+  }
 
   return {
     available: () => bin(),
+
+    capabilities,
 
     async models() {
       const b = await bin();
@@ -137,7 +174,7 @@ function createClaudeRuntime({ log } = {}) {
       if (!b) throw new Error('claude is not installed (no `claude` on PATH or in the usual places)');
       const runId = randomUUID();
       const emit = (event) => { try { onEvent({ runId, event }); } catch { /* renderer gone */ } };
-      const state = { runId, proc: null, asks: new Map(), text: '', final: null, sessionId: null, waiting: false, ended: false, aborted: false,
+      const state = { runId, proc: null, asks: new Map(), text: '', final: null, sessionId: null, lastEntry: null, turnStatus: null, heard: '', waiting: false, ended: false, aborted: false,
         // what this conversation already allowed for good (see README: `rule`)
         allowRules: new Set(Array.isArray(req.allowRules) ? req.allowRules.filter((s) => typeof s === 'string' && s.startsWith('claude:')) : []) };
       runs.set(runId, state);
@@ -148,19 +185,40 @@ function createClaudeRuntime({ log } = {}) {
         const mark = (event) => { lastEvent = Date.now(); if (event.type === 'question') state.waiting = true; if (event.type === 'question_answered') state.waiting = false; emit(event); };
         let watchdog = null;
         const before = await snapshotDir(cwd).catch(() => null);
+        // stopped while it was being prepared: nothing is started, and nothing is sent
+        const STOPPED = Symbol('stopped');
+        const goOn = () => { if (state.aborted) throw STOPPED; };
         try {
-          const mode = await permissionModeFor(cwd);
-          const model = req.model && typeof req.model === 'object' && req.model.id && req.model.id !== 'default' ? req.model.id : null;
+          goOn();
+          const researching = req.mode === 'research';
+          if (researching) {
+            const known = (await capabilities())?.capabilities ?? {};
+            if (req.sessionPath || !['readOnlyRoots', 'networkRestriction', 'autoContextControl'].every((c) => known[c] === 'supported')) throw new RunRefused('research-unverified', 'this version of claude is not known to keep a run to its inputs');
+          }
           const resumeId = req.sessionPath ? sessionIdOf(req.sessionPath) : null;
+          // a branch through a turn cannot be had: --fork-session copies all of the history, which is another thing, asked for as itself
+          if (resumeId && req.forkEntryId) throw new RunRefused('fork-unsupported', 'claude cannot branch a session at a turn');
+          const mode = researching ? 'dontAsk' : await permissionModeFor(cwd);
+          const model = req.model && typeof req.model === 'object' && req.model.id && req.model.id !== 'default' ? req.model.id : null;
+          // what this version lists: with no help to read, nothing that a run can do without is sent
+          const help = await helpFor(b);
+          goOn();
+          const flags = flagsIn(help);
+          const lists = (flag) => flags.has(flag);
+          if (help && !NEEDED.every(lists)) throw new RunRefused('cli-unsupported', `this version of claude lacks ${NEEDED.filter((f) => !lists(f)).join(', ')}`);
           // the prompt channel stays open in every mode: with nothing to
           // approve, AskUserQuestion still comes through it
-          const args = ['-p', '--output-format', 'stream-json', '--input-format', 'stream-json', '--verbose', '--include-partial-messages', '--permission-mode', mode, '--permission-prompt-tool', 'stdio'];
-          if (model) args.push('--model', model);
+          const args = ['-p', '--output-format', 'stream-json', '--input-format', 'stream-json', '--verbose', ...(lists('--include-partial-messages') ? ['--include-partial-messages'] : []), '--permission-mode', mode, '--permission-prompt-tool', 'stdio'];
+          if (model && (lists('--model') || !help)) args.push('--model', model);
           // only a level the CLI itself lists; anything else means its default
           if (req.effort && (await effortsOf(b)).includes(req.effort)) args.push('--effort', req.effort);
-          if (resumeId) { args.push('--resume', resumeId); if (req.forkEntryId) args.push('--fork-session'); }
+          if (researching) args.push('--restricted', '--safe-mode', '--strict-mcp-config', '--tools', READING_TOOLS.join(','));
+          const inheritsHistory = !!(resumeId && req.forkSession);
+          if (resumeId) { args.push('--resume', resumeId); if (inheritsHistory) args.push('--fork-session'); }
+          goOn();
           const proc = spawn(b, args, { cwd, env: childEnv(), stdio: ['pipe', 'pipe', 'pipe'] });
           state.proc = proc;
+          proc.stdin.on('error', () => {});
           let buf = '';
           const finished = new Promise((resolve) => {
             const done = (how) => { if (state.ended) return; state.ended = true; resolve(how); };
@@ -174,9 +232,13 @@ function createClaudeRuntime({ log } = {}) {
                 handle(m, done);
               }
             });
-            proc.stderr.on('data', (d) => say('[claude stderr] ' + d.toString().trim().slice(0, 400)));
+            proc.stderr.on('data', (d) => { const said = d.toString(); state.heard = (state.heard + said).slice(-2000); say('[claude stderr] ' + said.trim().slice(0, 400)); });
             proc.on('error', (e) => { mark({ type: 'run_error', message: 'spawn error: ' + e.message }); done('error'); });
-            proc.on('exit', (code, signal) => { if (!state.ended) { if (!state.aborted && code) mark({ type: 'run_error', message: `claude exited (${signal || code})` }); done(state.aborted ? 'aborted' : (code ? 'error' : 'end')); } });
+            proc.on('exit', (code, signal) => {
+              if (state.ended) return;
+              if (!state.aborted && code) { const said = state.heard.trim(); const why = codeOf(said); mark({ type: 'run_error', message: said.slice(-400) || `claude exited (${signal || code})`, ...(why ? { code: why } : {}) }); }
+              done(state.aborted ? 'aborted' : (code ? 'error' : 'end'));
+            });
           });
           watchdog = setInterval(() => {
             if (state.waiting || Date.now() - lastEvent < IDLE) return;
@@ -188,6 +250,13 @@ function createClaudeRuntime({ log } = {}) {
             switch (m.type) {
               case 'system':
                 if (m.subtype === 'init') {
+                  // research comes up with the tools it was given and no others, or it does not go on
+                  if (researching && Array.isArray(m.tools) && !m.tools.every((t) => READING_TOOLS.includes(t))) {
+                    mark({ type: 'run_error', code: 'research-unverified', message: `the run came up with tools it was not given: ${m.tools.filter((t) => !READING_TOOLS.includes(t)).join(', ')}` });
+                    try { proc.kill(); } catch { /* gone */ }
+                    done('error');
+                    break;
+                  }
                   state.sessionId = m.session_id;
                   // the file appears once the first lines are written; the
                   // completion re-emits the session with its real path
@@ -208,6 +277,7 @@ function createClaudeRuntime({ log } = {}) {
               case 'assistant':
                 // the alias resolved to a real model inside the CLI; the final session event carries it
                 if (!state.resolvedModel && typeof m.message?.model === 'string') state.resolvedModel = m.message.model;
+                if (typeof m.uuid === 'string') state.lastEntry = m.uuid;
                 for (const b of m.message?.content ?? []) if (b.type === 'tool_use') mark({ type: 'tool_execution_start', toolCallId: b.id, toolName: b.name, args: b.input ?? {} });
                 break;
               case 'user':
@@ -276,15 +346,32 @@ function createClaudeRuntime({ log } = {}) {
                 mark({ type: 'question', kind: 'confirm', id, rule, title, message: [line, r.description].filter(Boolean).join('\n'), options: [], placeholder: null, prefill: null, paths: [], suggest: null });
                 break;
               }
-              case 'result':
+              case 'result': {
+                // a turn that failed may still say "success": `is_error` is what says so, and what it said is not an answer
+                const failed = !!m.is_error || (!!m.subtype && m.subtype !== 'success');
+                if (failed) {
+                  state.text = '';
+                  state.final = null;
+                  state.turnStatus = 'failed';
+                  // the reason of a session not found comes on stderr, a moment after
+                  setTimeout(() => {
+                    const said = (typeof m.result === 'string' && m.result) || state.heard.trim() || String(m.subtype ?? 'the turn failed');
+                    const why = codeOf(said);
+                    mark({ type: 'run_error', message: said.slice(-400), ...(why ? { code: why } : {}) });
+                    done('error');
+                  }, m.result ? 0 : 50);
+                  break;
+                }
                 state.final = typeof m.result === 'string' ? m.result : null;
-                if (m.subtype && m.subtype !== 'success') mark({ type: 'run_error', message: String(m.result ?? m.subtype) });
-                done(m.subtype === 'success' ? 'end' : 'error');
+                state.turnStatus = 'completed';
+                done('end');
                 break;
+              }
               default: break;
             }
           };
 
+          goOn();
           // the prompt goes in as one user message; stdin stays open for answers
           const content = [{ type: 'text', text: String(req.prompt ?? '') }];
           for (const img of Array.isArray(req.images) ? req.images : []) if (img && typeof img.data === 'string') content.push({ type: 'image', source: { type: 'base64', media_type: img.mimeType, data: img.data } });
@@ -294,6 +381,8 @@ function createClaudeRuntime({ log } = {}) {
           // let the CLI finish writing its transcript: it exits on its own
           // after the result; a kill is only the fallback
           await new Promise((resolve) => { if (proc.exitCode !== null || proc.signalCode) return resolve(); const t = setTimeout(() => { try { proc.kill(); } catch { /* gone */ } resolve(); }, 8000); proc.once('exit', () => { clearTimeout(t); resolve(); }); });
+          // what a later run may go on from: the entry of a turn that really finished
+          if (state.sessionId) mark({ type: 'binding', threadId: null, nativeSessionId: state.sessionId, inheritsHistory, turnStatus: state.turnStatus ?? (how === 'aborted' ? 'interrupted' : how === 'end' ? 'completed' : 'failed'), turnId: state.lastEntry, lastCompletedTurnId: (state.turnStatus === 'completed' || (!state.turnStatus && how === 'end')) ? state.lastEntry : null });
           if (state.sessionId) {
             const file = await sessionFileFor(cwd, state.sessionId);
             const ran = await turnEffortOf(file);
@@ -305,8 +394,11 @@ function createClaudeRuntime({ log } = {}) {
           }
           mark({ type: 'run_end', text: state.final ?? state.text, how });
         } catch (e) {
-          mark({ type: 'run_error', message: e instanceof Error ? e.message : String(e) });
-          mark({ type: 'run_end', text: state.final ?? state.text, how: 'error' });
+          if (e === STOPPED) mark({ type: 'run_end', text: state.final ?? state.text, how: 'aborted' });
+          else {
+            mark({ type: 'run_error', message: e instanceof Error ? e.message : String(e), ...(e instanceof RunRefused ? { code: e.code } : {}) });
+            mark({ type: 'run_end', text: state.final ?? state.text, how: 'error' });
+          }
         } finally {
           if (watchdog) clearInterval(watchdog);
           runs.delete(runId);

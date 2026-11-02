@@ -99,7 +99,7 @@ test('claude: a fresh run passes its flags as arguments and the prompt as one st
   assert.deepEqual(events.at(-1), { type: 'run_end', text: 'synthetic claude answer', how: 'end' });
 });
 
-test('claude: a run given a session file resumes it; a fork adds --fork-session', async () => {
+test('claude: a run given a session file resumes it; a branch of the whole session adds --fork-session', async () => {
   const sessionPath = path.join(fake.home, '.claude', 'projects', 'synthetic', `${SESSION}.jsonl`);
   fake.clear();
   const resumed = await runToEnd(claude, { runtime: 'claude-code', cwd: fake.project, prompt: 'continue', sessionPath, model: { provider: 'claude-code', id: 'sonnet' } });
@@ -108,7 +108,7 @@ test('claude: a run given a session file resumes it; a fork adds --fork-session'
   assert.equal(resumed.find((e) => e.type === 'session').sessionId, SESSION);
 
   fake.clear();
-  const forked = await runToEnd(claude, { runtime: 'claude-code', cwd: fake.project, prompt: 'branch', sessionPath, forkEntryId: 'entry-7', model: { provider: 'claude-code', id: 'sonnet' } });
+  const forked = await runToEnd(claude, { runtime: 'claude-code', cwd: fake.project, prompt: 'branch', sessionPath, forkSession: true, model: { provider: 'claude-code', id: 'sonnet' } });
   const forkArgv = fake.read('claude').find((r) => r.kind === 'argv').argv;
   assert.deepEqual(forkArgv.slice(-3), ['--resume', SESSION, '--fork-session']);
   assert.notEqual(forked.find((e) => e.type === 'session').sessionId, SESSION);

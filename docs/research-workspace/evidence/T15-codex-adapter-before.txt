@@ -1,0 +1,342 @@
+TAP version 13
+# Subtest: [T15] the handshake comes first, once, and only then anything else
+ok 1 - [T15] the handshake comes first, once, and only then anything else
+  ---
+  duration_ms: 152.347583
+  type: 'test'
+  ...
+# Subtest: [T15][L03] two asking at once while the server starts: one server, one handshake
+ok 2 - [T15][L03] two asking at once while the server starts: one server, one handshake
+  ---
+  duration_ms: 95.884083
+  type: 'test'
+  ...
+# Subtest: [T15][L03] a server that went away is started again, and the old one's exit does not take the new one with it
+not ok 3 - [T15][L03] a server that went away is started again, and the old one's exit does not take the new one with it
+  ---
+  duration_ms: 45.025917
+  type: 'test'
+  location: '<repo>/tests/host/codex-adapter.test.cjs:64:1'
+  failureType: 'testCodeFailure'
+  error: 'codex exited (SIGTERM)'
+  code: 'ERR_TEST_FAILURE'
+  stack: |-
+    <repo>/runtime/agents/codex.cjs:70:75
+    die (<repo>/runtime/agents/codex.cjs:88:39)
+    ChildProcess.<anonymous> (<repo>/runtime/agents/codex.cjs:112:39)
+    ChildProcess.emit (node:events:519:28)
+    ChildProcess._handle.onexit (node:internal/child_process:293:12)
+  ...
+# Subtest: [T15] the thread is told apart from its session: the run answers with the thread's id and the turn that really ran
+not ok 4 - [T15] the thread is told apart from its session: the run answers with the thread's id and the turn that really ran
+  ---
+  duration_ms: 44.957875
+  type: 'test'
+  location: '<repo>/tests/host/codex-adapter.test.cjs:73:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - '2dd3c2ef-7b8b-4ad4-9cf0-64a73e2c9466'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '2dd3c2ef-7b8b-4ad4-9cf0-64a73e2c9466'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/codex-adapter.test.cjs:78:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T15] resume names the thread, and the next turn goes on it
+ok 5 - [T15] resume names the thread, and the next turn goes on it
+  ---
+  duration_ms: 43.579834
+  type: 'test'
+  ...
+# Subtest: [T15] a turn that did not finish is not called completed: the binding keeps the one before it
+not ok 6 - [T15] a turn that did not finish is not called completed: the binding keeps the one before it
+  ---
+  duration_ms: 86.850667
+  type: 'test'
+  location: '<repo>/tests/host/codex-adapter.test.cjs:98:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'lastCompletedTurnId')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/codex-adapter.test.cjs:106:24)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T15] a fork carries its boundary: the turn it goes through, not the whole thread
+not ok 7 - [T15] a fork carries its boundary: the turn it goes through, not the whole thread
+  ---
+  duration_ms: 47.018958
+  type: 'test'
+  location: '<repo>/tests/host/codex-adapter.test.cjs:111:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - 'turn-1'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'turn-1'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/codex-adapter.test.cjs:116:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T15] a boundary found on a later page of turns is found
+not ok 8 - [T15] a boundary found on a later page of turns is found
+  ---
+  duration_ms: 44.217291
+  type: 'test'
+  location: '<repo>/tests/host/codex-adapter.test.cjs:122:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - 'turn-249'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'turn-249'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/codex-adapter.test.cjs:127:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T15] a fork at a turn in progress is refused, and nothing is sent in its place
+not ok 9 - [T15] a fork at a turn in progress is refused, and nothing is sent in its place
+  ---
+  duration_ms: 43.412458
+  type: 'test'
+  location: '<repo>/tests/host/codex-adapter.test.cjs:131:3'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'code')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/codex-adapter.test.cjs:134:33)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T15] a fork at a turn interrupted is refused, and nothing is sent in its place
+not ok 10 - [T15] a fork at a turn interrupted is refused, and nothing is sent in its place
+  ---
+  duration_ms: 44.095042
+  type: 'test'
+  location: '<repo>/tests/host/codex-adapter.test.cjs:131:3'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'code')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/codex-adapter.test.cjs:134:33)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T15] a fork at a turn failed is refused, and nothing is sent in its place
+not ok 11 - [T15] a fork at a turn failed is refused, and nothing is sent in its place
+  ---
+  duration_ms: 44.553
+  type: 'test'
+  location: '<repo>/tests/host/codex-adapter.test.cjs:131:3'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'code')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/codex-adapter.test.cjs:134:33)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T15] a fork at a turn the thread does not have is refused
+not ok 12 - [T15] a fork at a turn the thread does not have is refused
+  ---
+  duration_ms: 44.164333
+  type: 'test'
+  location: '<repo>/tests/host/codex-adapter.test.cjs:140:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'code')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/codex-adapter.test.cjs:143:31)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T15] a version whose fork has no boundary is not asked to fork: the whole history would come along
+not ok 13 - [T15] a version whose fork has no boundary is not asked to fork: the whole history would come along
+  ---
+  duration_ms: 45.601084
+  type: 'test'
+  location: '<repo>/tests/host/codex-adapter.test.cjs:147:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'code')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/codex-adapter.test.cjs:150:31)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T15] a fork whose turns cannot be looked at is refused: it is not known to be whole
+not ok 14 - [T15] a fork whose turns cannot be looked at is refused: it is not known to be whole
+  ---
+  duration_ms: 46.6065
+  type: 'test'
+  location: '<repo>/tests/host/codex-adapter.test.cjs:154:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'code')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/codex-adapter.test.cjs:157:31)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T15] a method the server does not know ends the run with that said: no other way in is tried
+not ok 15 - [T15] a method the server does not know ends the run with that said: no other way in is tried
+  ---
+  duration_ms: 44.800625
+  type: 'test'
+  location: '<repo>/tests/host/codex-adapter.test.cjs:161:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - 'method-unsupported'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'method-unsupported'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/codex-adapter.test.cjs:164:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T15] a thread at work in this server is not resumed, and no new thread is started instead
+not ok 16 - [T15] a thread at work in this server is not resumed, and no new thread is started instead
+  ---
+  duration_ms: 44.683292
+  type: 'test'
+  location: '<repo>/tests/host/codex-adapter.test.cjs:169:1'
+  failureType: 'testCodeFailure'
+  error: "Cannot read properties of undefined (reading 'code')"
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/codex-adapter.test.cjs:172:31)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T15] the server saying a thread is busy elsewhere is said as that, and no new thread is started instead
+not ok 17 - [T15] the server saying a thread is busy elsewhere is said as that, and no new thread is started instead
+  ---
+  duration_ms: 42.646833
+  type: 'test'
+  location: '<repo>/tests/host/codex-adapter.test.cjs:176:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - 'session-busy'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'session-busy'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/codex-adapter.test.cjs:179:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T15][L01] stopped while the thread is being started: the prompt is never sent
+not ok 18 - [T15][L01] stopped while the thread is being started: the prompt is never sent
+  ---
+  duration_ms: 166.987917
+  type: 'test'
+  location: '<repo>/tests/host/codex-adapter.test.cjs:183:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/codex-adapter.test.cjs:189:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T15][L01] stopped before the server has even answered: the prompt is never sent
+not ok 19 - [T15][L01] stopped before the server has even answered: the prompt is never sent
+  ---
+  duration_ms: 169.370333
+  type: 'test'
+  location: '<repo>/tests/host/codex-adapter.test.cjs:194:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+    + [
+    +   'thread/start',
+    +   'turn/start'
+    + ]
+    - []
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual:
+    0: 'thread/start'
+    1: 'turn/start'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/codex-adapter.test.cjs:199:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: tests/host/codex-adapter.test.cjs
+not ok 1 - tests/host/codex-adapter.test.cjs
+  ---
+  duration_ms: 8005.059084
+  type: 'test'
+  location: '<repo>/tests/host/codex-adapter.test.cjs:1:1'
+  failureType: 'testTimeoutFailure'
+  error: 'test timed out after 8000ms'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..20
+# tests 20
+# suites 0
+# pass 3
+# fail 16
+# cancelled 1
+# skipped 0
+# todo 0
+# duration_ms 8009.460542

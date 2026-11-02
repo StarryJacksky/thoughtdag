@@ -41,7 +41,7 @@
 
 | 要求 | 测试 |
 | --- | --- |
-| 切点：attempt、发布、created、身份提交（4 个）×旧身份 ready、missing×相同、不同内容 | `cut short at …`，共 24 条 |
+| 切点：attempt、发布、created、身份提交（4 个）×旧身份 ready、missing×相同、不同内容 | `cut short at …`，共 16 条 |
 | 恢复重复执行、相同幂等键重试 | `restarting again and asking again give the same file`，3 个切点，3 次重启 |
 | 外部替换同名文件 | `another program puts other content at the name`：回执的 revision 是磁盘上的内容；`another program puts a file at the name that was being tried`：不是这次创建的文件，新文件取下一个名字 |
 | 文件在重启前消失 | `the file is gone before the restart`：什么也不认领，重试时重新创建 |

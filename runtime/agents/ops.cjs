@@ -34,12 +34,12 @@ async function workspaceFor(root, canvasId) {
  * The materials of the oldest runs beyond the newest 20 are removed, each only
  * if the run is known to be over and they are exactly what its manifest lists.
  */
-async function materializeRun(cwd, envelope, provided, readers = {}) {
+async function materializeRun(cwd, envelope, provided, readers = {}, capabilities = null) {
   const refused = (code, message, more = {}) => ({ ok: false, code, message, inputId: null, ...more });
   if (typeof cwd !== 'string' || !path.isAbsolute(cwd)) return refused('invalid-request', 'the working directory must be an absolute path');
   if (!envelope || typeof envelope !== 'object' || !RUN_ID.test(String(envelope.runId))) return refused('invalid-envelope', 'that is not a run envelope');
-  // what is known of the runtimes' capabilities: nothing yet (T15, T16), so research by an agent is refused
-  const verdict = verifyPolicy(envelope, null);
+  // what is known of the runtime's capabilities, as probed: without a report, research by an agent is refused
+  const verdict = verifyPolicy(envelope, capabilities);
   if (!verdict.ok) return refused('policy', 'the run cannot be held to its policy here: ' + verdict.blocked.join(', '), { blocked: verdict.blocked });
   const runs = path.join(cwd, '.thoughtdag', 'runs');
   const dir = path.join(runs, String(envelope.runId));

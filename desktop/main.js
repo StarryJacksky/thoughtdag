@@ -897,6 +897,9 @@ function setupAgents() {
   handle('agents:models', async (_e, runtime) => {
     try { return await agentsRuntime(runtime).models(); } catch (e) { return { installed: false, models: [], default: null, error: e instanceof Error ? e.message : String(e) }; }
   });
+  handle('agents:capabilities', async (_e, runtime) => {
+    try { return (await agentsRuntime(runtime).capabilities?.()) ?? null; } catch { return null; }
+  });
   handle('agents:run', async (_e, req) => {
     const r = req && typeof req === 'object' ? req : {};
     const name = RUNTIME_FACTORIES[r.runtime] ? r.runtime : 'pi';
@@ -998,7 +1001,8 @@ function setupWorkspace() {
       return record ? service.readSnapshot(record.workspaceId, String(snapshotId)) : null;
     },
     readCurrentOfFile: async (fileId) => (await service.readBytes(String(fileId), { maxBytes: 8 * 1024 * 1024 })).bytes,
-  }));
+  // a runtime the shell has not got is asked nothing: without a report, research by an agent is refused
+  }, Object.hasOwn(RUNTIME_FACTORIES, String(envelope?.runtime?.runtime)) ? await agentsRuntime(envelope.runtime.runtime).capabilities?.().catch(() => null) : null));
 
   // What the page may ask is one table (runtime/workspace/door.cjs). In front
   // of every entry: the call must come from the app's own top frame.

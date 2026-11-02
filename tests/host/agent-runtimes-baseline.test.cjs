@@ -54,21 +54,8 @@ test('codex: a run given a session file resumes that thread', async () => {
   fake.clear();
   await runToEnd(codex, { runtime: 'codex', cwd: fake.project, prompt: 'continue', sessionPath: path.join(fake.sessions, `rollout-${SESSION}.jsonl`), model: { provider: 'codex', id: 'gpt-synthetic' } });
   const msgs = received('codex');
-  assert.deepEqual(msgs.map((m) => m.method), ['thread/resume', 'turn/start']);
-  assert.equal(msgs[0].params.threadId, SESSION);
-});
-
-// Today's behavior, on record: the fork names the thread and nothing else, so
-// the branch inherits the whole history. The entry the canvas asked to fork
-// at does not travel. The plan's T15 revisits this against what the
-// installed CLI supports.
-test('codex: a fork names the thread only; no turn boundary travels', async () => {
-  fake.clear();
-  await runToEnd(codex, { runtime: 'codex', cwd: fake.project, prompt: 'branch', sessionPath: path.join(fake.sessions, `rollout-${SESSION}.jsonl`), forkEntryId: 'entry-7', model: { provider: 'codex', id: 'gpt-synthetic' } });
-  const fork = received('codex')[0];
-  assert.equal(fork.method, 'thread/fork');
-  assert.deepEqual(Object.keys(fork.params).sort(), ['approvalPolicy', 'approvalsReviewer', 'cwd', 'model', 'sandbox', 'threadId']);
-  assert.equal(fork.params.threadId, SESSION);
+  assert.deepEqual(msgs.map((m) => m.method), ['thread/read', 'thread/resume', 'turn/start']);
+  assert.equal(msgs[1].params.threadId, SESSION);
 });
 
 test('codex: the agent can read exactly the materials written under the working directory', async () => {
@@ -80,16 +67,14 @@ test('codex: the agent can read exactly the materials written under the working 
 });
 
 test('codex: a thread busy elsewhere ends the run with the server\'s reason, not a silent retry', async (t) => {
-  // a runtime of its own: its server starts now and reads the script. (Stopping
-  // the shared one and running again at once is not safe today: the stopped
-  // server's exit event lands on its successor and orphans it.)
+  // a runtime of its own: its server starts now and reads the script
   fake.script({ busyThreads: [SESSION] });
   const busyCodex = createCodexRuntime();
   t.after(() => busyCodex.shutdown());
   fake.clear();
   const events = await runToEnd(busyCodex, { runtime: 'codex', cwd: fake.project, prompt: 'continue', sessionPath: path.join(fake.sessions, `rollout-${SESSION}.jsonl`), model: { provider: 'codex', id: 'gpt-synthetic' } });
   fake.script(null);
-  assert.deepEqual(events.find((e) => e.type === 'run_error'), { type: 'run_error', message: 'thread is busy in another client' });
+  assert.deepEqual(events.find((e) => e.type === 'run_error'), { type: 'run_error', code: 'session-busy', message: 'that session is busy elsewhere: thread is busy in another client' });
   assert.equal(events.at(-1).how, 'error');
   assert.deepEqual(received('codex').filter((m) => m.method === 'thread/resume').length, 1);
   assert.ok(!received('codex').some((m) => m.method === 'thread/start' || m.method === 'turn/start'));

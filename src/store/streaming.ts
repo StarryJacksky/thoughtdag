@@ -698,6 +698,10 @@ export async function runNodeGeneration(
         set((state) => ({ nodes: state.nodes.map((n) => n.id === nodeId ? { ...n, data: { ...n.data, agentSession: { ...n.data.agentSession, ...session, continued } } } : n) }));
         if (continued && session.sessionId) void claimAgentTurn(session.runtime, nodeId, session.sessionId, session.cwd);
       },
+      onAgentBinding: (binding) => {
+        if (!isCurrent()) return;
+        set((state) => ({ nodes: state.nodes.map((n) => n.id === nodeId && n.data.agentSession ? { ...n, data: { ...n.data, agentSession: { ...n.data.agentSession, ...binding } } } : n) }));
+      },
       onAgentChanges: (changes) => {
         if (!isCurrent()) return;
         set((state) => ({ nodes: state.nodes.map((n) => n.id === nodeId && n.data.agentSession ? { ...n, data: { ...n.data, agentSession: { ...n.data.agentSession, changes } } } : n) }));

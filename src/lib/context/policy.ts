@@ -46,13 +46,16 @@ export function verifyPolicy(envelope: Pick<RunEnvelope, 'mode' | 'runtime' | 'p
   return { ok: blocked.length === 0, blocked, notice: mode === 'workspace' && runtime.kind === 'agent' ? 'workspace-readable' : null };
 }
 
+const known = new Map<string, CapabilityReport>();
+/** What a runtime was probed to be able to do, as the host said (a new report replaces the last); null: nothing is known of it. */
+export function noteCapabilities(runtime: string, report: CapabilityReport | null): void {
+  if (report) known.set(runtime, report); else known.delete(runtime);
+}
 /**
- * What is known of a runtime's capabilities. Nothing yet: the probes that
- * find out what an installed Codex or Claude Code can enforce are T15 and
- * T16. Until then every capability is unknown, and research by an agent is
- * refused.
+ * What is known of a runtime's capabilities: the last report the host gave
+ * (agentCatalog asks whenever the runtimes are looked at). Until there is one
+ * every capability is unknown, and research by an agent is refused.
  */
 export function capabilitiesOf(runtime: string | null): CapabilityReport | null {
-  void runtime;
-  return null;
+  return (runtime && known.get(runtime)) || null;
 }

@@ -226,6 +226,7 @@ export interface StreamCallbacks {
   onAgentChanges?: (changes: { changed: string[]; added: string[]; removed: string[]; truncated?: boolean }) => void;
   /** An agent runtime in the desktop app: which session this turn ran in. */
   onAgentSession?: (session: { runtime: import('../types').AgentRuntime; sessionId: string | null; sessionFile: string | null; cwd: string }) => void;
+  onAgentBinding?: (binding: { lastTurnId: string | null; lastCompletedTurnId?: string }) => void;
   /** Inside DeepSeek Harness: the harness session this generation ran in
       (a fresh one, or the mirrored session it continued). */
   onHarnessSession?: (session: string, continued: boolean) => void;
@@ -277,7 +278,7 @@ export async function llmCallStream(
   /** Agent lanes only: which working directory the turn runs in, which
       session it continues, or which DSH session+turn anchor it forks from.
       The harness fields are ignored by every non-Harness backend. */
-  harness?: { cwd?: string; session?: string; forkSession?: string; forkAnchor?: string; sessionPath?: string; forkEntryId?: string; nodeId?: string; continue?: boolean; effort?: string | null; permission?: 'auto' | 'allow' },
+  harness?: { cwd?: string; session?: string; forkSession?: string; forkAnchor?: string; sessionPath?: string; forkEntryId?: string; nodeId?: string; continue?: boolean; effort?: string | null; permission?: 'auto' | 'allow'; mode?: 'research' },
 ): Promise<string> {
   // On the Workers deployment, OpenRouter models stream straight from the
   // browser — the proxy's CPU allowance can't survive big contexts + heavy
@@ -288,7 +289,7 @@ export async function llmCallStream(
   if (modelId && isAgentModel(modelId) && window.desktopAgents) {
     // it leaves once its materials are on disk: a run whose inputs cannot be written is not sent
     const dispatch = () => callbacks?.onDispatch?.({ messages: contextMessages, images: images ?? [], model: modelId, toolPrefs: toolPrefs ?? {}, lane: 'proxy' });
-    return agentCallStream(contextMessages, onChunk, signal, images, callbacks, modelId, harness?.cwd ? { cwd: harness.cwd, sessionPath: harness.sessionPath, forkEntryId: harness.forkEntryId, continue: harness.continue, ...('effort' in harness ? { effort: harness.effort } : {}) } : undefined, harness?.nodeId, dispatch);
+    return agentCallStream(contextMessages, onChunk, signal, images, callbacks, modelId, harness?.cwd ? { cwd: harness.cwd, sessionPath: harness.sessionPath, forkEntryId: harness.forkEntryId, continue: harness.continue, ...(harness.mode ? { mode: harness.mode } : {}), ...('effort' in harness ? { effort: harness.effort } : {}) } : undefined, harness?.nodeId, dispatch);
   }
   images = await imagesForModel(modelId, images);
 

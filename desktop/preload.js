@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('desktopAgents', {
   capabilities: { nativePicker: true },
   available: () => ipcRenderer.invoke('agents:available'),
   models: (runtime) => ipcRenderer.invoke('agents:models', runtime),
+  runtimeCapabilities: (runtime) => ipcRenderer.invoke('agents:capabilities', runtime),
   run: (request) => ipcRenderer.invoke('agents:run', request),
   abort: (runId) => ipcRenderer.invoke('agents:abort', runId),
   workspace: (canvasId) => ipcRenderer.invoke('agents:workspace', canvasId),

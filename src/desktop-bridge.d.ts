@@ -107,6 +107,8 @@ interface DesktopAgentRunRequest {
   sessionPath?: string;
   /** branch the current session at this entry (with sessionPath) */
   forkEntryId?: string;
+  /** research: the runtime holds the run to its inputs, or does not run it */
+  mode?: 'research';
   model?: { provider: string; id: string };
   /** an effort level in the runtime's own words (one it listed for the model); absent or unknown = the runtime's default */
   effort?: string;
@@ -131,6 +133,8 @@ interface DesktopAgentsBridge {
   /** where the runtime's binary is, or null when not installed */
   available(): Promise<Record<string, string | null>>;
   models(runtime?: 'pi' | 'codex' | 'claude-code'): Promise<{ installed: boolean; models: DesktopAgentModel[]; default: string | null; thinkingLevel?: string | null; /** where the host looked, when the CLI was not found (PATH, the login shell's PATH, the usual homes) */ searched?: string[]; error?: string }>;
+  /** what the runtime can do, as probed on this machine (null: not installed, or it reports nothing); a shell of an older version has no such call */
+  runtimeCapabilities?(runtime: 'pi' | 'codex' | 'claude-code'): Promise<import('./lib/context/contracts').CapabilityReport | null>;
   /** resolves with the run id at once; events follow through onEvent */
   run(request: DesktopAgentRunRequest): Promise<string>;
   abort(runId: string): Promise<boolean>;

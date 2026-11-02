@@ -1,0 +1,127 @@
+
+ RUN  v5.0.3 <repo>
+
+stderr | tests/unit/runtime-capabilities.test.ts > [T15] a run on what is known > [T15] the thread, the session it belongs to and the turn that finished are kept on the node
+[agent] turn not adopted: no sessions bridge codex /synthetic/rollout-thread-1.jsonl
+
+ ❯ tests/unit/runtime-capabilities.test.ts (7 tests | 7 failed) 117ms
+   ❯ [T15] what is known of a runtime (3)
+     × [T15] nothing until the host says, then what it said, and a new report replaces the last 3ms
+     × [T15] looking at the runtimes asks the host what each can do, without waiting for it 14ms
+     × [T15] a report of another runtime says nothing of this one 0ms
+   ❯ [T15] a run on what is known (4)
+     × [T15] research on a runtime that cannot keep to its inputs is not sent, and says which 0ms
+     × [T15] research on a runtime known to keep to its inputs is sent, starts anew, and the runtime is told it is research 0ms
+     × [T15] a run at work is not told it is research 32ms
+     × [T15] the thread, the session it belongs to and the turn that finished are kept on the node 65ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/runtime-capabilities.test.ts > [T15] what is known of a runtime > [T15] nothing until the host says, then what it said, and a new report replaces the last
+TypeError: noteCapabilities is not a function
+ ❯ tests/unit/runtime-capabilities.test.ts:55:5
+     53|   it('[T15] nothing until the host says, then what it said, and a new …
+     54|     expect(capabilitiesOf('codex')).toBeNull();
+     55|     noteCapabilities('codex', report());
+       |     ^
+     56|     expect(capabilitiesOf('codex')?.binaryVersion).toBe('9.9.9-synthet…
+     57|     noteCapabilities('codex', report({ readOnlyRoots: 'unsupported' })…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/12]⎯
+
+ FAIL  tests/unit/runtime-capabilities.test.ts > [T15] what is known of a runtime > [T15] nothing until the host says, then what it said, and a new report replaces the last
+ FAIL  tests/unit/runtime-capabilities.test.ts > [T15] what is known of a runtime > [T15] looking at the runtimes asks the host what each can do, without waiting for it
+ FAIL  tests/unit/runtime-capabilities.test.ts > [T15] what is known of a runtime > [T15] a report of another runtime says nothing of this one
+ FAIL  tests/unit/runtime-capabilities.test.ts > [T15] a run on what is known > [T15] research on a runtime that cannot keep to its inputs is not sent, and says which
+ FAIL  tests/unit/runtime-capabilities.test.ts > [T15] a run on what is known > [T15] research on a runtime known to keep to its inputs is sent, starts anew, and the runtime is told it is research
+ FAIL  tests/unit/runtime-capabilities.test.ts > [T15] a run on what is known > [T15] a run at work is not told it is research
+ FAIL  tests/unit/runtime-capabilities.test.ts > [T15] a run on what is known > [T15] the thread, the session it belongs to and the turn that finished are kept on the node
+TypeError: noteCapabilities is not a function
+ ❯ tests/unit/runtime-capabilities.test.ts:45:3
+     43|   desktop.uninstall();
+     44|   vi.unstubAllGlobals();
+     45|   noteCapabilities('codex', null);
+       |   ^
+     46|   setModelsCache({ models: [], default: null });
+     47|   useStore.setState({ nodes: [], edges: [] });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/12]⎯
+
+ FAIL  tests/unit/runtime-capabilities.test.ts > [T15] what is known of a runtime > [T15] looking at the runtimes asks the host what each can do, without waiting for it
+AssertionError: expected [] to deeply equal [ 'claude-code', 'codex', 'pi' ]
+
+- Expected
++ Received
+
+- [
+-   "claude-code",
+-   "codex",
+-   "pi",
+- ]
++ []
+
+ ❯ tests/unit/runtime-capabilities.test.ts:69:26
+     67|     await agentCatalog();
+     68|     await settled();
+     69|     expect(asked.sort()).toEqual(['claude-code', 'codex', 'pi']);
+       |                          ^
+     70|     expect(capabilitiesOf('codex')).toBeNull();
+     71|     answer(report());
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/12]⎯
+
+ FAIL  tests/unit/runtime-capabilities.test.ts > [T15] a run on what is known > [T15] research on a runtime that cannot keep to its inputs is not sent, and says which
+TypeError: noteCapabilities is not a function
+ ❯ tests/unit/runtime-capabilities.test.ts:85:5
+     83| describe('[T15] a run on what is known', () => {
+     84|   it('[T15] research on a runtime that cannot keep to its inputs is no…
+     85|     noteCapabilities('codex', report({ readOnlyRoots: 'unsupported', a…
+       |     ^
+     86|     const id = task('Look at this?');
+     87|     setRunMode(id, 'research');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/12]⎯
+
+ FAIL  tests/unit/runtime-capabilities.test.ts > [T15] a run on what is known > [T15] research on a runtime known to keep to its inputs is sent, starts anew, and the runtime is told it is research
+TypeError: noteCapabilities is not a function
+ ❯ tests/unit/runtime-capabilities.test.ts:95:5
+     93|
+     94|   it('[T15] research on a runtime known to keep to its inputs is sent,…
+     95|     noteCapabilities('codex', report());
+       |     ^
+     96|     const id = task('Look at this?');
+     97|     setRunMode(id, 'research');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/12]⎯
+
+ FAIL  tests/unit/runtime-capabilities.test.ts > [T15] a run on what is known > [T15] the thread, the session it belongs to and the turn that finished are kept on the node
+AssertionError: expected { runtime: 'codex', …(4) } to match object { sessionId: 'thread-1', …(4) }
+(4 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "lastCompletedTurnId": "turn-9",
+-   "lastTurnId": "turn-9",
+-   "nativeSessionId": "tree-1",
+    "sessionId": "thread-1",
+-   "threadId": "thread-1",
+  }
+
+ ❯ tests/unit/runtime-capabilities.test.ts:125:40
+    123|     desktop.end(runId, 'done');
+    124|     await running;
+    125|     expect(node(id).data.agentSession).toMatchObject({ sessionId: 'thr…
+       |                                        ^
+    126|   });
+    127| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/12]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  7 failed (7)
+   Start at  00:01:05
+   Duration  743ms (transform 43%, environment 32%, tests 17%, import 7%, setup 1%)
+

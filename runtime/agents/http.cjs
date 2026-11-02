@@ -41,6 +41,13 @@ function createAgentsHttp({ workspaceRoot = path.join(os.homedir(), '.thoughtdag
    * with `/agents`; `body` is the parsed JSON body (or null). Returns false
    * when the path is not ours.
    */
+  /** What the runtime a run is for was probed to be able to do. */
+  const capabilitiesFor = async (envelope) => {
+    const name = envelope?.runtime?.runtime;
+    if (!name || !Object.hasOwn(RUNTIME_FACTORIES, name)) return null;
+    return (await runtime(name).capabilities?.().catch(() => null)) ?? null;
+  };
+
   async function handle(req, res, sub, body) {
     const url = new URL(req.url ?? '/', 'http://local');
     const p = sub.replace(/\/+$/, '');
@@ -54,6 +61,10 @@ function createAgentsHttp({ workspaceRoot = path.join(os.homedir(), '.thoughtdag
       if (p === '/agents/models' && method === 'GET') {
         try { return json(res, 200, await runtime(url.searchParams.get('runtime') ?? 'pi').models()), true; }
         catch (e) { return json(res, 200, { installed: false, models: [], default: null, error: e instanceof Error ? e.message : String(e) }), true; }
+      }
+      if (p === '/agents/capabilities' && method === 'GET') {
+        try { return json(res, 200, (await runtime(url.searchParams.get('runtime') ?? 'pi').capabilities?.()) ?? null), true; }
+        catch { return json(res, 200, null), true; }
       }
       if (p === '/agents/events' && method === 'GET') {
         res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
@@ -80,7 +91,7 @@ function createAgentsHttp({ workspaceRoot = path.join(os.homedir(), '.thoughtdag
       if (p === '/agents/workspace' && method === 'POST') return json(res, 200, { dir: await ops.workspaceFor(workspaceRoot, String(body?.canvasId ?? 'default')) }), true;
       if (p === '/agents/guard' && method === 'POST') return json(res, 200, { ok: await ops.writeGuard(String(body?.cwd ?? ''), body?.config) }), true;
       // no workspace is open here: a run's inputs are what the canvas holds, checked against their hashes
-      if (p === '/agents/materials' && method === 'POST') return json(res, 200, await ops.materializeRun(String(body?.cwd ?? ''), body?.envelope, body?.provided)), true;
+      if (p === '/agents/materials' && method === 'POST') return json(res, 200, await ops.materializeRun(String(body?.cwd ?? ''), body?.envelope, body?.provided, {}, await capabilitiesFor(body?.envelope))), true;
       if (p === '/agents/run-ended' && method === 'POST') return json(res, 200, await ops.endRun(String(body?.cwd ?? ''), body?.runId)), true;
       if (p === '/agents/open-in-cli' && method === 'POST') return json(res, 200, await terminal.openInTerminal(String(body?.runner ?? ''), body?.cwd ?? null, String(body?.sessionId ?? ''))), true;
       return false;

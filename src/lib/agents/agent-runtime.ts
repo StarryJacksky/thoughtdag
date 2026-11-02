@@ -73,6 +73,10 @@ export async function agentCatalog(): Promise<{ models: ModelInfo[]; runtimes: P
   const answers = await Promise.all(LIVE_RUNTIMES.map((runtime) => bridge.models(runtime).catch((e: unknown) => ({ installed: false, models: [], default: null, error: e instanceof Error ? e.message : String(e) }))));
   const models: ModelInfo[] = [];
   const runtimes: Partial<Record<AgentRuntime, RuntimeStatus>> = {};
+  // what each can do, found out beside the catalog and without holding it up: probing starts programs
+  void import('../context/policy').then(({ noteCapabilities }) => {
+    for (const runtime of LIVE_RUNTIMES) void bridge.runtimeCapabilities?.(runtime).then((report) => noteCapabilities(runtime, report ?? null), () => {});
+  });
   LIVE_RUNTIMES.forEach((runtime, i) => {
     const def = AGENT_RUNTIMES[runtime];
     const r = answers[i];
@@ -95,6 +99,8 @@ export type AgentRoute = {
   cwd: string; sessionPath?: string; forkEntryId?: string; continue?: boolean; effort?: string | null;
   /** whether the run goes on in a session, starts a new one or is not run, and why (route-policy) */
   decision?: import('../context/contracts').RouteDecision;
+  /** the runtime is told too, and holds the run to it, or does not run it */
+  mode?: 'research';
 };
 
 export type CwdChoice = { cwd: string; kind: 'chosen' | 'mirrored' | 'session' | 'workspace' };
@@ -198,7 +204,7 @@ export async function agentOutbound(model: string | undefined, nodeId?: string, 
     if (decision.action === 'resume' && found.binding?.sessionPath) {
       return { cwd: found.binding.cwd ?? choice.cwd, sessionPath: found.binding.sessionPath, continue: true, decision };
     }
-    return { cwd: choice.cwd, decision };
+    return { cwd: choice.cwd, decision, ...(envelope.mode === 'research' ? { mode: 'research' as const } : {}) };
   } catch {
     return { cwd: choice.cwd, decision: { action: 'fresh', reason: 'unknown-history' } };
   }
@@ -315,6 +321,7 @@ export async function agentCallStream(
       runtime: target.runtime, cwd, prompt,
       ...(route?.sessionPath ? { sessionPath: route.sessionPath } : {}),
       ...(route?.forkEntryId ? { forkEntryId: route.forkEntryId } : {}),
+      ...(route?.mode ? { mode: route.mode } : {}),
       images: (images ?? []).map((img) => ({ type: 'image' as const, data: img.data, mimeType: img.mimeType })),
       model: { provider: target.provider, id: target.id },
       ...(effort ? { effort } : {}),
@@ -334,10 +341,15 @@ export async function agentCallStream(
               sessionId: (event.sessionId as string | null) ?? null,
               sessionFile: (event.sessionFile as string | null) ?? null,
               cwd: (event.cwd as string) ?? cwd,
+              ...(typeof event.threadId === 'string' ? { threadId: event.threadId } : {}),
+              ...(typeof event.nativeSessionId === 'string' ? { nativeSessionId: event.nativeSessionId } : {}),
               ...(typeof event.effort === 'string' && event.effort ? { effort: event.effort } : {}),
             });
             break;
           }
+          case 'binding':
+            callbacks?.onAgentBinding?.({ lastTurnId: typeof event.turnId === 'string' ? event.turnId : null, ...(typeof event.lastCompletedTurnId === 'string' ? { lastCompletedTurnId: event.lastCompletedTurnId } : {}) });
+            break;
           case 'message_update': {
             const ev = event.assistantMessageEvent as { type?: string; delta?: string } | undefined;
             if (ev?.type === 'text_delta' && ev.delta) { full += ev.delta; onChunk(ev.delta, full); }

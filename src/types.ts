@@ -281,6 +281,12 @@ export interface ThoughtData extends Record<string, unknown> {
   /** The runtime session this node's last agent turn ran in (desktop agent lanes). */
   agentSession?: {
     runtime: AgentRuntime; sessionId: string | null; sessionFile: string | null; cwd: string;
+    /** the runtime's own name for the thread the turn ran on, and for the session it belongs to, where it tells them apart */
+    threadId?: string;
+    nativeSessionId?: string;
+    /** the turn that ran, and the last one known to have finished: what a later run may go on from */
+    lastTurnId?: string | null;
+    lastCompletedTurnId?: string | null;
     /** the effort level the turn actually ran at, in the runtime's own words, from its own record */
     effort?: string;
     /** the turn continued the mirrored session instead of opening a fresh one */

@@ -14,6 +14,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const { randomUUID } = require('node:crypto');
 const { snapshotDir, diffSnapshots } = require('./fs-diff.cjs');
+const { probeCodex, versionOf } = require('./codex-capabilities.cjs');
 
 const fsp = fs.promises;
 const RESPONSE_MS = 30 * 1000;
@@ -43,10 +44,25 @@ const threadIdOf = (sessionPath) => {
   return all && all.length ? all[all.length - 1] : null;
 };
 
-function createCodexRuntime({ log } = {}) {
+/** A run that cannot go as asked: said to the person under a code, and nothing is sent in its place. */
+class RunRefused extends Error {
+  constructor(code, message) { super(message); this.code = code; }
+}
+const TURN_PAGE = 100;
+const BUSY = /\b(busy|in use|locked|another client)\b/i;
+const UNKNOWN_METHOD = /unknown (variant|method)/i;
+/** What the server's refusal of a step means for the run. */
+function refusalOf(method, e) {
+  const said = e instanceof Error ? e.message : String(e);
+  if (BUSY.test(said)) return new RunRefused('session-busy', `that session is busy elsewhere: ${said}`);
+  if (UNKNOWN_METHOD.test(said) || e?.rpcCode === -32601) return new RunRefused('method-unsupported', `this version of codex does not offer ${method}`);
+  return e;
+}
+
+function createCodexRuntime({ log, find = findCodex, probe = probeCodex } = {}) {
   const say = log || (() => {});
   let proc = null;            // the app-server child
-  let ready = null;           // initialize handshake
+  let ready = null;           // the server started and its handshake done: everyone asking waits for the one
   let buf = '';
   let nextId = 1;
   const pending = new Map();  // our request id → resolve
@@ -55,11 +71,11 @@ function createCodexRuntime({ log } = {}) {
   const serverAsks = new Map(); // question id → { rpcId, respond(answer) }
   let binPromise = null;
   const bin = () => {
-    if (!binPromise) binPromise = findCodex().then((r) => { if (!r.path) { located = null; binPromise = null; } return r.path; });
+    if (!binPromise) binPromise = find().then((r) => { if (!r.path) { located = null; binPromise = null; } return r.path; });
     return binPromise;
   };
   /** Where the lookup walked, for the picker's "not found" note. */
-  const searched = async () => (await findCodex()).searched;
+  const searched = async () => (await find()).searched;
 
   const write = (obj) => { try { proc.stdin.write(JSON.stringify(obj) + '\n'); return true; } catch { return false; } };
   const send = (method, params, timeoutMs = RESPONSE_MS) => new Promise((resolve, reject) => {
@@ -67,7 +83,7 @@ function createCodexRuntime({ log } = {}) {
     lastUse = Date.now();
     const id = nextId++;
     const timer = setTimeout(() => { pending.delete(id); reject(new Error(`codex did not answer ${method} in ${timeoutMs / 1000}s`)); }, timeoutMs);
-    pending.set(id, (msg) => { clearTimeout(timer); if (msg.error) reject(new Error(msg.error.message || `codex refused ${method}`)); else resolve(msg.result); });
+    pending.set(id, (msg) => { clearTimeout(timer); if (msg.error) reject(Object.assign(new Error(msg.error.message || `codex refused ${method}`), { rpcCode: msg.error.code })); else resolve(msg.result); });
     if (!write({ jsonrpc: '2.0', id, method, params })) { clearTimeout(timer); pending.delete(id); reject(new Error('codex stdin closed')); }
   });
 
@@ -91,13 +107,24 @@ function createCodexRuntime({ log } = {}) {
     proc = null; ready = null;
   };
 
-  async function ensureServer() {
-    if (proc && ready) return ready;
+  // The one server: whoever asks while it starts waits for the same start. A server that went away
+  // speaks for itself only: its exit does not take a newer one down with it.
+  function ensureServer() {
+    if (ready) return ready;
+    const starting = startServer();
+    ready = starting;
+    starting.catch(() => { if (ready === starting) { ready = null; try { proc?.kill(); } catch { /* gone */ } proc = null; } });
+    return starting;
+  }
+
+  async function startServer() {
     const b = await bin();
     if (!b) throw new Error('codex is not installed (no `codex` on PATH or in the usual places)');
-    proc = spawn(b, ['app-server'], { env: childEnv(), stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(b, ['app-server'], { env: childEnv(), stdio: ['pipe', 'pipe', 'pipe'] });
+    proc = child;
     buf = '';
-    proc.stdout.on('data', (d) => {
+    child.stdin.on('error', () => {});
+    child.stdout.on('data', (d) => {
       buf += d.toString();
       let i;
       while ((i = buf.indexOf('\n')) >= 0) {
@@ -107,12 +134,56 @@ function createCodexRuntime({ log } = {}) {
         dispatch(msg);
       }
     });
-    proc.stderr.on('data', (d) => say('[codex stderr] ' + d.toString().trim().slice(0, 400)));
-    proc.on('error', (e) => die('spawn error: ' + e.message));
-    proc.on('exit', (code, signal) => die(`codex exited (${signal || code})`));
-    ready = send('initialize', { clientInfo: { name: 'thoughtdag', title: 'ThoughtDAG', version: '0.5.0' }, capabilities: null })
-      .then(() => { write({ jsonrpc: '2.0', method: 'initialized', params: {} }); });
-    return ready;
+    child.stderr.on('data', (d) => say('[codex stderr] ' + d.toString().trim().slice(0, 400)));
+    child.on('error', (e) => { if (proc === child) die('spawn error: ' + e.message); });
+    child.on('exit', (code, signal) => { if (proc === child) die(`codex exited (${signal || code})`); });
+    await send('initialize', { clientInfo: { name: 'thoughtdag', title: 'ThoughtDAG', version: '0.5.0' }, capabilities: null });
+    write({ jsonrpc: '2.0', method: 'initialized', params: {} });
+  }
+
+  // What this version can do. A report stands while the binary says the same version; a new one is probed for.
+  let probed = null;
+  async function capabilities() {
+    const b = await bin();
+    if (!b) return null;
+    const version = await versionOf(b);
+    if (probed && probed.binary === b && probed.version === version) return probed.report;
+    const report = probe(b);
+    probed = { binary: b, version, report };
+    report.catch(() => { if (probed?.report === report) probed = null; });
+    return report;
+  }
+
+  /** Whether a turn of a thread is one that finished: a fork through anything else would carry half of a turn. */
+  async function turnCompleted(threadId, turnId) {
+    let cursor = null;
+    do {
+      const page = await send('thread/turns/list', { threadId, limit: TURN_PAGE, ...(cursor ? { cursor } : {}) });
+      const turn = (page?.data ?? []).find((t) => t.id === turnId);
+      if (turn) return turn.status === 'completed';
+      cursor = page?.nextCursor ?? null;
+    } while (cursor);
+    return false;
+  }
+
+  /** The thread a run goes on: its own, a branch of one through a finished turn, or a new one. What cannot be had is refused. */
+  async function openThread(req, cwd, policy, model) {
+    const settings = { cwd, ...policy, ...(model ? { model } : {}) };
+    const from = req.sessionPath ? threadIdOf(req.sessionPath) : null;
+    if (req.forkEntryId && from) {
+      const known = await capabilities();
+      if (known?.capabilities.forkAtCompletedTurn !== 'supported') throw new RunRefused('fork-unsupported', 'this version of codex cannot branch a thread at a turn');
+      const whole = await turnCompleted(from, req.forkEntryId).catch((e) => { throw UNKNOWN_METHOD.test(e?.message ?? '') ? new RunRefused('fork-unsupported', 'this version of codex cannot say whether that turn finished') : e; });
+      if (!whole) throw new RunRefused('fork-partial-turn', 'that turn did not finish, or is not in this thread: a branch cannot start from it');
+      return (await send('thread/fork', { threadId: from, lastTurnId: req.forkEntryId, ...settings }).catch((e) => { throw refusalOf('thread/fork', e); })).thread;
+    }
+    if (from) {
+      // at work in this server: said now. A thread at work in another client only shows when it refuses.
+      const seen = await send('thread/read', { threadId: from }).catch(() => null);
+      if (seen?.thread?.status?.type === 'active') throw new RunRefused('session-busy', 'that session is at work');
+      return (await send('thread/resume', { threadId: from, ...settings }).catch((e) => { throw refusalOf('thread/resume', e); })).thread;
+    }
+    return (await send('thread/start', settings).catch((e) => { throw refusalOf('thread/start', e); })).thread;
   }
 
   // the effort a turn ran at, as the rollout records it (turn_context.effort):
@@ -174,6 +245,7 @@ function createCodexRuntime({ log } = {}) {
       case 'turn/completed': {
         const turn = params.turn ?? {};
         if (turn.status === 'failed') run.emit({ type: 'run_error', message: turn.error?.message ?? 'the turn failed' });
+        run.turnStatus = turn.status ?? null;
         run.end(turn.status === 'interrupted' ? 'aborted' : turn.status === 'failed' ? 'error' : 'end');
         break;
       }
@@ -294,6 +366,8 @@ function createCodexRuntime({ log } = {}) {
   return {
     available: () => bin(),
 
+    capabilities,
+
     async models() {
       const b = await bin();
       if (!b) return { installed: false, models: [], default: null, searched: await searched() };
@@ -311,10 +385,9 @@ function createCodexRuntime({ log } = {}) {
       const cwd = String(req.cwd || '');
       if (!cwd || !path.isAbsolute(cwd)) throw new Error('run needs an absolute cwd');
       await fsp.mkdir(cwd, { recursive: true });
-      await ensureServer();
       const runId = randomUUID();
       const emit = (event) => { try { onEvent({ runId, event }); } catch { /* renderer gone */ } };
-      const state = { runId, threadId: null, turnId: null, text: '', final: null, waiting: false, emit, end: null, done: null,
+      const state = { runId, threadId: null, turnId: null, turnStatus: null, stopped: false, text: '', final: null, waiting: false, emit, end: null, done: null,
         // what this conversation already allowed for good (see README: `rule`)
         allowRules: new Set(Array.isArray(req.allowRules) ? req.allowRules.filter((s) => typeof s === 'string' && s.startsWith('codex:')) : []) };
       state.done = new Promise((resolve) => { state.end = (how) => { if (state.ended) return; state.ended = true; resolve(how); }; });
@@ -330,24 +403,41 @@ function createCodexRuntime({ log } = {}) {
           if (state.threadId && state.turnId) send('turn/interrupt', { threadId: state.threadId, turnId: state.turnId }).catch(() => {});
           setTimeout(() => state.end('idle'), 5000);
         }, 15000);
+        // stopped while it was being prepared: nothing more is sent
+        const STOPPED = Symbol('stopped');
+        const goOn = () => { if (state.stopped) throw STOPPED; };
         try {
-          const policy = await policyFor(cwd);
+          goOn();
+          await ensureServer();
+          goOn();
+          // research: the run reads, is offline and asks nobody, and goes on in no session; on a version not known to hold it to that, it is not run
+          const researching = req.mode === 'research';
+          if (researching) {
+            const known = (await capabilities())?.capabilities ?? {};
+            if (req.sessionPath || !['readOnlyRoots', 'networkRestriction', 'autoContextControl'].every((c) => known[c] === 'supported')) throw new RunRefused('research-unverified', 'this version of codex is not known to keep a run to its inputs');
+          }
+          const policy = researching ? { approvalPolicy: 'never', sandbox: 'read-only' } : await policyFor(cwd);
           const model = (req.model && typeof req.model === 'object' && req.model.id ? req.model.id : null) ?? await defaultModelId();
-          let thread;
-          const resumeId = req.sessionPath ? threadIdOf(req.sessionPath) : null;
-          if (req.forkEntryId && resumeId) thread = (await send('thread/fork', { threadId: resumeId, cwd, ...policy, ...(model ? { model } : {}) })).thread;
-          else if (resumeId) thread = (await send('thread/resume', { threadId: resumeId, cwd, ...policy, ...(model ? { model } : {}) })).thread;
-          else thread = (await send('thread/start', { cwd, ...policy, ...(model ? { model } : {}) })).thread;
+          goOn();
+          const thread = await openThread(req, cwd, policy, model);
           state.threadId = thread.id;
           byThread.set(thread.id, runId);
-          state.emit({ type: 'session', sessionId: thread.id, sessionFile: thread.path ?? null, model: model ? { provider: 'codex', id: model, name: model } : null, cwd });
+          goOn();
+          // the thread's id is what a thread is gone on by; the session id names the tree it belongs to, and a fork's differs from it
+          const nativeSessionId = thread.sessionId ?? null;
+          state.emit({ type: 'session', sessionId: thread.id, threadId: thread.id, nativeSessionId, sessionFile: thread.path ?? null, model: model ? { provider: 'codex', id: model, name: model } : null, cwd });
           const before = await snapshotDir(cwd).catch(() => null);
           const input = [{ type: 'text', text: String(req.prompt ?? ''), text_elements: [] }];
           for (const img of Array.isArray(req.images) ? req.images : []) if (img && typeof img.data === 'string') input.push({ type: 'image', url: `data:${img.mimeType};base64,${img.data}` });
           const effort = req.effort && model ? effortFor(model, req.effort) : null;
-          const started = await send('turn/start', { threadId: thread.id, input, ...(model ? { model } : {}), ...(effort ? { effort } : {}) }, 60 * 1000);
+          goOn();
+          const started = await send('turn/start', { threadId: thread.id, input, ...(model ? { model } : {}), ...(effort ? { effort } : {}), ...(researching ? { sandboxPolicy: { type: 'readOnly', networkAccess: false } } : {}) }, 60 * 1000);
           state.turnId = started?.turn?.id ?? null;
+          // stopped while the turn was being started: it has an id now, and is interrupted
+          if (state.stopped && state.turnId) send('turn/interrupt', { threadId: thread.id, turnId: state.turnId }).catch(() => {});
           const how = await state.done;
+          // what a later run may go on from: the turn that really finished, or the last one known to have
+          state.emit({ type: 'binding', threadId: thread.id, nativeSessionId, sessionFile: thread.path ?? null, turnId: state.turnId, turnStatus: state.turnStatus, lastCompletedTurnId: state.turnStatus === 'completed' ? state.turnId : (req.lastCompletedTurnId ?? null) });
           const ran = await turnEffortOf(thread.path);
           if (ran) state.emit({ type: 'session', sessionId: thread.id, sessionFile: thread.path ?? null, model: model ? { provider: 'codex', id: model, name: model } : null, cwd, effort: ran });
           if (before) {
@@ -356,8 +446,11 @@ function createCodexRuntime({ log } = {}) {
           }
           state.emit({ type: 'run_end', text: state.final ?? state.text, how });
         } catch (e) {
-          state.emit({ type: 'run_error', message: e instanceof Error ? e.message : String(e) });
-          state.emit({ type: 'run_end', text: state.final ?? state.text, how: 'error' });
+          if (e === STOPPED) state.emit({ type: 'run_end', text: state.final ?? state.text, how: 'aborted' });
+          else {
+            state.emit({ type: 'run_error', message: e instanceof Error ? e.message : String(e), ...(e instanceof RunRefused ? { code: e.code } : {}) });
+            state.emit({ type: 'run_end', text: state.final ?? state.text, how: 'error' });
+          }
         } finally {
           clearInterval(watchdog);
           if (state.threadId) byThread.delete(state.threadId);
@@ -372,6 +465,7 @@ function createCodexRuntime({ log } = {}) {
       if (!r) return false;
       // withdraw any question still open for this run, then interrupt
       for (const [id, ask] of serverAsks) { if (id.startsWith('q-')) { /* the server's own timeout covers it */ } void ask; }
+      r.stopped = true;
       if (r.threadId && r.turnId) send('turn/interrupt', { threadId: r.threadId, turnId: r.turnId }).catch(() => {});
       return true;
     },
@@ -386,7 +480,7 @@ function createCodexRuntime({ log } = {}) {
       return true;
     },
 
-    shutdown() { clearInterval(retire); try { proc?.kill(); } catch { /* gone */ } proc = null; ready = null; },
+    shutdown() { clearInterval(retire); const child = proc; proc = null; ready = null; try { child?.kill(); } catch { /* gone */ } for (const p of pending.values()) p({ error: { message: 'codex was stopped' } }); pending.clear(); },
   };
 }
 

@@ -178,8 +178,10 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
     get().pushHistory();
   },
 
-  addCrossLink: (sourceId: string, targetId: string) => {
+  addCrossLink: (sourceId: string, targetId: string, sides?: { sourceHandle: string; targetHandle: string }) => {
     const { edges, nodes } = get();
+    if (sourceId === targetId) return;
+    const chosen = sides ? { sidesChosen: true as const } : {};
     // Block only an identical edge. The REVERSE direction is allowed on
     // purpose: writer->critic->writer loops are how auto-refresh iterates
     // (context walks are visited-guarded, and auto-chains are budgeted).
@@ -188,7 +190,7 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
     // A reference that closes a loop is a feedback line: it holds one finished
     // answer of the other end, so the writer⇄critic iteration stays, and what
     // every run reads is fixed when it starts (lib/feedback).
-    if (closesLoop(sourceId, targetId, edges)) { get().addFeedbackLink(sourceId, targetId); return; }
+    if (closesLoop(sourceId, targetId, edges)) { get().addFeedbackLink(sourceId, targetId, sides); return; }
     // MATERIAL sources wire SOLID by default. A dashed reference carries a
     // node's Q/A transcript — a material has none, so a dashed wire from a
     // material is a nearly-empty gesture that LOOKS like "file connected"
@@ -199,12 +201,12 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
       get().pushHistory();
       const matEdge: ThoughtEdge = {
         id: `edge-${sourceId}-${targetId}`,
-        source: sourceId, sourceHandle: 'continue',
-        target: targetId, targetHandle: 'top',
+        source: sourceId, sourceHandle: sides?.sourceHandle ?? 'continue',
+        target: targetId, targetHandle: sides?.targetHandle ?? 'top',
         type: 'smoothstep',
         style: { stroke: COLORS.accent, strokeDasharray: '8 4', strokeWidth: 2 },
         animated: true,
-        data: { isCrossLink: true, createdAt: new Date().toISOString() },
+        data: { isCrossLink: true, createdAt: new Date().toISOString(), ...chosen },
       };
       set((state) => ({ edges: [...state.edges, matEdge] }));
       get().logEvent('connect', matEdge.id);
@@ -234,15 +236,15 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
     const newEdge: ThoughtEdge = {
       id: `crosslink-${sourceId}-${targetId}`,
       source: sourceId,
-      sourceHandle: vertical ? 'continue' : 'branch',
+      sourceHandle: sides?.sourceHandle ?? (vertical ? 'continue' : 'branch'),
       target: targetId,
-      targetHandle: vertical ? 'top' : 'left',
+      targetHandle: sides?.targetHandle ?? (vertical ? 'top' : 'left'),
       type: 'smoothstep',
       style: { stroke: COLORS.accent, strokeDasharray: '8 4', strokeWidth: 2 },
       animated: true,
       // createdAt only here: manual connect is the one edge born
       // independently of a node (elsewhere edge time = target's createdAt)
-      data: { isCrossLink: true, createdAt: new Date().toISOString() },
+      data: { isCrossLink: true, createdAt: new Date().toISOString(), ...chosen },
     };
     set((state) => ({ edges: [...state.edges, newEdge] }));
     get().logEvent('connect', newEdge.id);
@@ -297,7 +299,17 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
     if (stale.length) void import('../../lib/stale-judge').then((m) => m.judgeStaleness()).catch(() => undefined);
   },
 
-  addFeedbackLink: (sourceId: string, targetId: string) => {
+  setEdgeSides: (edgeId, to) => {
+    const edge = get().edges.find((e) => e.id === edgeId);
+    if (!edge || edge.source !== to.source || edge.target !== to.target) return false;
+    if (edge.sourceHandle === to.sourceHandle && edge.targetHandle === to.targetHandle) return true;
+    get().pushHistory();
+    set((state) => ({ edges: state.edges.map((e) => (e.id === edgeId ? { ...e, sourceHandle: to.sourceHandle, targetHandle: to.targetHandle, data: { ...e.data, sidesChosen: true } } : e)) }));
+    get().pushHistory();
+    return true;
+  },
+
+  addFeedbackLink: (sourceId: string, targetId: string, sides?: { sourceHandle: string; targetHandle: string }) => {
     const { nodes, edges } = get();
     if (sourceId === targetId) return null;
     const existing = edges.find((e) => e.source === sourceId && e.target === targetId);
@@ -308,14 +320,14 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
     const version = latestFinished(source);
     const line: ThoughtEdge = {
       id: `feedback-${sourceId}-${targetId}`,
-      source: sourceId, sourceHandle: 'branch',
-      target: targetId, targetHandle: 'left',
+      source: sourceId, sourceHandle: sides?.sourceHandle ?? 'branch',
+      target: targetId, targetHandle: sides?.targetHandle ?? 'left',
       type: 'smoothstep',
       // its own look: neither the live dashed reference nor solid wiring
       style: { stroke: COLORS.feedback, strokeDasharray: '2 6', strokeWidth: 2.5, strokeLinecap: 'round' },
       animated: false,
       markerEnd: { type: 'arrowclosed' as const, color: COLORS.feedback, width: 16, height: 16 },
-      data: { isCrossLink: true, feedback: { version, ...(version === null ? {} : { versionId: answerIdAt(source, version) }), pinnedAt: now }, createdAt: now },
+      data: { isCrossLink: true, feedback: { version, ...(version === null ? {} : { versionId: answerIdAt(source, version) }), pinnedAt: now }, createdAt: now, ...(sides ? { sidesChosen: true } : {}) },
     };
     get().pushHistory();
     set((state) => ({ edges: [...state.edges, line] }));
@@ -389,7 +401,7 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
           delete rest.isCrossLink; delete rest.contextDepth; delete rest.isWatch;
           return {
             ...e,
-            sourceHandle: 'continue', targetHandle: 'top',
+            ...(e.data?.sidesChosen ? {} : { sourceHandle: 'continue', targetHandle: 'top' }),
             animated: false,
             style: { stroke: COLORS.accent, strokeWidth: 2 },
             markerEnd: { type: 'arrowclosed' as const, color: COLORS.accent, width: 18, height: 18 },

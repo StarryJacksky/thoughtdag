@@ -45,9 +45,11 @@ export interface NodeSlice {
   setEditing: (nodeId: string, editing: boolean) => void;
   setEditingResponse: (nodeId: string, editing: boolean) => void;
   duplicateNode: (nodeId: string) => void;
-  addCrossLink: (sourceId: string, targetId: string) => void;
+  addCrossLink: (sourceId: string, targetId: string, sides?: { sourceHandle: string; targetHandle: string }) => void;
+  /** Move a line to other sides, with its ends, kind and all else as they are; a line taken to another node is not moved. */
+  setEdgeSides: (edgeId: string, to: { source: string; target: string; sourceHandle: string; targetHandle: string }) => boolean;
   /** A feedback line from `sourceId` into `targetId` (lib/feedback): a reference that closes a loop and holds the source's latest finished answer. Resolves with its id, or null when there is no such line to make (a node into itself). */
-  addFeedbackLink: (sourceId: string, targetId: string) => string | null;
+  addFeedbackLink: (sourceId: string, targetId: string, sides?: { sourceHandle: string; targetHandle: string }) => string | null;
   /** A round starts for `nodeId`: every feedback line into what it reads moves to its other end's latest finished answer. */
   advanceFeedback: (nodeId: string) => void;
   /** How many rounds a feedback line goes back and forth by itself (0: it does not; at most 10). Only a feedback line has this. */

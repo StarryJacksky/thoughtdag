@@ -13,6 +13,7 @@ import {
   applyNodeChanges,
   applyEdgeChanges,
   BackgroundVariant,
+  ConnectionMode,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import 'highlight.js/styles/github.css';
@@ -122,6 +123,9 @@ const NodeDispatch = memo(function NodeDispatch(props: Parameters<typeof Thought
 const nodeTypes = { thought: NodeDispatch };
 // Overrides the built-in smoothstep so persisted edges need no migration
 const edgeTypes = { smoothstep: memo(ThoughtEdgeView) };
+/** The side of a card that faces a line drawn from this side of another. */
+const FACING: Record<string, string> = { continue: 'top', top: 'continue', branch: 'left', left: 'branch' };
+const notToItself = (c: { source: string | null; target: string | null }) => c.source !== c.target;
 
 // Gate on rehydration: the store loads asynchronously from IndexedDB, and
 // mounting the canvas only after hydration lets ReactFlow's fitView see the
@@ -661,11 +665,16 @@ function Canvas() {
   const onConnect: OnConnect = useCallback(
     (connection) => {
       if (connection.source && connection.target) {
-        addCrossLink(connection.source, connection.target);
+        addCrossLink(connection.source, connection.target, connection.sourceHandle && connection.targetHandle ? { sourceHandle: connection.sourceHandle, targetHandle: connection.targetHandle } : undefined);
       }
     },
     [addCrossLink]
   );
+
+  // an end of a line taken to another side of its card moves it there; taken to another card, it stays
+  const onReconnect = useCallback<NonNullable<React.ComponentProps<typeof ReactFlow>['onReconnect']>>((edge, to) => {
+    if (to.source && to.target && to.sourceHandle && to.targetHandle) useStore.getState().setEdgeSides(edge.id, { source: to.source, target: to.target, sourceHandle: to.sourceHandle, targetHandle: to.targetHandle });
+  }, []);
 
   // Wire-drag must never start a text selection in the cards it crosses
   const onConnectStart = useCallback(() => {
@@ -703,12 +712,14 @@ function Canvas() {
     // the node and the wire into it are one step
     st.pushHistory();
     const newId = spawnAskNode(pos, false);
+    // it comes into the new question on the side facing where it was drawn from
+    const fromSide = connectionState.fromHandle?.id ?? 'continue';
     st.setEdges([...useStore.getState().edges, {
       id: `edge-${parentId}-${newId}`,
       source: parentId,
       target: newId,
-      sourceHandle: 'continue',
-      targetHandle: 'top',
+      sourceHandle: fromSide,
+      targetHandle: FACING[fromSide] ?? 'top',
       type: 'smoothstep',
       style: { stroke: COLORS.accent, strokeWidth: 2 },
       animated: false,
@@ -1219,7 +1230,10 @@ function Canvas() {
         onNodeDragStop={onNodeDragStop}
         onSelectionDragStart={recordMove}
         onSelectionDragStop={recordMove}
+        connectionMode={ConnectionMode.Loose}
+        isValidConnection={notToItself}
         onConnect={onConnect}
+        onReconnect={onReconnect}
         onConnectStart={onConnectStart}
         onConnectEnd={onConnectEnd}
         onEdgeContextMenu={onEdgeContextMenu}

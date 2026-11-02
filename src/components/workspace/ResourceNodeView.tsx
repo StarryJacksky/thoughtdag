@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { Handle, NodeResizeControl, Position, useUpdateNodeInternals, type NodeProps } from '@xyflow/react';
+import { NodeResizeControl, useUpdateNodeInternals, type NodeProps } from '@xyflow/react';
+import { MaterialHandles } from '../NodeHandles';
 import { AlertTriangle, BookOpen, FileText, FolderOpen, Link2Off, MoveDiagonal2, Pencil, Trash2 } from 'lucide-react';
 import type { ThoughtNode as ThoughtNodeType } from '../../types';
 import { useStore } from '../../store';
@@ -166,9 +167,7 @@ function ResourceCard({ id, data, selected }: Props) {
         </NodeResizeControl>
       )}
 
-      <Handle type="source" position={Position.Bottom} id="continue" className="!bg-ink-faint !border-2 !border-white tdag-handle !w-3.5 !h-3.5" />
-      {/* the same invisible side anchor other material has, so references can leave sideways */}
-      <Handle type="source" position={Position.Right} id="branch" isConnectable={false} className="!bg-transparent !w-0 !h-0 !border-0 !pointer-events-none" style={{ top: '50%' }} />
+      <MaterialHandles className="!bg-ink-faint !border-2 !border-white tdag-handle !w-3.5 !h-3.5" />
     </div>
   );
 }

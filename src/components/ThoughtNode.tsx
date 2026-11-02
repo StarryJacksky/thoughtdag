@@ -445,12 +445,11 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
           {t('focus.downstream')}
         </span>
       )}
-      <Handle type="target" position={Position.Top} id="top" className={`!bg-accent !border-2 !border-white tdag-handle ${zoomedOut ? '!w-6 !h-6 tdag-handle-lg' : '!w-3.5 !h-3.5'}`} />
-      {/* Side anchors: NOT interaction targets — the system routes dashed
-          reference edges through them so cross-chain lines never cut across
-          the vertical chain grammar. Two handles for people (top in, bottom
-          out); four anchors for the layout. */}
-      <Handle type="target" position={Position.Left} id="left" isConnectable={false} className="!bg-transparent !w-0 !h-0 !border-0 !pointer-events-none" style={glyphTier ? { top: '50%', left: 'calc(50% - 56px)' } : { top: '40%' }} />
+      {/* A line can be drawn from any side, and end on any side: it goes from where it was drawn from
+          to where it was drawn to (Loose connection mode on the canvas). The handles are all of one
+          type for that; their names are kept, as lines on old canvases go by them. */}
+      <Handle type="source" position={Position.Top} id="top" className={`!bg-accent !border-2 !border-white tdag-handle ${zoomedOut ? '!w-6 !h-6 tdag-handle-lg' : '!w-3.5 !h-3.5'}`} />
+      <Handle type="source" position={Position.Left} id="left" className={`!bg-accent !border-2 !border-white tdag-handle ${zoomedOut ? '!w-6 !h-6 tdag-handle-lg' : '!w-3.5 !h-3.5'}`} style={glyphTier ? { top: '50%', left: 'calc(50% - 56px)' } : { top: '50%' }} />
 
       {/* Stale dot pins to the CARD's corner — at glyph tier the card is
           gone (one centered seal), so the seal wears an amber ring instead
@@ -1136,8 +1135,7 @@ export default function ThoughtNode({ id, data }: NodeProps<ThoughtNodeType>) {
         type="source"
         position={Position.Right}
         id="branch"
-        isConnectable={false}
-        className="!bg-transparent !w-0 !h-0 !border-0 !pointer-events-none"
+        className={`!bg-accent !border-2 !border-white tdag-handle ${zoomedOut ? '!w-6 !h-6 tdag-handle-lg' : '!w-3.5 !h-3.5'}`}
         style={glyphTier ? { top: '50%', left: 'calc(50% + 56px)', right: 'auto' } : { top: '50%' }}
       />
 

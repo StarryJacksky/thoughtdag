@@ -1,0 +1,202 @@
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/four-sided-wiring.test.ts (15 tests | 12 failed) 18ms
+   ❯ [T26c] a line drawn on chosen sides (10)
+     × [T26c] from branch to left: it sits there, and goes the way it was drawn 3ms
+     × [T26c] from left to branch: it sits there, and goes the way it was drawn 1ms
+     × [T26c] from top to continue: it sits there, and goes the way it was drawn 0ms
+     × [T26c] from continue to top: it sits there, and goes the way it was drawn 0ms
+     × [T26c] from branch to top: it sits there, and goes the way it was drawn 0ms
+     × [T26c] from left to continue: it sits there, and goes the way it was drawn 0ms
+     × [T26c] a line that closes a loop is a feedback line, on the sides it was drawn on 0ms
+     × [T26c] from a material, solid as ever, on the sides it was drawn on 8ms
+     × [T26c] made solid or dashed again, it stays on its sides 1ms
+   ❯ [T26c] a line moved to other sides (3)
+     × [T26c] only its sides change: its kind, its ends and what it holds stay 0ms
+     × [T26c] taken to another node, it is not moved: that would be another line 0ms
+     × [T26c] it can be undone 0ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 12 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/four-sided-wiring.test.ts > [T26c] a line drawn on chosen sides > [T26c] from branch to left: it sits there, and goes the way it was drawn
+AssertionError: expected undefined to be true // Object.is equality
+
+- Expected:
+true
+
++ Received:
+undefined
+
+ ❯ tests/unit/four-sided-wiring.test.ts:34:38
+     32|       expect(line.targetHandle).toBe(targetHandle);
+     33|       expect(line.data?.isCrossLink).toBe(true);
+     34|       expect(line.data?.sidesChosen).toBe(true);
+       |                                      ^
+     35|       expect(edge(b, a)).toBeUndefined();
+     36|     });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/12]⎯
+
+ FAIL  tests/unit/four-sided-wiring.test.ts > [T26c] a line drawn on chosen sides > [T26c] from left to branch: it sits there, and goes the way it was drawn
+ FAIL  tests/unit/four-sided-wiring.test.ts > [T26c] a line drawn on chosen sides > [T26c] from left to continue: it sits there, and goes the way it was drawn
+AssertionError: expected 'branch' to be 'left' // Object.is equality
+
+Expected: "left"
+Received: "branch"
+
+ ❯ tests/unit/four-sided-wiring.test.ts:31:33
+     29|       useStore.getState().addCrossLink(a, b, { sourceHandle, targetHan…
+     30|       const line = edge(a, b);
+     31|       expect(line.sourceHandle).toBe(sourceHandle);
+       |                                 ^
+     32|       expect(line.targetHandle).toBe(targetHandle);
+     33|       expect(line.data?.isCrossLink).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/12]⎯
+
+ FAIL  tests/unit/four-sided-wiring.test.ts > [T26c] a line drawn on chosen sides > [T26c] from top to continue: it sits there, and goes the way it was drawn
+AssertionError: expected 'branch' to be 'top' // Object.is equality
+
+Expected: "top"
+Received: "branch"
+
+ ❯ tests/unit/four-sided-wiring.test.ts:31:33
+     29|       useStore.getState().addCrossLink(a, b, { sourceHandle, targetHan…
+     30|       const line = edge(a, b);
+     31|       expect(line.sourceHandle).toBe(sourceHandle);
+       |                                 ^
+     32|       expect(line.targetHandle).toBe(targetHandle);
+     33|       expect(line.data?.isCrossLink).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/12]⎯
+
+ FAIL  tests/unit/four-sided-wiring.test.ts > [T26c] a line drawn on chosen sides > [T26c] from continue to top: it sits there, and goes the way it was drawn
+AssertionError: expected 'branch' to be 'continue' // Object.is equality
+
+Expected: "continue"
+Received: "branch"
+
+ ❯ tests/unit/four-sided-wiring.test.ts:31:33
+     29|       useStore.getState().addCrossLink(a, b, { sourceHandle, targetHan…
+     30|       const line = edge(a, b);
+     31|       expect(line.sourceHandle).toBe(sourceHandle);
+       |                                 ^
+     32|       expect(line.targetHandle).toBe(targetHandle);
+     33|       expect(line.data?.isCrossLink).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/12]⎯
+
+ FAIL  tests/unit/four-sided-wiring.test.ts > [T26c] a line drawn on chosen sides > [T26c] from branch to top: it sits there, and goes the way it was drawn
+AssertionError: expected 'left' to be 'top' // Object.is equality
+
+Expected: "top"
+Received: "left"
+
+ ❯ tests/unit/four-sided-wiring.test.ts:32:33
+     30|       const line = edge(a, b);
+     31|       expect(line.sourceHandle).toBe(sourceHandle);
+     32|       expect(line.targetHandle).toBe(targetHandle);
+       |                                 ^
+     33|       expect(line.data?.isCrossLink).toBe(true);
+     34|       expect(line.data?.sidesChosen).toBe(true);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/12]⎯
+
+ FAIL  tests/unit/four-sided-wiring.test.ts > [T26c] a line drawn on chosen sides > [T26c] a line that closes a loop is a feedback line, on the sides it was drawn on
+AssertionError: expected 'branch' to be 'top' // Object.is equality
+
+Expected: "top"
+Received: "branch"
+
+ ❯ tests/unit/four-sided-wiring.test.ts:46:31
+     44|     const back = edge(b, a);
+     45|     expect(back.data?.feedback).toBeTruthy();
+     46|     expect(back.sourceHandle).toBe('top');
+       |                               ^
+     47|     expect(back.targetHandle).toBe('continue');
+     48|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/12]⎯
+
+ FAIL  tests/unit/four-sided-wiring.test.ts > [T26c] a line drawn on chosen sides > [T26c] from a material, solid as ever, on the sides it was drawn on
+AssertionError: expected 'continue' to be 'left' // Object.is equality
+
+Expected: "left"
+Received: "continue"
+
+ ❯ tests/unit/four-sided-wiring.test.ts:56:31
+     54|     const line = edge(note, b);
+     55|     expect(line.data?.isCrossLink).toBeFalsy();
+     56|     expect(line.sourceHandle).toBe('left');
+       |                               ^
+     57|     expect(line.targetHandle).toBe('branch');
+     58|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/12]⎯
+
+ FAIL  tests/unit/four-sided-wiring.test.ts > [T26c] a line drawn on chosen sides > [T26c] made solid or dashed again, it stays on its sides
+AssertionError: expected [ 'continue', 'top' ] to deeply equal [ 'left', 'branch' ]
+
+- Expected
++ Received
+
+  [
+-   "left",
+-   "branch",
++   "continue",
++   "top",
+  ]
+
+ ❯ tests/unit/four-sided-wiring.test.ts:66:64
+     64|     useStore.getState().setEdgeStructural(edge(a, b).id, true);
+     65|     expect(edge(a, b).data?.isCrossLink).toBeFalsy();
+     66|     expect([edge(a, b).sourceHandle, edge(a, b).targetHandle]).toEqual…
+       |                                                                ^
+     67|     useStore.getState().setEdgeStructural(edge(a, b).id, false);
+     68|     expect([edge(a, b).sourceHandle, edge(a, b).targetHandle]).toEqual…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/12]⎯
+
+ FAIL  tests/unit/four-sided-wiring.test.ts > [T26c] a line moved to other sides > [T26c] only its sides change: its kind, its ends and what it holds stay
+TypeError: useStore.getState(...).setEdgeSides is not a function
+ ❯ tests/unit/four-sided-wiring.test.ts:101:32
+     99|     useStore.getState().addCrossLink(a, b);
+    100|     const was = edge(a, b);
+    101|     expect(useStore.getState().setEdgeSides(was.id, { source: a, targe…
+       |                                ^
+    102|     const now = edge(a, b);
+    103|     expect([now.sourceHandle, now.targetHandle]).toEqual(['top', 'bran…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/12]⎯
+
+ FAIL  tests/unit/four-sided-wiring.test.ts > [T26c] a line moved to other sides > [T26c] taken to another node, it is not moved: that would be another line
+TypeError: useStore.getState(...).setEdgeSides is not a function
+ ❯ tests/unit/four-sided-wiring.test.ts:115:32
+    113|     useStore.getState().addCrossLink(a, b);
+    114|     const was = edge(a, b);
+    115|     expect(useStore.getState().setEdgeSides(was.id, { source: a, targe…
+       |                                ^
+    116|     expect(edge(a, b)).toEqual(was);
+    117|     expect(edge(a, c)).toBeUndefined();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/12]⎯
+
+ FAIL  tests/unit/four-sided-wiring.test.ts > [T26c] a line moved to other sides > [T26c] it can be undone
+TypeError: useStore.getState(...).setEdgeSides is not a function
+ ❯ tests/unit/four-sided-wiring.test.ts:125:25
+    123|     useStore.getState().addCrossLink(a, b);
+    124|     const was = edge(a, b);
+    125|     useStore.getState().setEdgeSides(was.id, { source: a, target: b, s…
+       |                         ^
+    126|     useStore.getState().undo();
+    127|     expect([edge(a, b).sourceHandle, edge(a, b).targetHandle]).toEqual…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/12]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  12 failed | 3 passed (15)
+   Start at  00:47:33
+   Duration  632ms (transform 49%, environment 38%, import 8%, tests 3%, setup 1%)
+

@@ -511,6 +511,8 @@ export interface ThoughtEdge extends Edge {
         connect). Most edges are born with their target node — consumers
         should fall back to the target's createdAt. */
     createdAt?: string;
+    /** The person drew it on these sides (sourceHandle, targetHandle): nothing moves it to others. */
+    sidesChosen?: boolean;
     /** A feedback line (see lib/feedback): a reference that closes a loop.
         It holds one finished answer of its source (`version`, an index into
         its responses; null while the source has none), not the live one. */

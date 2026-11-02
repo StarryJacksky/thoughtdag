@@ -35,14 +35,17 @@ export function latestFinished(node: ThoughtNode): number | null {
   return null;
 }
 
-/** The name of a node's answer at an index. An answer from before answers had names goes by when it was written, or its place. */
-export const answerIdAt = (node: ThoughtNode, index: number): string => node.data.answerIds?.[index] ?? `legacy:${node.data.generatedAts?.[index] ?? index}`;
+/** The name of a node's answer at an index. An answer from before answers had names goes by its place, which holds only for now: to keep it by, it is given a name (namedAnswers). */
+export const answerIdAt = (node: ThoughtNode, index: number): string => node.data.answerIds?.[index] ?? `legacy:${index}`;
+/** The names of a node's answers, each given one that has none. */
+export const namedAnswers = (node: ThoughtNode): string[] => (node.data.responses ?? []).map((_, i) => node.data.answerIds?.[i] ?? `ans_${crypto.randomUUID()}`);
 /** Whether the answer at an index is a failure's message. */
 export const isFailedAnswer = (node: ThoughtNode, index: number): boolean => (node.data.failedAnswerIds ?? []).includes(answerIdAt(node, index));
 
 /** Which of its source's answers a line holds now: by name when it has one (null when that answer is gone), else its place. */
 export function pinnedVersionOf(source: ThoughtNode, feedback: { version: number | null; versionId?: string }): number | null {
-  if (!feedback.versionId) return feedback.version;
+  // a name made from a place in an earlier version of this is no name
+  if (!feedback.versionId || feedback.versionId.startsWith('legacy:')) return feedback.version;
   const at = (source.data.responses ?? []).findIndex((_, i) => answerIdAt(source, i) === feedback.versionId);
   return at < 0 ? null : at;
 }

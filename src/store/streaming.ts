@@ -1,6 +1,5 @@
 import type { StoreApi } from 'zustand';
 import { partitionContext, walkUpAncestors } from '../lib/graph';
-import { answerIdAt } from '../lib/feedback';
 import { isFeedback } from '../lib/feedback';
 import { upstreamFingerprint, upstreamParts, recordParts, recordsForAgent, recordsWithTools, type MessageSource } from './context-builder';
 import { sha256Hex, canonicalStringify } from '../lib/context-bundle';
@@ -409,7 +408,7 @@ export async function runNodeGeneration(
         // so repeated retries don't stack failure entries.
         const failText = new Set([t('node.failedPlaceholder'), t('node.emptyResponse')]);
         const kept = versionMode === 'append' || failed
-          ? n.data.responses.map((r, i) => ({ r, q: n.data.questions?.[i], by: n.data.generatedBy?.[i], rs: n.data.reasonings?.[i], at: n.data.generatedAts?.[i], ed: n.data.editedAts?.[i], gw: n.data.gatewaySearches?.[i], ef: n.data.generatedEfforts?.[i], rn: n.data.runs?.[i], id: answerIdAt(n, i) })).filter(({ r }) => r && !(failed && failText.has(r)))
+          ? n.data.responses.map((r, i) => ({ r, q: n.data.questions?.[i], by: n.data.generatedBy?.[i], rs: n.data.reasonings?.[i], at: n.data.generatedAts?.[i], ed: n.data.editedAts?.[i], gw: n.data.gatewaySearches?.[i], ef: n.data.generatedEfforts?.[i], rn: n.data.runs?.[i], id: n.data.answerIds?.[i] ?? `ans_${crypto.randomUUID()}` })).filter(({ r }) => r && !(failed && failText.has(r)))
           : [];
         const now = new Date().toISOString();
         const responses = [...kept.map(({ r }) => r), response];
@@ -749,7 +748,7 @@ export async function runNodeGeneration(
       },
       // the tools are the ones the run was prepared with; the model is named in the request, also when it came from
       // the defaults: the task was just bound to it, and what answers must be what the task says it runs on
-    }, toolPrefs, pinnedModel ?? requestedModel, harnessRoute ?? (agentRoute ? { ...agentRoute, nodeId, ...(runEffort !== undefined ? { effort: runEffort } : {}) } : undefined));
+    }, toolPrefs, pinnedModel ?? requestedModel, harnessRoute ?? (agentRoute ? { ...agentRoute, nodeId, ...(runEffort !== undefined ? { effort: runEffort } : {}), ...(runTarget ? { runFor: { targetId: runTarget.targetId, writes: !researching } } : {}) } : undefined));
     flushStream();
     if (!isCurrent()) return; // superseded while finishing: drop everything
     activeAbortControllers.delete(nodeId);

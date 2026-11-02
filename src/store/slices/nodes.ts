@@ -5,7 +5,7 @@ import { generateId, countTokens } from '../../utils';
 import { COLORS } from '../../lib/constants';
 import { healLegacyNoteEdges, autoLayout, placeNewNodes, estimateNodeHeight, nodeHeight } from '../../lib/layout';
 import { getDescendantIds, walkUpAncestors } from '../../lib/graph';
-import { answerIdAt, closesLoop, isFailedAnswer, latestFinished } from '../../lib/feedback';
+import { closesLoop, isFailedAnswer, latestFinished } from '../../lib/feedback';
 import { referenceBlockContent, buildContext } from '../context-builder';
 import { detectStale, staleKeyOf, type StaleReason } from '../../lib/context/staleness';
 import { pruneHighlights } from '../../lib/highlight-match';
@@ -327,7 +327,7 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
       style: { stroke: COLORS.feedback, strokeDasharray: '2 6', strokeWidth: 2.5, strokeLinecap: 'round' },
       animated: false,
       markerEnd: { type: 'arrowclosed' as const, color: COLORS.feedback, width: 16, height: 16 },
-      data: { isCrossLink: true, feedback: { version, ...(version === null ? {} : { versionId: answerIdAt(source, version) }), pinnedAt: now }, createdAt: now, ...(sides ? { sidesChosen: true } : {}) },
+      data: { isCrossLink: true, feedback: { version, ...(version !== null && source.data.answerIds?.[version] ? { versionId: source.data.answerIds[version] } : {}), pinnedAt: now }, createdAt: now, ...(sides ? { sidesChosen: true } : {}) },
     };
     get().pushHistory();
     set((state) => ({ edges: [...state.edges, line] }));
@@ -352,7 +352,7 @@ export const createNodeSlice: StateCreator<StoreState, [], [], NodeSlice> = (set
       const version = latestFinished(source);
       if (version === e.data.feedback.version) return e;
       moved = true;
-      return { ...e, data: { ...e.data, feedback: { ...e.data.feedback, version, versionId: version === null ? undefined : answerIdAt(source, version), pinnedAt: now } } };
+      return { ...e, data: { ...e.data, feedback: { ...e.data.feedback, version, versionId: version === null ? undefined : source.data.answerIds?.[version], pinnedAt: now } } };
     });
     if (moved) set({ edges: next });
   },

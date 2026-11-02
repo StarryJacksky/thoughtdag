@@ -1,0 +1,244 @@
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/review-round14.test.ts (15 tests | 12 failed) 201ms
+   ❯ [R14-01] what a run is for is what it was prepared as (3)
+     × [R14-01] set to research while it waits for its materials: it goes as what it was, a writer, for the target it was 79ms
+     × [R14-01] the other way: prepared as research, set to work meanwhile: it goes as research, reading only 54ms
+     × [R14-01] the task removed while it waits: it goes as what it was, or not at all, and never as nobody 55ms
+   ❯ [R14-03] an answer from before answers had names (7)
+     × [R14-03] no dates: referred to, it stays that answer when an earlier one is deleted 3ms
+     × [R14-03] the same date twice: referred to, it stays that answer when an earlier one is deleted 1ms
+     × [R14-03] some with names and some without: referred to, it stays that answer when an earlier one is deleted 1ms
+     × [R14-03] the names it is given stay with the answers: asked for again, they are the same 1ms
+     × [R14-03] a line saved with a name made from a place goes by its place, and keeps to it through a deletion 1ms
+     × [R14-03] a feedback line to an old answer does not take a name from its place 1ms
+   ❯ [R14-04] what differs between runs is what they are given (5)
+     × [R14-04] two passages of one file are two inputs 1ms
+     × [R14-04] the whole file and a passage of it are two inputs 0ms
+     × [R14-04] several passages of one file on one run are all there 1ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 12 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/review-round14.test.ts > [R14-01] what a run is for is what it was prepared as > [R14-01] set to research while it waits for its materials: it goes as what it was, a writer, for the target it was
+AssertionError: expected { …(2) } to deeply equal { …(2) }
+
+- Expected
++ Received
+
+  {
+-   "targetId": "target_0a52cc9e-fe03-444e-8fd5-1c1a2b422995",
+-   "writes": true,
++   "targetId": "target_af93e901-3282-41a9-b371-b02cf7438e8e",
++   "writes": false,
+  }
+
+ ❯ tests/unit/review-round14.test.ts:77:25
+     75|     const { prepared, sent, id } = await changedWhileMaterials(attachm…
+     76|     expect(sent.mode).toBeUndefined();
+     77|     expect(sent.target).toEqual({ targetId: prepared.targetId, writes:…
+       |                         ^
+     78|     expect(node(id).data.target!.targetId).not.toBe(prepared.targetId);
+     79|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/12]⎯
+
+ FAIL  tests/unit/review-round14.test.ts > [R14-01] what a run is for is what it was prepared as > [R14-01] the other way: prepared as research, set to work meanwhile: it goes as research, reading only
+AssertionError: expected { …(2) } to deeply equal { …(2) }
+
+- Expected
++ Received
+
+  {
+-   "targetId": "target_9e9c787a-a3db-458c-a232-f88e60f33566",
+-   "writes": false,
++   "targetId": "target_b9634f49-55ac-483a-8a07-bf966525a581",
++   "writes": true,
+  }
+
+ ❯ tests/unit/review-round14.test.ts:98:36
+     96|     await vi.waitFor(() => expect(desktop.runs).toHaveLength(1));
+     97|     expect(desktop.runs[0].mode).toBe('research');
+     98|     expect(desktop.runs[0].target).toEqual({ targetId: prepared.target…
+       |                                    ^
+     99|     desktop.end(desktop.runIds[0], 'done');
+    100|     await running;
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/12]⎯
+
+ FAIL  tests/unit/review-round14.test.ts > [R14-01] what a run is for is what it was prepared as > [R14-01] the task removed while it waits: it goes as what it was, or not at all, and never as nobody
+AssertionError: expected undefined to be 'target_3e1190ce-d2ee-4fb3-a671-9d0a16…' // Object.is equality
+
+- Expected:
+"target_3e1190ce-d2ee-4fb3-a671-9d0a16ef5d93"
+
++ Received:
+undefined
+
+ ❯ tests/unit/review-round14.test.ts:105:45
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/12]⎯
+
+ FAIL  tests/unit/review-round14.test.ts > [R14-03] an answer from before answers had names > [R14-03] no dates: referred to, it stays that answer when an earlier one is deleted
+ FAIL  tests/unit/review-round14.test.ts > [R14-03] an answer from before answers had names > [R14-03] some with names and some without: referred to, it stays that answer when an earlier one is deleted
+AssertionError: expected '[Reference: X?]\nQ: X?\nA: ANSWER_C\n…' to contain 'ANSWER_B'
+
+- Expected
++ Received
+
+- ANSWER_B
++ [Reference: X?]
++ Q: X?
++ A: ANSWER_C
++ Y?
+
+ ❯ tests/unit/review-round14.test.ts:124:25
+    122|       expect(sentTo(y)).toContain('ANSWER_B');
+    123|       useStore.getState().deleteVersion(x, 0);
+    124|       expect(sentTo(y)).toContain('ANSWER_B');
+       |                         ^
+    125|       expect(sentTo(y)).not.toContain('ANSWER_C');
+    126|       expect(edgeInto(y).data?.feedback?.versionId).toMatch(/^ans_/);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/12]⎯
+
+ FAIL  tests/unit/review-round14.test.ts > [R14-03] an answer from before answers had names > [R14-03] the same date twice: referred to, it stays that answer when an earlier one is deleted
+AssertionError: expected '[Reference: X?]\nQ: X?\nA: ANSWER_A\n…' to contain 'ANSWER_B'
+
+- Expected
++ Received
+
+- ANSWER_B
++ [Reference: X?]
++ Q: X?
++ A: ANSWER_A
++ Y?
+
+ ❯ tests/unit/review-round14.test.ts:122:25
+    120|       legacy(x, ['ANSWER_A', 'ANSWER_B', 'ANSWER_C'], more);
+    121|       referenceAnswer(y, x, answerVersionsOf(node(x))[1].answerVersion…
+    122|       expect(sentTo(y)).toContain('ANSWER_B');
+       |                         ^
+    123|       useStore.getState().deleteVersion(x, 0);
+    124|       expect(sentTo(y)).toContain('ANSWER_B');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/12]⎯
+
+ FAIL  tests/unit/review-round14.test.ts > [R14-03] an answer from before answers had names > [R14-03] the names it is given stay with the answers: asked for again, they are the same
+TypeError: Cannot read properties of undefined (reading 'every')
+ ❯ tests/unit/review-round14.test.ts:136:16
+    134|     referenceAnswer(y, x, answerVersionsOf(node(x))[0].answerVersionId…
+    135|     const ids = node(x).data.answerIds!;
+    136|     expect(ids.every((id) => id?.startsWith('ans_'))).toBe(true);
+       |                ^
+    137|     expect(new Set(ids).size).toBe(2);
+    138|     expect(answerVersionsOf(node(x)).map((v) => v.answerVersionId)).to…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/12]⎯
+
+ FAIL  tests/unit/review-round14.test.ts > [R14-03] an answer from before answers had names > [R14-03] a line saved with a name made from a place goes by its place, and keeps to it through a deletion
+AssertionError: expected '[Reference: X?]\nQ: X?\nA: ANSWER_C\n…' to contain 'ANSWER_B'
+
+- Expected
++ Received
+
+- ANSWER_B
++ [Reference: X?]
++ Q: X?
++ A: ANSWER_C
++ Y?
+
+ ❯ tests/unit/review-round14.test.ts:147:23
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/12]⎯
+
+ FAIL  tests/unit/review-round14.test.ts > [R14-03] an answer from before answers had names > [R14-03] a feedback line to an old answer does not take a name from its place
+AssertionError: expected 'legacy:1' to be null
+
+- Expected:
+null
+
++ Received:
+"legacy:1"
+
+ ❯ tests/unit/review-round14.test.ts:156:59
+    154|     legacy(x, ['ANSWER_A', 'ANSWER_B']);
+    155|     useStore.getState().addFeedbackLink(x, y);
+    156|     expect(edgeInto(y).data?.feedback?.versionId ?? null).toBeNull();
+       |                                                           ^
+    157|     useStore.getState().deleteVersion(x, 0);
+    158|     expect(sentTo(y)).toContain('ANSWER_B');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/12]⎯
+
+ FAIL  tests/unit/review-round14.test.ts > [R14-04] what differs between runs is what they are given > [R14-04] two passages of one file are two inputs
+AssertionError: expected [] to deeply equal [ 'in_a' ]
+
+- Expected
++ Received
+
+- [
+-   "in_a",
+- ]
++ []
+
+ ❯ tests/unit/review-round14.test.ts:181:21
+    179|   it('[R14-04] two passages of one file are two inputs', () => {
+    180|     const [a, b] = comparePreparedRuns([run('x', passage('in_a', 'ALPH…
+    181|     expect(a.added).toEqual(['in_a']);
+       |                     ^
+    182|     expect(a.missing).toEqual(['in_b']);
+    183|     expect(b.added).toEqual(['in_b']);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/12]⎯
+
+ FAIL  tests/unit/review-round14.test.ts > [R14-04] what differs between runs is what they are given > [R14-04] the whole file and a passage of it are two inputs
+AssertionError: expected [] to deeply equal [ 'in_w' ]
+
+- Expected
++ Received
+
+- [
+-   "in_w",
+- ]
++ []
+
+ ❯ tests/unit/review-round14.test.ts:188:21
+    186|   it('[R14-04] the whole file and a passage of it are two inputs', () …
+    187|     const [a] = comparePreparedRuns([run('x', whole('in_w')), run('y',…
+    188|     expect(a.added).toEqual(['in_w']);
+       |                     ^
+    189|     expect(a.missing).toEqual(['in_p']);
+    190|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/12]⎯
+
+ FAIL  tests/unit/review-round14.test.ts > [R14-04] what differs between runs is what they are given > [R14-04] several passages of one file on one run are all there
+AssertionError: expected [ 'in_b' ] to deeply equal [ 'in_a', 'in_b' ]
+
+- Expected
++ Received
+
+  [
+-   "in_a",
+    "in_b",
+  ]
+
+ ❯ tests/unit/review-round14.test.ts:193:21
+    191|   it('[R14-04] several passages of one file on one run are all there',…
+    192|     const [a] = comparePreparedRuns([run('x', passage('in_a', 'ALPHA')…
+    193|     expect(a.added).toEqual(['in_a', 'in_b']);
+       |                     ^
+    194|   });
+    195|   it('[R14-04] control: one passage on both, whatever it is called on …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/12]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  12 failed | 3 passed (15)
+   Start at  02:46:06
+   Duration  889ms (transform 41%, environment 27%, tests 25%, import 6%, setup 1%)
+

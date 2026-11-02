@@ -8,7 +8,7 @@ import { useStore } from '../../store';
 import { COLORS } from '../constants';
 import type { ThoughtEdge, ThoughtNode } from '../../types';
 import type { ExecutionTarget, RunEnvelope } from '../context/contracts';
-import { answerIdAt, isFailedAnswer } from '../feedback';
+import { answerIdAt, isFailedAnswer, namedAnswers } from '../feedback';
 
 export type ReferenceDepth = 'summary' | 'selected' | 'path';
 
@@ -27,7 +27,9 @@ export function referenceAnswer(taskNodeId: string, sourceNodeId: string, answer
   if (!answer) throw new Error('that task has no such answer');
   if (answer.failed) throw new Error('that answer is a failure');
   const now = new Date().toISOString();
-  const feedback = { version: answer.index, versionId: answerVersionId, pinnedAt: now, fixed: true, depth };
+  // held by name, whatever happens around it: an answer from before answers had names is given one now, and so are the others beside it
+  const answerIds = namedAnswers(source);
+  const feedback = { version: answer.index, versionId: answerIds[answer.index], pinnedAt: now, fixed: true, depth };
   const others = state.edges.filter((e) => !(e.source === sourceNodeId && e.target === taskNodeId));
   const line: ThoughtEdge = {
     id: `reference-${sourceNodeId}-${taskNodeId}`,
@@ -40,7 +42,7 @@ export function referenceAnswer(taskNodeId: string, sourceNodeId: string, answer
     data: { isCrossLink: true, feedback, createdAt: now },
   };
   state.pushHistory();
-  useStore.setState({ edges: [...others, line] });
+  useStore.setState((st) => ({ nodes: st.nodes.map((n) => (n.id === sourceNodeId ? { ...n, data: { ...n.data, answerIds } } : n)), edges: [...others, line] }));
   state.pushHistory();
 }
 
@@ -58,10 +60,12 @@ export interface InputDifference {
 
 /** What each of several prepared runs is given that the others are not, and what each runs on. */
 export function comparePreparedRuns(runs: { target: ExecutionTarget; envelope: RunEnvelope }[]): InputDifference[] {
-  const contentsOf = (run: { envelope: RunEnvelope }) => new Map(run.envelope.inputs.map((i) => [i.contentHash, i.inputId]));
+  // what an input is: which file's content, which part of it, read how. The content hash names the whole file, so two passages of one are not one input
+  const keyOf = (i: RunEnvelope['inputs'][number]) => JSON.stringify([i.contentHash, i.payload, i.source.kind === 'resource' ? i.source.ref.selector : null]);
+  const contentsOf = (run: { envelope: RunEnvelope }) => new Map(run.envelope.inputs.map((i) => [keyOf(i), i.inputId]));
   const all = runs.map(contentsOf);
   const everywhere = (hash: string) => all.every((c) => c.has(hash));
-  // the same content is the same input whichever run names it
+  // the same part of the same content is the same input whichever run names it
   const firstName = new Map<string, string>();
   for (const c of all) for (const [hash, id] of c) if (!firstName.has(hash)) firstName.set(hash, id);
   return runs.map((run, i) => ({

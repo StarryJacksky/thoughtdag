@@ -106,6 +106,8 @@ export type AgentRoute = {
   mode?: 'research';
   /** research: its materials, relative to `cwd`: it runs from there, and its file tools reach nothing above */
   readRoot?: string;
+  /** the target this run was prepared for, and whether it writes: from the same moment as its envelope */
+  runFor?: { targetId: string; writes: boolean };
 };
 
 export type CwdChoice = { cwd: string; kind: 'chosen' | 'mirrored' | 'session' | 'workspace' };
@@ -354,8 +356,8 @@ export async function agentCallStream(
       ...(route?.forkEntryId ? { forkEntryId: route.forkEntryId } : {}),
       ...(route?.mode ? { mode: route.mode } : {}),
       ...(route?.readRoot ? { readRoot: route.readRoot } : {}),
-      // an agent writes, unless it is in research
-      ...(bound ? { target: { targetId: bound.targetId, writes: bound.policyId !== 'research' } } : {}),
+      // what it runs for is what it was prepared as: a change to the task since is the next run's
+      ...(route?.runFor ? { target: route.runFor } : {}),
       images: (images ?? []).map((img) => ({ type: 'image' as const, data: img.data, mimeType: img.mimeType })),
       model: { provider: target.provider, id: target.id },
       ...(effort ? { effort } : {}),

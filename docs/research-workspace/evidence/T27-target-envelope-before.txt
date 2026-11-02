@@ -1,0 +1,259 @@
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/target-envelope.test.ts (24 tests | 20 failed) 44ms
+   ❯ [T27] what a target holds (10)
+     × [T27] a new target is made with what is set now, and what is set later changes no target 5ms
+     × [T27] changing its role changes its revision, and it is a target of its own 1ms
+     × [T27] changing its memory changes its revision, and it is a target of its own 1ms
+     × [T27] changing its model changes its revision, and it is a target of its own 0ms
+     × [T27] changing its effort changes its revision, and it is a target of its own 0ms
+     × [T27] changing its tools changes its revision, and it is a target of its own 0ms
+     × [T27] changing its connection changes its revision, and it is a target of its own 0ms
+     × [T27] giving a task a role changes its target; the task it shared a target with keeps its own 1ms
+     × [T27] another AI for a task keeps what else it runs under 1ms
+     × [T27] a target made before these were held says nothing of them, and is still a target 0ms
+   ❯ [T27] a run is prepared from its target (7)
+     × [T27] two tasks are each given their own: nothing of the other's comes along 2ms
+     × [T27] two images of one length and other contents are two inputs 0ms
+     × [T27] a target that has changed since the run was planned is not prepared 2ms
+     × [T27] a node with no target is not prepared: there is no AI to freeze 0ms
+     × [T27] a source that can no longer be read stops the run from being prepared, and nothing is sent 1ms
+     × [T27] research is prepared as research, with the tools and memory left out, whatever the target holds 0ms
+   ❯ [T27] a run goes by its target, not by what is set now (7)
+     × [T27] memory on when the task was made, off now: the run has its memory 2ms
+     × [T27] memory off when the task was made, on now: the run has none 1ms
+     × [T27] the tools it was made with travel, whatever is set now 1ms
+     × [T27] tools off when the task was made, on now: they do not come 1ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 20 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/target-envelope.test.ts > [T27] what a target holds > [T27] a new target is made with what is set now, and what is set later changes no target
+AssertionError: expected 'default' to be 'memory:on' // Object.is equality
+
+Expected: "memory:on"
+Received: "default"
+
+ ❯ tests/unit/target-envelope.test.ts:85:33
+     83|     useUiStore.setState({ memoryEnabled: true, webSearchEnabled: true,…
+     84|     const made = createTarget(templateFor(API_MODEL));
+     85|     expect(made.memoryPolicyId).toBe('memory:on');
+       |                                 ^
+     86|     expect(made.tools).toEqual({ web: true, scholar: true, mcp: true, …
+     87|     const copy = structuredClone(made);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/20]⎯
+
+ FAIL  tests/unit/target-envelope.test.ts > [T27] what a target holds > [T27] changing its role changes its revision, and it is a target of its own
+ FAIL  tests/unit/target-envelope.test.ts > [T27] what a target holds > [T27] changing its memory changes its revision, and it is a target of its own
+ FAIL  tests/unit/target-envelope.test.ts > [T27] what a target holds > [T27] changing its model changes its revision, and it is a target of its own
+ FAIL  tests/unit/target-envelope.test.ts > [T27] what a target holds > [T27] changing its effort changes its revision, and it is a target of its own
+ FAIL  tests/unit/target-envelope.test.ts > [T27] what a target holds > [T27] changing its tools changes its revision, and it is a target of its own
+ FAIL  tests/unit/target-envelope.test.ts > [T27] what a target holds > [T27] changing its connection changes its revision, and it is a target of its own
+TypeError: setTargetSettings is not a function
+ ❯ tests/unit/target-envelope.test.ts:106:19
+    104|     it(`[T27] changing its ${what} changes its revision, and it is a t…
+    105|       const was = createTarget(templateFor(API_MODEL));
+    106|       const now = setTargetSettings(was, patch);
+       |                   ^
+    107|       expect(now.revision).not.toBe(was.revision);
+    108|       expect(now.targetId).not.toBe(was.targetId);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/20]⎯
+
+ FAIL  tests/unit/target-envelope.test.ts > [T27] what a target holds > [T27] giving a task a role changes its target; the task it shared a target with keeps its own
+TypeError: .toMatch() expects to receive a string, but got object
+ ❯ tests/unit/target-envelope.test.ts:118:42
+    116|     const b = newTask(shared, { x: 0, y: 200 });
+    117|     useStore.getState().setRolePrompt(a, 'You review methods.');
+    118|     expect(node(a).data.target!.roleRef).toMatch(/^role:/);
+       |                                          ^
+    119|     expect(node(a).data.target!.revision).not.toBe(shared.revision);
+    120|     expect(node(b).data.target).toEqual(shared);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/20]⎯
+
+ FAIL  tests/unit/target-envelope.test.ts > [T27] what a target holds > [T27] another AI for a task keeps what else it runs under
+AssertionError: expected 'default' to be 'memory:on' // Object.is equality
+
+Expected: "memory:on"
+Received: "default"
+
+ ❯ tests/unit/target-envelope.test.ts:133:32
+    131|     useUiStore.setState({ memoryEnabled: false, webSearchEnabled: fals…
+    132|     const now = retarget(id, { model: CODEX });
+    133|     expect(now.memoryPolicyId).toBe('memory:on');
+       |                                ^
+    134|     expect(now.tools?.web).toBe(true);
+    135|     expect(kindOf(now)).toBe('agent');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/20]⎯
+
+ FAIL  tests/unit/target-envelope.test.ts > [T27] what a target holds > [T27] a target made before these were held says nothing of them, and is still a target
+TypeError: setTargetSettings is not a function
+ ❯ tests/unit/target-envelope.test.ts:141:12
+    139|     const { tools, ...old } = createTarget(templateFor(API_MODEL));
+    140|     void tools;
+    141|     expect(setTargetSettings({ ...old, memoryPolicyId: 'default' }, {}…
+       |            ^
+    142|   });
+    143| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/20]⎯
+
+ FAIL  tests/unit/target-envelope.test.ts > [T27] a run is prepared from its target > [T27] two tasks are each given their own: nothing of the other's comes along
+Error: not yet
+ ❯ prepareTargetRun src/lib/context/prepare-target-run.ts:1:79
+      1| export const prepareTargetRun = async (..._a: any[]): Promise<any> => …
+       |                                                                               ^
+      2|
+ ❯ prepared tests/unit/target-envelope.test.ts:44:34
+ ❯ tests/unit/target-envelope.test.ts:151:29
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/20]⎯
+
+ FAIL  tests/unit/target-envelope.test.ts > [T27] a run is prepared from its target > [T27] two images of one length and other contents are two inputs
+Error: not yet
+ ❯ prepareTargetRun src/lib/context/prepare-target-run.ts:1:79
+      1| export const prepareTargetRun = async (..._a: any[]): Promise<any> => …
+       |                                                                               ^
+      2|
+ ❯ prepared tests/unit/target-envelope.test.ts:44:34
+ ❯ tests/unit/target-envelope.test.ts:184:29
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/20]⎯
+
+ FAIL  tests/unit/target-envelope.test.ts > [T27] a run is prepared from its target > [T27] a target that has changed since the run was planned is not prepared
+AssertionError: expected Error: not yet to match object { reason: 'target-changed', …(1) }
+
+- Expected
++ Received
+
+- {
+-   "nodeId": "node-1793578964436-19",
+-   "reason": "target-changed",
++ Error {
++   "message": "not yet",
+  }
+
+ ❯ tests/unit/target-envelope.test.ts:192:55
+    190|     const planned = revisionOf(id);
+    191|     retarget(id, { model: CODEX });
+    192|     await expect(prepareTargetRun(CANVAS, id, planned)).rejects.toMatc…
+       |                                                       ^
+    193|   });
+    194|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/20]⎯
+
+ FAIL  tests/unit/target-envelope.test.ts > [T27] a run is prepared from its target > [T27] a node with no target is not prepared: there is no AI to freeze
+AssertionError: expected Error: not yet to be an instance of RunBlocked
+ ❯ tests/unit/target-envelope.test.ts:198:55
+    196|     const id = task(API_MODEL, 'Plan?');
+    197|     useStore.setState((st) => ({ nodes: st.nodes.map((n) => (n.id === …
+    198|     await expect(prepareTargetRun(CANVAS, id, 'rev_x')).rejects.toBeIn…
+       |                                                       ^
+    199|   });
+    200|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/20]⎯
+
+ FAIL  tests/unit/target-envelope.test.ts > [T27] a run is prepared from its target > [T27] a source that can no longer be read stops the run from being prepared, and nothing is sent
+AssertionError: expected Error: not yet to be an instance of RunBlocked
+ ❯ tests/unit/target-envelope.test.ts:205:30
+    203|     const id = task(CODEX, 'Read it?', a);
+    204|     shell.failNext('freezeFile', 'access-denied', 'that folder is no l…
+    205|     await expect(prepared(id)).rejects.toBeInstanceOf(RunBlocked);
+       |                              ^
+    206|     shell.calm();
+    207|     shell.failNext('freezeFile', 'access-denied', 'that folder is no l…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/20]⎯
+
+ FAIL  tests/unit/target-envelope.test.ts > [T27] a run is prepared from its target > [T27] research is prepared as research, with the tools and memory left out, whatever the target holds
+Error: not yet
+ ❯ prepareTargetRun src/lib/context/prepare-target-run.ts:1:79
+      1| export const prepareTargetRun = async (..._a: any[]): Promise<any> => …
+       |                                                                               ^
+      2|
+ ❯ prepared tests/unit/target-envelope.test.ts:44:34
+ ❯ tests/unit/target-envelope.test.ts:217:32
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/20]⎯
+
+ FAIL  tests/unit/target-envelope.test.ts > [T27] a run goes by its target, not by what is set now > [T27] memory on when the task was made, off now: the run has its memory
+AssertionError: expected '[{"role":"user","content":"Who am I?"…' to contain 'MEMORY_MARKER_M3'
+
+Expected: "MEMORY_MARKER_M3"
+Received: "[{"role":"user","content":"Who am I?"}]"
+
+ ❯ tests/unit/target-envelope.test.ts:231:48
+    229|     useUiStore.setState({ memoryEnabled: false });
+    230|     await useStore.getState().rerunNode(id, {});
+    231|     expect(JSON.stringify(bodies[0].messages)).toContain(MEMORY);
+       |                                                ^
+    232|   });
+    233|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/20]⎯
+
+ FAIL  tests/unit/target-envelope.test.ts > [T27] a run goes by its target, not by what is set now > [T27] memory off when the task was made, on now: the run has none
+AssertionError: expected '[{"role":"user","content":"[Memory] D…' not to contain 'MEMORY_MARKER_M3'
+
+Expected: "MEMORY_MARKER_M3"
+Received: "[{"role":"user","content":"[Memory] Durable notes about this user, kept across sessions. Use them ONLY where relevant; never recite them, never treat them as part of the current question:\nWho they are:\n- MEMORY_MARKER_M3"},{"role":"user","content":"Who am I?"}]"
+
+ ❯ tests/unit/target-envelope.test.ts:238:52
+    236|     useUiStore.setState({ memoryEnabled: true });
+    237|     await useStore.getState().rerunNode(id, {});
+    238|     expect(JSON.stringify(bodies[0].messages)).not.toContain(MEMORY);
+       |                                                    ^
+    239|   });
+    240|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/20]⎯
+
+ FAIL  tests/unit/target-envelope.test.ts > [T27] a run goes by its target, not by what is set now > [T27] the tools it was made with travel, whatever is set now
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ tests/unit/target-envelope.test.ts:246:33
+    244|     useUiStore.setState({ webSearchEnabled: false, mcpEnabled: false }…
+    245|     await useStore.getState().rerunNode(id, {});
+    246|     expect(bodies[0].webSearch).toBe(true);
+       |                                 ^
+    247|     expect(bodies[0].mcpTools).toBe(true);
+    248|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/20]⎯
+
+ FAIL  tests/unit/target-envelope.test.ts > [T27] a run goes by its target, not by what is set now > [T27] tools off when the task was made, on now: they do not come
+AssertionError: expected true to be falsy
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/unit/target-envelope.test.ts:254:33
+    252|     useUiStore.setState({ webSearchEnabled: true, scholarSearchEnabled…
+    253|     await useStore.getState().rerunNode(id, {});
+    254|     expect(bodies[0].webSearch).toBeFalsy();
+       |                                 ^
+    255|     expect(bodies[0].scholarSearch).toBeFalsy();
+    256|     expect(bodies[0].mcpTools).toBeFalsy();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/20]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  20 failed | 4 passed (24)
+   Start at  00:22:43
+   Duration  986ms (environment 46%, transform 40%, import 7%, tests 5%, setup 2%)
+

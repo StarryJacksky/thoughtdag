@@ -9,7 +9,7 @@
 // import the store or anything that needs the store while it loads. What
 // reads or changes the canvas is in targets.ts.
 
-import { validateRunDTO, type ExecutionTarget } from '../context/contracts';
+import { validateRunDTO, type ExecutionTarget, type RuntimeSelection } from '../context/contracts';
 import type { ModelInfo } from '../use-models';
 import { useUiStore } from '../ui-store';
 import { AGENT_RUNTIMES, agentTarget, runtimeOf, actsAsAgent, HARNESS_AGENT_MODEL, isHarnessAgentModel } from './agent-runtime';
@@ -42,8 +42,31 @@ export function writesFiles(task: { target?: ExecutionTarget; model?: string }):
   return actsAsAgent(task.model ?? useUiStore.getState().selectedModel);
 }
 
+/** Whether a target's runs have memory; undefined on a target from before this was held. */
+export const memoryOfTarget = (target: Pick<ExecutionTarget, 'memoryPolicyId'> | undefined): boolean | undefined => (target?.memoryPolicyId === 'memory:on' ? true : target?.memoryPolicyId === 'memory:off' ? false : undefined);
+
+/** What a run says it runs on: its target's, with the model and the effort it was decided with. */
+export function selectionOf(target: ExecutionTarget | undefined, decided: { model: string; effort: string | null; fallbackKind?: ExecutionTarget['kind'] }): RuntimeSelection {
+  return {
+    kind: target ? kindOf(target) : (decided.fallbackKind ?? 'provider'),
+    runtime: target?.runtime ?? null,
+    connectionRef: target?.connectionRef ?? 'default',
+    model: decided.model,
+    effort: decided.effort,
+    capabilityVersion: null,
+  };
+}
+
+/** The name a role goes by on a target: changing the role changes the target's revision. */
+export function roleRefOf(rolePrompt: string): string | null {
+  if (!rolePrompt) return null;
+  let hash = 0x811c9dc5;
+  for (const char of rolePrompt) { hash ^= char.charCodeAt(0); hash = Math.imul(hash, 0x01000193); }
+  return `role:${(hash >>> 0).toString(16).padStart(8, '0')}`;
+}
+
 /** What of a target makes it the AI it is: two targets with the same settings are the same revision. */
-const settingsOf = (t: ExecutionTarget) => [t.kind, t.runtime, t.connectionRef, t.model, t.effort, t.roleRef, t.memoryPolicyId, t.policyId, t.workspaceId, t.budgetId];
+const settingsOf = (t: ExecutionTarget) => [t.kind, t.runtime, t.connectionRef, t.model, t.effort, t.roleRef, t.memoryPolicyId, t.policyId, t.workspaceId, t.budgetId, t.tools ?? null];
 function revisionOf(target: ExecutionTarget): string {
   // a short, stable name for the settings (FNV-1a); it identifies them, it protects nothing
   let hash = 0x811c9dc5;
@@ -96,6 +119,7 @@ export function templateFor(model?: string | null, more: { effort?: string | nul
   const kind: ExecutionTarget['kind'] = actsAsAgent(id) ? 'agent' : 'provider';
   // effort is a setting of the agent runtimes; a model reached through an API has none here, and neither does the harness's agent
   const effort = runtime ? (more.effort !== undefined ? more.effort : (useUiStore.getState().agentEffort || null)) : null;
+  const ui = useUiStore.getState();
   const template: ExecutionTarget = {
     targetId: 'template',
     revision: '',
@@ -106,7 +130,9 @@ export function templateFor(model?: string | null, more: { effort?: string | nul
     model: id,
     effort: effort || null,
     roleRef: null,
-    memoryPolicyId: 'default',
+    // what is set now is what the target starts from; what is set later changes no target
+    memoryPolicyId: ui.memoryEnabled ? 'memory:on' : 'memory:off',
+    tools: { web: !!ui.webSearchEnabled, scholar: !!ui.scholarSearchEnabled, mcp: !!ui.mcpEnabled, recall: !!ui.recallEnabled },
     policyId: 'default',
     // the working folder belongs to the canvas today; a target of its own folder comes with per-target isolation
     workspaceId: 'canvas',
@@ -127,6 +153,15 @@ export function createTarget(template: ExecutionTarget): ExecutionTarget {
 /** What is known of the models that can be reached here; an empty list means nothing is known. */
 export interface KnownModels { models: Pick<ModelInfo, 'id'>[]; serverDefault: string | null }
 export type SendCheck = { ok: true } | { ok: false; reason: 'no-model' } | { ok: false; reason: 'unavailable'; model: string };
+
+/**
+ * A target with these settings changed: one of its own, made now, so that the tasks it was shared
+ * with keep theirs. Nothing changed: the same target.
+ */
+export function setTargetSettings(was: ExecutionTarget, patch: Partial<ExecutionTarget>): ExecutionTarget {
+  const changed = (Object.keys(patch) as (keyof ExecutionTarget)[]).some((k) => JSON.stringify(was[k]) !== JSON.stringify(patch[k]));
+  return changed ? createTarget({ ...was, ...patch }) : was;
+}
 
 /**
  * Whether something can be sent for a task with this target and this pin.

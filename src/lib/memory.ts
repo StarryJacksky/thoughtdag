@@ -55,10 +55,11 @@ export function resetMemoryWriteCaps(): void { sessionAddCounts.clear(); }
 export interface MemoryCanvas { id: string; name: string }
 
 /** The [Memory] context block: the two documents, or null when disabled/empty. */
-export function memoryContextBlock(): ContextMessage | null {
+/** `on`: whether this run has memory, as its target says; not said (a target from before this was held): what is set now. */
+export function memoryContextBlock(on?: boolean): ContextMessage | null {
   migrateLegacyMemories();
   const { memoryEnabled, profile } = useUiStore.getState();
-  if (!memoryEnabled) return null;
+  if (!(on ?? memoryEnabled)) return null;
   const idn = docLines(profile.identity);
   const pref = docLines(profile.preferences);
   if (!idn.length && !pref.length) return null;

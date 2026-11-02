@@ -1,5 +1,6 @@
 import type { StateCreator } from 'zustand';
 import type { StoreState, RoleSlice } from '../types';
+import { roleRefOf, setTargetSettings } from '../../lib/agents/target-model';
 
 // Roles are deliberately narrow: ONE semantic — a rolePrompt set on a node
 // is the system prompt for that node and everything downstream (nearest
@@ -11,7 +12,7 @@ export const createRoleSlice: StateCreator<StoreState, [], [], RoleSlice> = (set
     get().pushHistory();
     set((state) => ({
       nodes: state.nodes.map((n) =>
-        n.id === nodeId ? { ...n, data: { ...n.data, rolePrompt: rolePrompt || undefined } } : n
+        n.id === nodeId ? { ...n, data: { ...n.data, rolePrompt: rolePrompt || undefined, ...(n.data.target ? { target: setTargetSettings(n.data.target, { roleRef: roleRefOf(rolePrompt) }) } : {}) } } : n
       ),
     }));
     get().pushHistory();

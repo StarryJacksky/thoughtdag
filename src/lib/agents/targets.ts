@@ -122,7 +122,7 @@ export function retarget(nodeId: string, to: { model: string; effort?: string | 
   const target = createTarget({
     ...fresh,
     ...(to.effort === undefined && sameRuntime ? { effort: was!.effort } : {}),
-    ...(was ? { roleRef: was.roleRef, memoryPolicyId: was.memoryPolicyId, policyId: was.policyId, workspaceId: was.workspaceId, budgetId: was.budgetId } : {}),
+    ...(was ? { roleRef: was.roleRef, memoryPolicyId: was.memoryPolicyId, policyId: was.policyId, workspaceId: was.workspaceId, budgetId: was.budgetId, ...(was.tools ? { tools: was.tools } : {}) } : {}),
   });
   useStore.getState().pushHistory();
   withTarget(nodeId, target);

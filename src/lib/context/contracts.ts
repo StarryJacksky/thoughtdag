@@ -126,10 +126,13 @@ export interface ExecutionTarget {
   model: string;
   effort: string | null;
   roleRef: string | null;
+  /** `memory:on`, `memory:off`; `default` on a target made before this was held, which follows what is set */
   memoryPolicyId: string;
   policyId: string;
   workspaceId: string;
   budgetId: string;
+  /** what a run may reach for; absent on a target made before this was held, which follows what is set */
+  tools?: { web: boolean; scholar: boolean; mcp: boolean; recall: boolean };
 }
 
 export interface TargetBinding {

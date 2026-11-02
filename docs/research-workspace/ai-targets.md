@@ -251,3 +251,31 @@ T25 登记的两条缺口测试（`tests/unit/multi-ai-baseline.test.ts`）现�
 - 标签放到了连线的点击区之上。之前标签压在另一条线上时点不到，这个问题是测试时发现的。
 
 **测试**：`feedback-lines.test.ts` 新增 4 条：按轮数轮流运行，最后一轮读的是哪一版；下次手动运行重新计数；默认关，设回关也就关了；只有回馈线有这个设置，上限 10 轮。实现前全部失败（`evidence/T26b-rounds-before-implementation.txt`）。真实浏览器 `feedback-line.spec.ts` 末尾加了一段：设成 2 轮后手动让写作者跑一次，请求依次是写作者、评审者、写作者、评审者、写作者、评审者，然后停下；每一轮写作者都读到了刚完成的那份评审。
+
+## T27：每个目标自己带着运行配置
+
+**做了什么。** 目标除了模型和 effort，现在还带：
+
+- `memoryPolicyId`：`memory:on` 或 `memory:off`；
+- `tools`：`web`、`scholar`、`mcp`、`recall`；
+- `roleRef`：给任务设角色时变，是角色文字的短哈希。
+
+新目标从创建时的全局设置复制一份。改这些都会改 `revision`，并且得到一个新目标（`setTargetSettings`），和它共用目标的任务不受影响。
+
+运行时按目标取值：`streaming.ts` 的记忆、回忆、工具不再读全局开关。优先级是节点自己的开关（提问时记下的 `webSearch`、`recall`）、然后是目标。
+
+`prepareTargetRun(graphId, taskNodeId, expectedTargetRevision)` 从目标准备一次运行：版本不符（`target-changed`）或没有目标（`no-target`）都不准备。
+
+**对用户的变化。** 工具栏的记忆、搜索、MCP、回忆开关，和模型一样，只影响之后新建的任务。已有任务重跑还按它创建时的设置。原来是重跑时读当前开关（搜索除外，它本来就记在节点上）。
+
+**旧画布。** 这次之前建的目标（`memoryPolicyId: 'default'`，没有 `tools`）仍按当前全局开关运行，行为不变。没有迁移：旧目标当时的设置已经无从知道。所以“运行时不读全局”只对新目标成立。
+
+**已经成立、这次只补了测试的。** 每次运行的材料目录独立（T12）。`tests/host/target-materials.test.cjs` 的 3 条在改动前就通过，它们锁住这个行为，不算这次修的。同长度不同内容的图片是不同输入（T11）也是这样。
+
+**没做的。**
+
+- 流式路径没有直接调用 `prepareTargetRun`：它要带上已经组好的上下文，以及这一轮决定的模型和 effort，所以共用了 `selectionOf`，然后调 `prepareRun`。`prepareTargetRun` 目前只有测试和下一步的对照发送（T29）用。
+- 工作目录还属于画布（`workspaceId: 'canvas'`），目标没有自己的文件夹。
+- 凭据不按目标解析：API 密钥在服务器一侧，按模型的提供方取，没有按 `connectionRef` 分。
+- 只有直接设在任务上的角色改 `roleRef`；从上游继承的角色变了，由上下文指纹发现（T13），不改目标。
+- 真实运行时的初始消息和可读文件没有验证，要真实运行。

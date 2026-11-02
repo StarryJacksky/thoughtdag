@@ -1583,6 +1583,8 @@ export const en = {
   'run.blocked.copy-out-of-date': 'Not sent: the copy of "{name}" on the canvas was not of the file as it is; it has been brought up to date. Run it again.',
   'run.blocked.unavailable': 'Not sent: the file "{name}" cannot be read now ({why}).',
   'run.blocked.policy': 'Not sent: the run cannot be held to what its permissions ask ({why}).',
+  'run.blocked.target-changed': 'Not sent: the AI of this task changed after the run was planned.',
+  'run.blocked.no-target': 'Not sent: this task is bound to no AI.',
   'run.blocked.inputs-too-large': 'Not sent: the inputs of this run come to too much to be written for the agent. Wire in less, or select passages of it, and run it again.',
   'run.policyBlocked': 'Not sent: this task is set to research, and this run cannot be held to {what}. Set it to working mode, or choose an AI that can, and run it again.',
   'run.policyJoin': ', ',

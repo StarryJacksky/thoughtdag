@@ -11,7 +11,7 @@ import type { RunState } from '../lib/context/contracts';
 import { countTokens, activeSummary } from '../utils';
 import { toast, useUiStore } from '../lib/ui-store';
 import { getModelsOnce, reconcileModelId, describeModel } from '../lib/use-models';
-import { checkSend, createTarget, describeTarget, kindOf, RESEARCH_POLICY, templateFor, writesFiles } from '../lib/agents/target-model';
+import { checkSend, createTarget, describeTarget, memoryOfTarget, RESEARCH_POLICY, selectionOf, templateFor, writesFiles } from '../lib/agents/target-model';
 import { contextLengthFor } from '../lib/runtime-providers';
 import { memoryContextBlock, judgeMemory } from '../lib/memory';
 import { fetchRecallItems, recallContextBlock } from '../lib/recall';
@@ -448,7 +448,7 @@ export async function runNodeGeneration(
   // A task set to research is given its inputs and its question, and nothing else: no memory, no recall,
   // no tools. Whether the AI it runs on can be held to that is checked once the run is prepared (below).
   const researching = runTarget?.policyId === RESEARCH_POLICY;
-  const memBlock = !researching && !selfData?.stepKind && !selfData?.digestOf ? memoryContextBlock() : null;
+  const memBlock = !researching && !selfData?.stepKind && !selfData?.digestOf ? memoryContextBlock(memoryOfTarget(runTarget)) : null;
   if (memBlock) {
     // Insert AFTER the last assistant turn: the material+chain prefix stays
     // byte-stable across turns, so provider prompt caches keep hitting.
@@ -467,7 +467,7 @@ export async function runNodeGeneration(
   // injection. Items already on the node (a rerun, or some pruned by the
   // person) are used as they stand; a fresh ask searches. Same seat as the
   // memory block: after the last answer, before the question.
-  const recallOn = !researching && !selfData?.stepKind && !selfData?.digestOf && (selfData?.recall ?? useUiStore.getState().recallEnabled);
+  const recallOn = !researching && !selfData?.stepKind && !selfData?.digestOf && (selfData?.recall ?? runTarget?.tools?.recall ?? useUiStore.getState().recallEnabled);
   let recallGiven = false;
   if (recallOn && isCurrent()) {
     let items = selfData?.recallItems;
@@ -495,14 +495,14 @@ export async function runNodeGeneration(
   // frozen by its entry before the context was built (freezeForRun); a run that cannot be given
   // them as they are is not sent, and says why.
   const toolPrefs = (() => {
-    // Search permissions live on the node (snapshotted at ask time);
-    // legacy nodes without flags follow the current shared defaults
+    // Search permissions live on the node (snapshotted at ask time), then on its target;
+    // only a target from before this was held follows the current shared defaults
     const selfNow = get().nodes.find((n) => n.id === nodeId)?.data;
     if (researching) return { web: false, scholar: false, mcp: false };
     return {
-      web: selfNow?.webSearch ?? useUiStore.getState().webSearchEnabled,
-      scholar: selfNow?.scholarSearch ?? useUiStore.getState().scholarSearchEnabled,
-      mcp: useUiStore.getState().mcpEnabled,
+      web: selfNow?.webSearch ?? runTarget?.tools?.web ?? useUiStore.getState().webSearchEnabled,
+      scholar: selfNow?.scholarSearch ?? runTarget?.tools?.scholar ?? useUiStore.getState().scholarSearchEnabled,
+      mcp: runTarget?.tools?.mcp ?? useUiStore.getState().mcpEnabled,
     };
   })();
   // execution records tell a plain model it has no tools; an agent has them,
@@ -519,14 +519,8 @@ export async function runNodeGeneration(
       targetNodeId: nodeId,
       question,
       mode: researching ? 'research' : 'workspace',
-      runtimeSelection: {
-        kind: runTarget ? kindOf(runTarget) : (actsAsAgent(requestedModel) ? 'agent' : 'provider'),
-        runtime: runTarget?.runtime ?? null,
-        connectionRef: runTarget?.connectionRef ?? 'default',
-        model: pinnedModel ?? requestedModel ?? '',
-        effort: runEffort ?? null,
-        capabilityVersion: null,
-      },
+      // what this run is held to, from the target it was decided with: a change to the task's AI from here on is the next run's
+      runtimeSelection: selectionOf(runTarget, { model: pinnedModel ?? requestedModel ?? '', effort: runEffort ?? null, fallbackKind: actsAsAgent(requestedModel) ? 'agent' : 'provider' }),
       tools: toolPrefs,
       recall: memBlock ? 'auto' : recallGiven ? 'explicit-only' : 'off',
       context: { messages, images: images ?? [], sources, imageSources: opts.imageSources ?? [] },

@@ -1582,6 +1582,8 @@ export const zh: Record<keyof typeof en, string> = {
   'run.blocked.copy-out-of-date': '没有发送：画布上「{name}」的副本还不是文件现在的内容，已经更新。请再运行一次。',
   'run.blocked.unavailable': '没有发送：现在读不到文件「{name}」（{why}）。',
   'run.blocked.policy': '没有发送：这次运行做不到它的权限设置要求的（{why}）。',
+  'run.blocked.target-changed': '没有发送：计划这次运行之后，任务的 AI 改了。',
+  'run.blocked.no-target': '没有发送：这个任务没有绑定 AI。',
   'run.blocked.inputs-too-large': '没有发送：这次运行的输入合计太大，不能写给 Agent。少连一些材料，或者只选其中的段落，再运行。',
   'run.policyBlocked': '没有发送：这个任务设为研究隔离，但这次运行做不到{what}。改成工作模式，或者换一个能做到的 AI，再运行。',
   'run.policyJoin': '、',

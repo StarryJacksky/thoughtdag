@@ -1642,6 +1642,8 @@ export const en = {
   'route.reason.research-unverified': 'it is not known that this agent can be held to what research asks',
   'route.reason.session-busy': 'the session is in use elsewhere',
   'run.notPrepared': 'Not sent: preparing the run failed ({why}).',
+  'run.notKnownEnded': '{n} earlier run(s) in this folder never recorded how they ended (the app may have closed). Nothing was sent again.',
+  'run.receiptUnknown': 'It is not known whether this was sent ({message}). It was not sent again.',
   'run.dispatchRefused': 'Not sent: the request about to leave was not the one prepared ({what}); it was stopped.',
   'run.dispatchPart.messages': 'other messages',
   'run.dispatchPart.images': 'other images',

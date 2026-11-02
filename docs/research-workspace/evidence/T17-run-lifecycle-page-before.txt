@@ -1,0 +1,317 @@
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/run-lifecycle.test.ts (21 tests | 21 failed) 1102ms
+   ❯ [T17] a run's state (6)
+     × [T17] a run that goes well 2ms
+     × [T17] two questions: it waits until both are answered 0ms
+     × [T17] stopped, failed, and a receipt that never came 0ms
+     × [T17] what has ended stays ended, whatever comes late 0ms
+     × [T17] unknown is left only by something that says how it went 0ms
+     × [T17] an end that comes before a receipt still counts 0ms
+   ❯ [T17] looking up a run whose end was not recorded (4)
+     × [T17] what has ended is not asked about 0ms
+     × [T17] the host has it under way: under way 0ms
+     × [T17] the host saw it end, and how 0ms
+     × [T17] the host knows nothing of it, cannot say, or there is no host: unknown 0ms
+   ❯ [T17] the ledger of a run's events (6)
+     × [T17] what comes before anyone listens is kept, and told in order once someone does 0ms
+     × [T17] the same event twice is told once 0ms
+     × [T17] with no numbers: a tool call and a question are still told once, by their own ids 0ms
+     × [T17] two runs are not mixed up, whatever their ids inside 0ms
+     × [T17] what comes after a run has ended reaches nobody, and is not kept 0ms
+     × [T17] what is kept for a run nobody claims is bounded 0ms
+   ❯ [T17] a run on the canvas (3)
+     × [T17] events that come before the shell has said the run's id are not lost 1006ms
+     × [T17] the same words told twice are in the answer once 70ms
+     × [T17] a request whose receipt never came is not sent again, and the task says it is not known what became of it 14ms
+   ❯ [T17] a turn that goes on in a session the canvas mirrors (1)
+     × [T17] named twice while it runs, it is claimed once: the sweep is not told one turn is two 5ms
+   ❯ [T17] what a crash left in a folder (1)
+     × [T17] a run still under way in the host is not one of them; one nobody can say anything of is; one that ended is not looked at 0ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 21 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/run-lifecycle.test.ts > [T17] a run's state > [T17] a run that goes well
+Error: not yet
+ ❯ transitionRun src/lib/agents/run-state.ts:2:65
+      1| export type RunStep = any;
+      2| export const transitionRun = (_s: any, _e: any): any => { throw new Er…
+       |                                                                 ^
+      3| export const reconcileRun = async (_r: any, _e: any): Promise<any> => …
+      4| export const runsNotKnownToHaveEnded = async (_r: any, _e: any): Promi…
+ ❯ tests/unit/run-lifecycle.test.ts:18:81
+ ❯ path tests/unit/run-lifecycle.test.ts:18:47
+ ❯ tests/unit/run-lifecycle.test.ts:20:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/21]⎯
+
+ FAIL  tests/unit/run-lifecycle.test.ts > [T17] a run's state > [T17] two questions: it waits until both are answered
+Error: not yet
+ ❯ transitionRun src/lib/agents/run-state.ts:2:65
+      1| export type RunStep = any;
+      2| export const transitionRun = (_s: any, _e: any): any => { throw new Er…
+       |                                                                 ^
+      3| export const reconcileRun = async (_r: any, _e: any): Promise<any> => …
+      4| export const runsNotKnownToHaveEnded = async (_r: any, _e: any): Promi…
+ ❯ tests/unit/run-lifecycle.test.ts:18:81
+ ❯ path tests/unit/run-lifecycle.test.ts:18:47
+ ❯ tests/unit/run-lifecycle.test.ts:27:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/21]⎯
+
+ FAIL  tests/unit/run-lifecycle.test.ts > [T17] a run's state > [T17] stopped, failed, and a receipt that never came
+Error: not yet
+ ❯ transitionRun src/lib/agents/run-state.ts:2:65
+      1| export type RunStep = any;
+      2| export const transitionRun = (_s: any, _e: any): any => { throw new Er…
+       |                                                                 ^
+      3| export const reconcileRun = async (_r: any, _e: any): Promise<any> => …
+      4| export const runsNotKnownToHaveEnded = async (_r: any, _e: any): Promi…
+ ❯ tests/unit/run-lifecycle.test.ts:18:81
+ ❯ path tests/unit/run-lifecycle.test.ts:18:47
+ ❯ tests/unit/run-lifecycle.test.ts:30:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/21]⎯
+
+ FAIL  tests/unit/run-lifecycle.test.ts > [T17] a run's state > [T17] what has ended stays ended, whatever comes late
+Error: not yet
+ ❯ transitionRun src/lib/agents/run-state.ts:2:65
+      1| export type RunStep = any;
+      2| export const transitionRun = (_s: any, _e: any): any => { throw new Er…
+       |                                                                 ^
+      3| export const reconcileRun = async (_r: any, _e: any): Promise<any> => …
+      4| export const runsNotKnownToHaveEnded = async (_r: any, _e: any): Promi…
+ ❯ tests/unit/run-lifecycle.test.ts:37:166
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/21]⎯
+
+ FAIL  tests/unit/run-lifecycle.test.ts > [T17] a run's state > [T17] unknown is left only by something that says how it went
+Error: not yet
+ ❯ transitionRun src/lib/agents/run-state.ts:2:65
+      1| export type RunStep = any;
+      2| export const transitionRun = (_s: any, _e: any): any => { throw new Er…
+       |                                                                 ^
+      3| export const reconcileRun = async (_r: any, _e: any): Promise<any> => …
+      4| export const runsNotKnownToHaveEnded = async (_r: any, _e: any): Promi…
+ ❯ tests/unit/run-lifecycle.test.ts:41:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/21]⎯
+
+ FAIL  tests/unit/run-lifecycle.test.ts > [T17] a run's state > [T17] an end that comes before a receipt still counts
+Error: not yet
+ ❯ transitionRun src/lib/agents/run-state.ts:2:65
+      1| export type RunStep = any;
+      2| export const transitionRun = (_s: any, _e: any): any => { throw new Er…
+       |                                                                 ^
+      3| export const reconcileRun = async (_r: any, _e: any): Promise<any> => …
+      4| export const runsNotKnownToHaveEnded = async (_r: any, _e: any): Promi…
+ ❯ tests/unit/run-lifecycle.test.ts:18:81
+ ❯ path tests/unit/run-lifecycle.test.ts:18:47
+ ❯ tests/unit/run-lifecycle.test.ts:46:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/21]⎯
+
+ FAIL  tests/unit/run-lifecycle.test.ts > [T17] looking up a run whose end was not recorded > [T17] what has ended is not asked about
+Error: not yet
+ ❯ reconcileRun src/lib/agents/run-state.ts:3:79
+      1| export type RunStep = any;
+      2| export const transitionRun = (_s: any, _e: any): any => { throw new Er…
+      3| export const reconcileRun = async (_r: any, _e: any): Promise<any> => …
+       |                                                                               ^
+      4| export const runsNotKnownToHaveEnded = async (_r: any, _e: any): Promi…
+      5|
+ ❯ tests/unit/run-lifecycle.test.ts:54:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/21]⎯
+
+ FAIL  tests/unit/run-lifecycle.test.ts > [T17] looking up a run whose end was not recorded > [T17] the host has it under way: under way
+Error: not yet
+ ❯ reconcileRun src/lib/agents/run-state.ts:3:79
+      1| export type RunStep = any;
+      2| export const transitionRun = (_s: any, _e: any): any => { throw new Er…
+      3| export const reconcileRun = async (_r: any, _e: any): Promise<any> => …
+       |                                                                               ^
+      4| export const runsNotKnownToHaveEnded = async (_r: any, _e: any): Promi…
+      5|
+ ❯ tests/unit/run-lifecycle.test.ts:58:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/21]⎯
+
+ FAIL  tests/unit/run-lifecycle.test.ts > [T17] looking up a run whose end was not recorded > [T17] the host saw it end, and how
+Error: not yet
+ ❯ reconcileRun src/lib/agents/run-state.ts:3:79
+      1| export type RunStep = any;
+      2| export const transitionRun = (_s: any, _e: any): any => { throw new Er…
+      3| export const reconcileRun = async (_r: any, _e: any): Promise<any> => …
+       |                                                                               ^
+      4| export const runsNotKnownToHaveEnded = async (_r: any, _e: any): Promi…
+      5|
+ ❯ tests/unit/run-lifecycle.test.ts:62:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/21]⎯
+
+ FAIL  tests/unit/run-lifecycle.test.ts > [T17] looking up a run whose end was not recorded > [T17] the host knows nothing of it, cannot say, or there is no host: unknown
+Error: not yet
+ ❯ reconcileRun src/lib/agents/run-state.ts:3:79
+      1| export type RunStep = any;
+      2| export const transitionRun = (_s: any, _e: any): any => { throw new Er…
+      3| export const reconcileRun = async (_r: any, _e: any): Promise<any> => …
+       |                                                                               ^
+      4| export const runsNotKnownToHaveEnded = async (_r: any, _e: any): Promi…
+      5|
+ ❯ tests/unit/run-lifecycle.test.ts:67:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/21]⎯
+
+ FAIL  tests/unit/run-lifecycle.test.ts > [T17] the ledger of a run's events > [T17] what comes before anyone listens is kept, and told in order once someone does
+Error: not yet
+ ❯ createEventLedger src/lib/agents/event-ledger.ts:1:65
+      1| export const createEventLedger = (_o?: unknown): any => { throw new Er…
+       |                                                                 ^
+      2|
+ ❯ tests/unit/run-lifecycle.test.ts:77:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/21]⎯
+
+ FAIL  tests/unit/run-lifecycle.test.ts > [T17] the ledger of a run's events > [T17] the same event twice is told once
+Error: not yet
+ ❯ createEventLedger src/lib/agents/event-ledger.ts:1:65
+      1| export const createEventLedger = (_o?: unknown): any => { throw new Er…
+       |                                                                 ^
+      2|
+ ❯ tests/unit/run-lifecycle.test.ts:87:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/21]⎯
+
+ FAIL  tests/unit/run-lifecycle.test.ts > [T17] the ledger of a run's events > [T17] with no numbers: a tool call and a question are still told once, by their own ids
+Error: not yet
+ ❯ createEventLedger src/lib/agents/event-ledger.ts:1:65
+      1| export const createEventLedger = (_o?: unknown): any => { throw new Er…
+       |                                                                 ^
+      2|
+ ❯ tests/unit/run-lifecycle.test.ts:95:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/21]⎯
+
+ FAIL  tests/unit/run-lifecycle.test.ts > [T17] the ledger of a run's events > [T17] two runs are not mixed up, whatever their ids inside
+Error: not yet
+ ❯ createEventLedger src/lib/agents/event-ledger.ts:1:65
+      1| export const createEventLedger = (_o?: unknown): any => { throw new Er…
+       |                                                                 ^
+      2|
+ ❯ tests/unit/run-lifecycle.test.ts:107:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/21]⎯
+
+ FAIL  tests/unit/run-lifecycle.test.ts > [T17] the ledger of a run's events > [T17] what comes after a run has ended reaches nobody, and is not kept
+Error: not yet
+ ❯ createEventLedger src/lib/agents/event-ledger.ts:1:65
+      1| export const createEventLedger = (_o?: unknown): any => { throw new Er…
+       |                                                                 ^
+      2|
+ ❯ tests/unit/run-lifecycle.test.ts:118:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/21]⎯
+
+ FAIL  tests/unit/run-lifecycle.test.ts > [T17] the ledger of a run's events > [T17] what is kept for a run nobody claims is bounded
+Error: not yet
+ ❯ createEventLedger src/lib/agents/event-ledger.ts:1:65
+      1| export const createEventLedger = (_o?: unknown): any => { throw new Er…
+       |                                                                 ^
+      2|
+ ❯ tests/unit/run-lifecycle.test.ts:128:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/21]⎯
+
+ FAIL  tests/unit/run-lifecycle.test.ts > [T17] a run on the canvas > [T17] events that come before the shell has said the run's id are not lost
+AssertionError: expected undefined to be 'thread-1' // Object.is equality
+
+- Expected:
+"thread-1"
+
++ Received:
+undefined
+
+ ❯ tests/unit/run-lifecycle.test.ts:179:74
+    177|     const id = task('Do this?');
+    178|     const running = useStore.getState().rerunNode(id, {});
+    179|     await vi.waitFor(() => expect(node(id).data.agentSession?.sessionI…
+       |                                                                          ^
+    180|     desktop.emit('early-run', { type: 'message_update', seq: 3, assist…
+    181|     desktop.emit('early-run', { type: 'run_end', seq: 4, how: 'end' });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/21]⎯
+
+ FAIL  tests/unit/run-lifecycle.test.ts > [T17] a run on the canvas > [T17] the same words told twice are in the answer once
+AssertionError: expected 'ONCEONCE' to be 'ONCE' // Object.is equality
+
+Expected: "ONCE"
+Received: "ONCEONCE"
+
+ ❯ tests/unit/run-lifecycle.test.ts:197:36
+    195|     desktop.emit(runId, { type: 'run_end', seq: 2, how: 'end' });
+    196|     await running;
+    197|     expect(node(id).data.response).toBe('ONCE');
+       |                                    ^
+    198|   });
+    199|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/21]⎯
+
+ FAIL  tests/unit/run-lifecycle.test.ts > [T17] a run on the canvas > [T17] a request whose receipt never came is not sent again, and the task says it is not known what became of it
+AssertionError: expected 'Generation failed: the shell went away' to match /not known|不确定/
+
+- Expected:
+/not known|不确定/
+
++ Received:
+"Generation failed: the shell went away"
+
+ ❯ tests/unit/run-lifecycle.test.ts:209:71
+    207|     expect(run).toHaveBeenCalledTimes(1);
+    208|     expect(node(id).data.generationFailed).toBe(true);
+    209|     expect(useUiStore.getState().toasts.map((x) => x.message).join()).…
+       |                                                                       ^
+    210|   });
+    211| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/21]⎯
+
+ FAIL  tests/unit/run-lifecycle.test.ts > [T17] a turn that goes on in a session the canvas mirrors > [T17] named twice while it runs, it is claimed once: the sweep is not told one turn is two
+AssertionError: expected 5 to be 4 // Object.is equality
+
+- Expected
++ Received
+
+- 4
++ 5
+
+ ❯ tests/unit/run-lifecycle.test.ts:234:77
+    232|     await claimAgentTurn('codex', 'n', SESSION, '/synthetic/project');
+    233|     await claimAgentTurn('codex', 'n', SESSION, '/synthetic/project');
+    234|     expect(useProjects.getState().projects[0].sourceSession?.importedC…
+       |                                                                             ^
+    235|     expect(useProjects.getState().projects[0].sourceSession?.tailNodeI…
+    236|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[20/21]⎯
+
+ FAIL  tests/unit/run-lifecycle.test.ts > [T17] what a crash left in a folder > [T17] a run still under way in the host is not one of them; one nobody can say anything of is; one that ended is not looked at
+Error: not yet
+ ❯ runsNotKnownToHaveEnded src/lib/agents/run-state.ts:4:90
+      2| export const transitionRun = (_s: any, _e: any): any => { throw new Er…
+      3| export const reconcileRun = async (_r: any, _e: any): Promise<any> => …
+      4| export const runsNotKnownToHaveEnded = async (_r: any, _e: any): Promi…
+       |                                                                                          ^
+      5|
+ ❯ tests/unit/run-lifecycle.test.ts:244:28
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[21/21]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  21 failed (21)
+   Start at  00:16:58
+   Duration  1.82s (tests 63%, transform 20%, environment 13%, import 3%)
+

@@ -7,6 +7,7 @@
 const path = require('node:path');
 const os = require('node:os');
 const ops = require('./ops.cjs');
+const { createRunJournal } = require('../execution/run-journal.cjs');
 const terminal = require('../terminal.cjs');
 
 const RUNTIME_FACTORIES = {
@@ -41,6 +42,7 @@ function createAgentsHttp({ workspaceRoot = path.join(os.homedir(), '.thoughtdag
    * with `/agents`; `body` is the parsed JSON body (or null). Returns false
    * when the path is not ours.
    */
+  const journal = createRunJournal();
   /** What the runtime a run is for was probed to be able to do. */
   const capabilitiesFor = async (envelope) => {
     const name = envelope?.runtime?.runtime;
@@ -62,6 +64,7 @@ function createAgentsHttp({ workspaceRoot = path.join(os.homedir(), '.thoughtdag
         try { return json(res, 200, await runtime(url.searchParams.get('runtime') ?? 'pi').models()), true; }
         catch (e) { return json(res, 200, { installed: false, models: [], default: null, error: e instanceof Error ? e.message : String(e) }), true; }
       }
+      if (p === '/agents/events-since' && method === 'GET') return json(res, 200, journal.since(String(url.searchParams.get('runId') ?? ''), Number(url.searchParams.get('after')) || 0)), true;
       if (p === '/agents/capabilities' && method === 'GET') {
         try { return json(res, 200, (await runtime(url.searchParams.get('runtime') ?? 'pi').capabilities?.()) ?? null), true; }
         catch { return json(res, 200, null), true; }
@@ -76,7 +79,7 @@ function createAgentsHttp({ workspaceRoot = path.join(os.homedir(), '.thoughtdag
       if (p === '/agents/run' && method === 'POST') {
         const r = body && typeof body === 'object' ? body : {};
         const name = RUNTIME_FACTORIES[r.runtime] ? r.runtime : 'pi';
-        const runId = await runtime(name).run(r, broadcast);
+        const runId = await runtime(name).run(r, ({ runId: id, event }) => broadcast({ runId: id, event: journal.note(id, event) }));
         owners.set(runId, name);
         return json(res, 200, { runId }), true;
       }

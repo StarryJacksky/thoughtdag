@@ -80,9 +80,9 @@ test('[T13] after a crash, the records and the snapshots are checked against eac
   const again = made.start();
   const report = await again.reconcileRuns(workspace.workspaceId);
   const byRun = Object.fromEntries(report.runs.map((r) => [r.runId, r]));
-  assert.deepEqual(byRun.run_open, { runId: 'run_open', state: 'unknown', recorded: 'running', missing: [], damaged: [] });
-  assert.deepEqual(byRun.run_missing, { runId: 'run_missing', state: 'completed', recorded: 'completed', missing: [kept['b.md'].snapshotId], damaged: [] });
-  assert.deepEqual(byRun.run_damaged, { runId: 'run_damaged', state: 'failed', recorded: 'failed', missing: [], damaged: [kept['c.md'].snapshotId] });
+  assert.deepEqual(byRun.run_open, { runId: 'run_open', state: 'unknown', recorded: 'running', nativeBinding: null, missing: [], damaged: [] });
+  assert.deepEqual(byRun.run_missing, { runId: 'run_missing', state: 'completed', recorded: 'completed', nativeBinding: null, missing: [kept['b.md'].snapshotId], damaged: [] });
+  assert.deepEqual(byRun.run_damaged, { runId: 'run_damaged', state: 'failed', recorded: 'failed', nativeBinding: null, missing: [], damaged: [kept['c.md'].snapshotId] });
   assert.deepEqual(report.unreadable, []);
 });
 

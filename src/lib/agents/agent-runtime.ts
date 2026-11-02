@@ -18,10 +18,13 @@
 // Everything runtime-specific lives in desktop/agents/<runtime>.js.
 
 import type { ContextMessage, ImageAttachment, StreamCallbacks } from '../api';
+import type { RunState } from '../context/contracts';
 import type { ModelInfo } from '../use-models';
 import type { AgentRuntime, AgentPermissionMode } from '../../types';
 import { useUiStore } from '../ui-store';
 import { HARNESS_AGENT_MODEL, isHarnessAgentModel } from './harness-agent';
+import { createEventLedger } from './event-ledger';
+import { transitionRun, type RunStep } from './run-state';
 import { useStore } from '../../store';
 
 /** The runtimes the shell can run, keyed by the prefix of their picker ids. */
@@ -226,6 +229,8 @@ export async function claimAgentTurn(runtime: AgentRuntime, nodeId: string, sess
     const ss = meta.sourceSession!;
     const entry = [ss, ...(ss.chapters ?? []), ...(ss.branches ?? [])].find((e) => e.sessionId === sessionId);
     if (!entry) return;
+    // a run names its session more than once; its one turn is claimed once
+    if (entry.tailNodeId === nodeId) return;
     useStore.setState((st) => ({
       nodes: st.nodes.map((n) => n.id === nodeId ? { ...n, data: { ...n.data, importSource: { runner: runtime, sessionId, itemIds: [], cwd } } } : n),
     }));
@@ -252,12 +257,12 @@ export function compileForAgent(messages: ContextMessage[]): { question: string;
 }
 
 type AgentEvent = { runId: string; event: Record<string, unknown> & { type: string } };
-const handlers = new Map<string, (event: AgentEvent['event']) => void>();
+const ledger = createEventLedger();
 let subscribed = false;
 function subscribe() {
   if (subscribed || !window.desktopAgents) return;
   subscribed = true;
-  window.desktopAgents.onEvent(({ runId, event }) => { handlers.get(runId)?.(event); });
+  window.desktopAgents.onEvent(({ runId, event }) => { ledger.ingestEvent(runId, event as AgentEvent['event']); });
 }
 
 /** One line naming what a tool call does, for the node's progress row. */
@@ -271,6 +276,9 @@ function toolQuery(name: string, args: unknown): string {
   const first = Object.values(a).find((v) => typeof v === 'string' && v);
   return typeof first === 'string' ? first.slice(0, 120) : name;
 }
+
+/** A run was asked for and the shell never said it took it: it may have left. */
+export class ReceiptUnknown extends Error {}
 
 /**
  * One turn on the Pi runtime with the streamed-call contract: text deltas
@@ -313,6 +321,14 @@ export async function agentCallStream(
   const allowRules = [...new Set(useStore.getState().nodes.flatMap((n) => (n.data.approvals ?? []).filter((a) => a.outcome === 'allowed-session' && typeof a.rule === 'string' && a.rule.startsWith(target.runtime === 'claude-code' ? 'claude:' : target.runtime + ':')).map((a) => a.rule as string)))];
   subscribe();
 
+  let runState: RunState = 'prepared';
+  let openQuestions = 0;
+  const step = (next: RunStep, hostRunId?: string) => {
+    const was = runState;
+    runState = transitionRun(runState, next);
+    if (runState !== was || hostRunId) callbacks?.onRunState?.(runState, hostRunId);
+  };
+  step({ kind: 'submitting' });
   let full = '';
   let reasoning = '';
   let finalText = '';
@@ -327,10 +343,13 @@ export async function agentCallStream(
       ...(effort ? { effort } : {}),
       ...(allowRules.length ? { allowRules } : {}),
     }).then((runId) => {
-      const stop = () => { void bridge.abort(runId); };
+      step({ kind: 'accepted' }, runId);
+      const stop = () => { step({ kind: 'stopping' }); void bridge.abort(runId); };
       if (signal?.aborted) { stop(); }
       signal?.addEventListener('abort', stop, { once: true });
-      handlers.set(runId, (event) => {
+      ledger.register(runId, (event) => {
+        if (event.type === 'question') { openQuestions += 1; step({ kind: 'asked' }); }
+        else if (event.type === 'question_answered' && !event.auto) { openQuestions = Math.max(0, openQuestions - 1); step({ kind: 'answered', open: openQuestions }); }
         switch (event.type) {
           case 'session': {
             // an alias (`opus`) resolved inside the CLI: the picker learns the real name
@@ -398,12 +417,14 @@ export async function agentCallStream(
             break;
           case 'run_end':
             finalText = typeof event.text === 'string' && event.text ? event.text : full;
-            handlers.delete(runId);
+            step({ kind: 'ended', how: String(event.how ?? 'end') });
+            ledger.finish(runId);
             signal?.removeEventListener('abort', stop);
             resolve({ how: String(event.how ?? 'end') });
             break;
           case 'run_error':
-            handlers.delete(runId);
+            step({ kind: 'ended', how: 'error' });
+            ledger.finish(runId);
             signal?.removeEventListener('abort', stop);
             resolve({ how: 'error', error: String(event.message ?? 'agent run failed') });
             break;
@@ -411,10 +432,12 @@ export async function agentCallStream(
             break;
         }
       });
-    }).catch((e: unknown) => resolve({ how: 'error', error: e instanceof Error ? e.message : String(e) }));
+    // no receipt: it may have left. It is not sent again; what became of it is not known
+    }, (e: unknown) => { step({ kind: 'no-receipt' }); resolve({ how: 'no-receipt', error: e instanceof Error ? e.message : String(e) }); }).catch((e: unknown) => resolve({ how: 'error', error: e instanceof Error ? e.message : String(e) }));
   });
   const r = await done;
   if (signal?.aborted) throw new DOMException('The operation was aborted.', 'AbortError');
+  if (r.how === 'no-receipt') throw new ReceiptUnknown(r.error ?? 'no answer from the shell');
   if (r.how === 'error') throw new Error(r.error ?? 'agent run failed');
   return finalText || full;
 }

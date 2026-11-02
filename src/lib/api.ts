@@ -227,6 +227,8 @@ export interface StreamCallbacks {
   /** An agent runtime in the desktop app: which session this turn ran in. */
   onAgentSession?: (session: { runtime: import('../types').AgentRuntime; sessionId: string | null; sessionFile: string | null; cwd: string }) => void;
   onAgentBinding?: (binding: { lastTurnId: string | null; lastCompletedTurnId?: string }) => void;
+  /** how an agent run stands; `hostRunId` once the shell has said its id */
+  onRunState?: (state: import('./context/contracts').RunState, hostRunId?: string) => void;
   /** Inside DeepSeek Harness: the harness session this generation ran in
       (a fresh one, or the mirrored session it continued). */
   onHarnessSession?: (session: string, continued: boolean) => void;

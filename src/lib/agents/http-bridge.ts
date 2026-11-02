@@ -61,6 +61,10 @@ export async function installAgentsHttpBridge(apiBase: string): Promise<boolean>
       const r = await fetch(`${api}/agents/capabilities?runtime=${encodeURIComponent(runtime)}`, { credentials: 'same-origin' });
       return r.ok ? r.json() : null;
     },
+    eventsSince: async (runId, after) => {
+      const r = await fetch(`${api}/agents/events-since?runId=${encodeURIComponent(runId)}&after=${after}`, { credentials: 'same-origin' });
+      return r.json();
+    },
     run: async (request) => { ensureFeed(); const r = await post<{ runId: string }>('/agents/run', request); return r.runId; },
     abort: async (runId) => (await post<{ ok: boolean }>('/agents/abort', { runId })).ok,
     answer: async (runId, requestId, response) => (await post<{ ok: boolean }>('/agents/answer', { runId, requestId, response })).ok,

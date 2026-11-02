@@ -7,13 +7,16 @@
 import { create } from 'zustand';
 import { useStore } from '../../store';
 import { setProjectWorkspace, useProjects } from '../../store/projects';
-import { chooseRoot, listWorkspaces, openDefaultWorkspace, workspaceAvailable, WorkspaceError, workspaceWatched } from './client';
+import { chooseRoot, listWorkspaces, openDefaultWorkspace, reconcileRuns, workspaceAvailable, WorkspaceError, workspaceWatched } from './client';
 import type { WorkspaceRecord } from './contracts';
 import { subscribeWorkspace } from './events';
 import { noteFileEvent } from './file-news';
 import { documents } from '../documents/document-service';
 import { canvasVisit } from './canvas-visit';
 import { applyWorkspaceEvent, syncResourceNodes } from './graph-resource';
+import { runsNotKnownToHaveEnded } from '../agents/run-state';
+import { fmt, t } from '../../i18n';
+import { toast } from '../ui-store';
 
 interface WorkspacePanelState {
   /** the file panel is showing */
@@ -146,5 +149,17 @@ export async function watchWorkspaces(workspaceIds: string[]): Promise<() => voi
   // a folder that cannot be watched is said to be so, instead of looking as if nothing ever changes in it
   void Promise.all(workspaceIds.map(async (id) => ((await workspaceWatched(id).catch(() => true)) ? null : id)))
     .then((ids) => useWorkspacePanel.setState({ unwatched: ids.filter((id): id is string => id !== null) }));
+  void Promise.all(workspaceIds.map(sayWhatACrashLeft));
   return () => { for (const stop of stops) stop(); };
+}
+
+// Once per workspace per launch: a run whose record never said how it ended is said to the person, and nothing is sent again.
+const lookedUp = new Set<string>();
+async function sayWhatACrashLeft(workspaceId: string): Promise<void> {
+  if (lookedUp.has(workspaceId)) return;
+  lookedUp.add(workspaceId);
+  const report = await reconcileRuns(workspaceId).catch(() => null);
+  if (!report) return;
+  const notKnown = await runsNotKnownToHaveEnded(report, window.desktopAgents?.eventsSince);
+  if (notKnown.length > 0) toast('info', fmt(t('run.notKnownEnded'), { n: notKnown.length }), 9000);
 }

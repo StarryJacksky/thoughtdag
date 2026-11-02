@@ -56,6 +56,7 @@ if (process.argv[2] !== 'app-server') {
 
 const threads = new Map(); // thread id → { cwd, turnId }
 let shookHands = false;
+let asked = 0;
 const turnsOf = (id) => [...(script.turns?.[id] ?? []), ...(threads.get(id)?.turns ?? [])];
 // a thread's own id, and the id of the session tree it belongs to: not the same thing
 const threadOf = (id) => ({ id, sessionId: `tree-of-${id}`, path: rolloutOf(id), status: { type: (script.activeThreads ?? []).includes(id) ? 'active' : 'idle' } });
@@ -63,6 +64,7 @@ const rolloutOf = (id) => path.join(SESSIONS, `rollout-${id}.jsonl`);
 
 async function handle(msg) {
   record({ kind: 'in', msg });
+  if (msg.method === undefined) return undefined; // an answer to one of its own requests
   const wait = script.delay?.[msg.method];
   if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
   const reply = (result) => out({ jsonrpc: '2.0', id: msg.id, result });
@@ -124,6 +126,11 @@ async function handle(msg) {
       fs.mkdirSync(SESSIONS, { recursive: true });
       fs.appendFileSync(rolloutOf(p.threadId), JSON.stringify({ type: 'turn_context', payload: { effort: p.effort ?? 'medium' } }) + '\n');
       reply({ turn: { id: turnId, status: 'inProgress' } });
+      // the server's own requests, each with an id of its own: { approvals: ["<command>", ...] }
+      for (const command of script.approvals ?? []) {
+        asked += 1;
+        out({ jsonrpc: '2.0', id: 1000 + asked, method: 'item/commandExecution/requestApproval', params: { threadId: p.threadId, turnId, itemId: `item-${asked}`, command, reason: 'synthetic' } });
+      }
       if (script.hold) return undefined; // nothing more until it is interrupted
       const text = script.reply ?? 'synthetic codex answer';
       setImmediate(() => {

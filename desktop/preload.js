@@ -51,6 +51,7 @@ contextBridge.exposeInMainWorld('desktopAgents', {
   available: () => ipcRenderer.invoke('agents:available'),
   models: (runtime) => ipcRenderer.invoke('agents:models', runtime),
   runtimeCapabilities: (runtime) => ipcRenderer.invoke('agents:capabilities', runtime),
+  eventsSince: (runId, after) => ipcRenderer.invoke('agents:events-since', runId, after),
   run: (request) => ipcRenderer.invoke('agents:run', request),
   abort: (runId) => ipcRenderer.invoke('agents:abort', runId),
   workspace: (canvasId) => ipcRenderer.invoke('agents:workspace', canvasId),

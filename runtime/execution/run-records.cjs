@@ -123,7 +123,7 @@ async function reconcileRuns(rootPath, io = fs.promises) {
       const there = await io.stat(path.join(snapshotRoot(rootPath), parseSnapshotId(snapshotId))).then(() => true, () => false);
       (there ? damaged : missing).push(snapshotId);
     }
-    runs.push({ runId: record.runId, state: ENDED.has(record.state) ? record.state : 'unknown', recorded: record.state, missing, damaged });
+    runs.push({ runId: record.runId, state: ENDED.has(record.state) ? record.state : 'unknown', recorded: record.state, nativeBinding: record.nativeBinding ?? null, missing, damaged });
   }
   return { runs, unreadable };
 }

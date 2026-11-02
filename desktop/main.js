@@ -873,6 +873,7 @@ let codexRpc = null; // null=not started, 'dead'=CLI absent, else client
 // One module per runtime under agents/, created on first use. A run is
 // addressed by its id: abort and answer find the runtime that owns it.
 const agentOps = require(path.join(RUNTIME_DIR, 'agents', 'ops.cjs'));
+const runJournal = require(path.join(RUNTIME_DIR, 'execution', 'run-journal.cjs')).createRunJournal();
 const RUNTIME_FACTORIES = {
   pi: () => require(path.join(RUNTIME_DIR, 'agents', 'pi.cjs')).createPiRuntime({ log: (line) => console.log(line) }),
   codex: () => require(path.join(RUNTIME_DIR, 'agents', 'codex.cjs')).createCodexRuntime({ log: (line) => console.log(line) }),
@@ -903,10 +904,14 @@ function setupAgents() {
   handle('agents:run', async (_e, req) => {
     const r = req && typeof req === 'object' ? req : {};
     const name = RUNTIME_FACTORIES[r.runtime] ? r.runtime : 'pi';
-    const runId = await agentsRuntime(name).run(r, (payload) => { if (win && !win.isDestroyed()) win.webContents.send('agents:event', payload); });
+    const runId = await agentsRuntime(name).run(r, ({ runId: id, event }) => {
+      const told = runJournal.note(id, event);
+      if (win && !win.isDestroyed()) win.webContents.send('agents:event', { runId: id, event: told });
+    });
     runOwners.set(runId, name);
     return runId;
   });
+  handle('agents:events-since', async (_e, runId, after) => runJournal.since(String(runId), Number(after) || 0));
   handle('agents:abort', async (_e, runId) => agentsRuntime(runOwners.get(String(runId))).abort(String(runId)));
   handle('agents:workspace', async (_e, canvasId) => workspaceFor(canvasId));
   handle('agents:answer', async (_e, runId, requestId, response) => agentsRuntime(runOwners.get(String(runId))).answer(String(runId), String(requestId), response));

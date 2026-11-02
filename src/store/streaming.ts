@@ -6,7 +6,8 @@ import { sha256Hex, canonicalStringify } from '../lib/context-bundle';
 import { pruneHighlights } from '../lib/highlight-match';
 import { llmCallStream, declaresTools, type ContextMessage, type ImageAttachment } from '../lib/api';
 import { harnessOutbound, claimHarnessTurn, stampHarnessTurn } from '../lib/atlas/dsh-bridge';
-import { actsAsAgent, agentOutbound, adoptAgentTurn, claimAgentTurn, isAgentModel } from '../lib/agents/agent-runtime';
+import { actsAsAgent, agentOutbound, adoptAgentTurn, claimAgentTurn, isAgentModel, ReceiptUnknown } from '../lib/agents/agent-runtime';
+import type { RunState } from '../lib/context/contracts';
 import { countTokens, activeSummary } from '../utils';
 import { toast, useUiStore } from '../lib/ui-store';
 import { getModelsOnce, reconcileModelId, describeModel } from '../lib/use-models';
@@ -248,13 +249,23 @@ export async function runNodeGeneration(
   let preparedAt = '';
   // where its materials were written: they are the shell's to clean up once it has ended
   let materialsIn: string | null = null;
-  const endRecord = (state: 'completed' | 'failed' | 'cancelled', output: { versionIndex: number; chars: number } | null = null) => {
+  let hostRunId: string | null = null;
+  const nativeBindingNow = () => {
+    const session = get().nodes.find((n) => n.id === nodeId)?.data.agentSession;
+    return session || hostRunId ? { runtime: session?.runtime ?? envelope?.runtime.runtime ?? '', sessionId: session?.sessionId ?? null, ...(hostRunId ? { hostRunId } : {}) } : null;
+  };
+  /** How the run stands, on disk: a crash from here on leaves a run that is looked up, not one that seems never to have left. */
+  const noteRunState = (state: RunState, hostId?: string) => {
+    if (hostId) hostRunId = hostId;
+    if (!envelope || !runRecords || (state !== 'starting' && state !== 'running')) return;
+    void runRecords.persistRun(envelope, runRecords.recordRun(envelope, { state, preparedAt, nativeBinding: nativeBindingNow() }));
+  };
+  const endRecord = (state: 'completed' | 'failed' | 'cancelled' | 'unknown', output: { versionIndex: number; chars: number } | null = null) => {
     if (!envelope || !runRecords) return;
     if (materialsIn) void window.desktopAgents?.runEnded?.(materialsIn, envelope.runId).catch(() => undefined);
-    const session = get().nodes.find((n) => n.id === nodeId)?.data.agentSession;
     void runRecords.persistRun(envelope, runRecords.recordRun(envelope, {
-      state, output, preparedAt, endedAt: new Date().toISOString(),
-      nativeBinding: session ? { runtime: session.runtime, sessionId: session.sessionId ?? null } : null,
+      state, output, preparedAt, endedAt: state === 'unknown' ? null : new Date().toISOString(),
+      nativeBinding: nativeBindingNow(),
     }));
   };
   if (!opts.autoChain) autoRunCounts.clear(); // a fresh user action starts a new wave
@@ -378,7 +389,7 @@ export async function runNodeGeneration(
   // live sweep firing while the agent works does not append it a second time
   let harnessClaim: Promise<boolean> | null = null;
 
-  const writeFinal = (response: string, failed = false, ended: 'completed' | 'failed' | 'cancelled' = failed ? 'failed' : 'completed') => {
+  const writeFinal = (response: string, failed = false, ended: 'completed' | 'failed' | 'cancelled' | 'unknown' = failed ? 'failed' : 'completed') => {
     if (!isCurrent()) return; // superseded: a newer generation owns this node
     const tokenCount = countTokens(question + response);
     let versionWritten: number | null = null;
@@ -424,8 +435,8 @@ export async function runNodeGeneration(
       }),
     }));
     // a failure's placeholder is no answer: a failed run wrote none
-    endRecord(ended, versionWritten === null || ended === 'failed' ? null : { versionIndex: versionWritten, chars: response.length });
-    opts.onEnded?.(ended, versionWritten);
+    endRecord(ended, versionWritten === null || ended === 'failed' || ended === 'unknown' ? null : { versionIndex: versionWritten, chars: response.length });
+    opts.onEnded?.(ended === 'unknown' ? 'failed' : ended, versionWritten);
   };
 
   // Ambient memory rides the system layer of ordinary generations only —
@@ -698,6 +709,7 @@ export async function runNodeGeneration(
         set((state) => ({ nodes: state.nodes.map((n) => n.id === nodeId ? { ...n, data: { ...n.data, agentSession: { ...n.data.agentSession, ...session, continued } } } : n) }));
         if (continued && session.sessionId) void claimAgentTurn(session.runtime, nodeId, session.sessionId, session.cwd);
       },
+      onRunState: noteRunState,
       onAgentBinding: (binding) => {
         if (!isCurrent()) return;
         set((state) => ({ nodes: state.nodes.map((n) => n.id === nodeId && n.data.agentSession ? { ...n, data: { ...n.data, agentSession: { ...n.data.agentSession, ...binding } } } : n) }));
@@ -816,6 +828,10 @@ export async function runNodeGeneration(
     if (isAbort) {
       // User pressed Stop — keep whatever streamed, no error surfacing
       writeFinal(partial || t('node.stoppedPlaceholder'), false, 'cancelled');
+    } else if (err instanceof ReceiptUnknown) {
+      // it may have left: said as that, and it is for the person to send it again
+      toast('error', fmt(t('run.receiptUnknown'), { message: err.message }));
+      writeFinal(partial || t('node.failedPlaceholder'), true, 'unknown');
     } else {
       // Real failure: details go to a toast, the node gets a Retry affordance
       const message = err instanceof Error ? err.message : t('toast.unknownError');

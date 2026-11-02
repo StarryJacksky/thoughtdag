@@ -22,7 +22,7 @@ function installFakeRuntimes() {
   const sessions = path.join(root, 'sessions');
   const project = path.join(root, 'project');
   for (const d of [bin, home, sessions, project]) fs.mkdirSync(d, { recursive: true });
-  for (const name of ['codex', 'claude']) {
+  for (const name of ['codex', 'claude', 'pi']) {
     const launcher = path.join(bin, name);
     fs.writeFileSync(launcher, `#!/bin/sh\nexec "${process.execPath}" "${path.join(FAKES, `fake-${name}.cjs`)}" "$@"\n`);
     fs.chmodSync(launcher, 0o755);

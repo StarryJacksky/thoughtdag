@@ -135,6 +135,8 @@ interface DesktopAgentsBridge {
   models(runtime?: 'pi' | 'codex' | 'claude-code'): Promise<{ installed: boolean; models: DesktopAgentModel[]; default: string | null; thinkingLevel?: string | null; /** where the host looked, when the CLI was not found (PATH, the login shell's PATH, the usual homes) */ searched?: string[]; error?: string }>;
   /** what the runtime can do, as probed on this machine (null: not installed, or it reports nothing); a shell of an older version has no such call */
   runtimeCapabilities?(runtime: 'pi' | 'codex' | 'claude-code'): Promise<import('./lib/context/contracts').CapabilityReport | null>;
+  /** what the host kept of a run: its events after `after`, and how it stands (`unknown`: this host knows nothing of it) */
+  eventsSince?(runId: string, after: number): Promise<{ state: 'running' | 'ended' | 'unknown'; events: (Record<string, unknown> & { type: string; seq: number })[]; complete: boolean }>;
   /** resolves with the run id at once; events follow through onEvent */
   run(request: DesktopAgentRunRequest): Promise<string>;
   abort(runId: string): Promise<boolean>;
@@ -312,7 +314,7 @@ interface DesktopWorkspaceBridge {
   recordRun(workspaceId: string, record: unknown): Promise<null>;
   readRuns(workspaceId: string): Promise<{ runId: string; state: string }[]>;
   /** the run records checked against the snapshots they name */
-  reconcileRuns(workspaceId: string): Promise<{ runs: { runId: string; state: string; recorded: string; missing: string[]; damaged: string[] }[]; unreadable: string[] }>;
+  reconcileRuns(workspaceId: string): Promise<{ runs: { runId: string; state: string; recorded: string; nativeBinding?: { hostRunId?: string } | null; missing: string[]; damaged: string[] }[]; unreadable: string[] }>;
   /** snapshots no run record names, removed once old enough (an hour at least) */
   collectSnapshots(workspaceId: string, options?: { graceMs?: number }): Promise<{ removed: string[]; refused: string | null }>;
   /** a file's content to be looked at (a PDF, an image): like readSource, with a larger limit */

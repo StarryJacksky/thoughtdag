@@ -1641,6 +1641,8 @@ export const zh: Record<keyof typeof en, string> = {
   'route.reason.research-unverified': '研究隔离要求的限制还没验证这个 Agent 能做到',
   'route.reason.session-busy': '原会话正在别处使用',
   'run.notPrepared': '没有发送：准备这次运行时出错（{why}）。',
+  'run.notKnownEnded': '这个文件夹里有 {n} 次运行没有记录结束（应用可能中途关闭了），没有重新发送。',
+  'run.receiptUnknown': '不确定这次有没有发出去（{message}），没有重发。',
   'run.dispatchRefused': '没有发送：要发出去的请求和准备好的不一致（{what}），已经拦下。',
   'run.dispatchPart.messages': '消息不同',
   'run.dispatchPart.images': '图片不同',

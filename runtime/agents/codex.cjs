@@ -277,7 +277,7 @@ function createCodexRuntime({ log, find = findCodex, probe = probeCodex } = {}) 
     }
     const ask = (question, respond) => {
       const id = `q-${msg.id}`;
-      serverAsks.set(id, { rpcId: msg.id, respond });
+      serverAsks.set(id, { rpcId: msg.id, runId: run.runId, respond });
       run.waiting = true;
       run.emit({ type: 'question', id, ...question });
     };
@@ -292,7 +292,7 @@ function createCodexRuntime({ log, find = findCodex, probe = probeCodex } = {}) 
       const yes = !!a?.confirmed; const forSession = yes && a?.scope === 'session' && !!rule;
       if (forSession) run.allowRules?.add(rule);
       if (yes) respondYes(forSession); else respondNo();
-      decided(id, yes ? (forSession ? 'allowed-session' : 'allowed-once') : 'rejected', null, forSession ? { rule } : undefined);
+      decided(id, a?.withdrawn ? 'cancelled' : yes ? (forSession ? 'allowed-session' : 'allowed-once') : 'rejected', null, forSession ? { rule } : undefined);
     };
     switch (msg.method) {
       case 'item/commandExecution/requestApproval': {
@@ -314,7 +314,7 @@ function createCodexRuntime({ log, find = findCodex, probe = probeCodex } = {}) 
       }
       case 'item/permissions/requestApproval':
         return ask({ kind: 'confirm', title: 'more permissions requested', message: [params.reason, JSON.stringify(params.permissions ?? {})].filter(Boolean).join('\n'), options: [], placeholder: null, prefill: null, paths: [], suggest: null },
-          (a, id) => { const yes = !!a?.confirmed; reply({ permissions: yes ? (params.permissions ?? {}) : {}, scope: 'turn' }); decided(id, yes ? 'allowed-once' : 'rejected'); });
+          (a, id) => { const yes = !!a?.confirmed; reply({ permissions: yes ? (params.permissions ?? {}) : {}, scope: 'turn' }); decided(id, a?.withdrawn ? 'cancelled' : yes ? 'allowed-once' : 'rejected'); });
       case 'item/tool/requestUserInput': {
         // the questions as one form; the answers go back together, keyed by
         // question id (a secret answer stays out of the record)
@@ -463,8 +463,12 @@ function createCodexRuntime({ log, find = findCodex, probe = probeCodex } = {}) 
     abort(runId) {
       const r = runs.get(runId);
       if (!r) return false;
-      // withdraw any question still open for this run, then interrupt
-      for (const [id, ask] of serverAsks) { if (id.startsWith('q-')) { /* the server's own timeout covers it */ } void ask; }
+      // a question still open for this run is withdrawn, as a no: nothing stays approved by being left, and other runs' stay open
+      for (const [id, ask] of serverAsks) {
+        if (ask.runId !== runId) continue;
+        serverAsks.delete(id);
+        ask.respond({ confirmed: false, withdrawn: true }, id);
+      }
       r.stopped = true;
       if (r.threadId && r.turnId) send('turn/interrupt', { threadId: r.threadId, turnId: r.turnId }).catch(() => {});
       return true;
@@ -472,7 +476,8 @@ function createCodexRuntime({ log, find = findCodex, probe = probeCodex } = {}) 
 
     answer(runId, requestId, response) {
       const ask = serverAsks.get(String(requestId));
-      if (!ask || !runs.has(runId)) return false;
+      // only an open question, and only by the run it belongs to: a second answer changes nothing
+      if (!ask || ask.runId !== runId || !runs.has(runId)) return false;
       serverAsks.delete(String(requestId));
       const a = response && typeof response === 'object' ? response : { confirmed: !!response };
       if (a.cancelled) { ask.respond({ confirmed: false, value: '' }, String(requestId)); return true; }

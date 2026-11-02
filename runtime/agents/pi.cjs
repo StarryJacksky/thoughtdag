@@ -241,10 +241,13 @@ function createPiRuntime({ log } = {}) {
       const runId = randomUUID();
       const proc = await processFor(cwd);
       const emit = (event) => { try { onEvent({ runId, event }); } catch { /* renderer gone */ } };
-      const aborter = { aborted: false };
-      runs.set(runId, { proc, abort: () => { aborter.aborted = true; proc.withdrawDialogs(); proc.send({ type: 'abort' }).catch(() => {}); } });
+      const aborter = { aborted: false, started: false };
+      // stopping a run still waiting its turn stops that run: the process is at work on another's, which is not touched
+      runs.set(runId, { proc, abort: () => { aborter.aborted = true; if (!aborter.started) return; proc.withdrawDialogs(); proc.send({ type: 'abort' }).catch(() => {}); } });
 
       void proc.exclusive(async () => {
+        if (aborter.aborted) { emit({ type: 'run_end', text: '', how: 'aborted' }); runs.delete(runId); return; }
+        aborter.started = true;
         let text = '';
         let ended;
         const finished = new Promise((resolve) => { ended = resolve; });

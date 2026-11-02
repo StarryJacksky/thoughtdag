@@ -27,7 +27,7 @@ export interface RunRecord {
   /** each input and where it is held: a snapshot here (snap_), no snapshot (unkept:, a read-only folder), or the canvas (node:) */
   inputs: { inputId: string; snapshotId: string; contentHash: string; fileId?: string }[];
   /** the runtime's own session the run went to, when it named one */
-  nativeBinding: { runtime: string; sessionId: string | null } | null;
+  nativeBinding: { runtime: string; sessionId: string | null; hostRunId?: string } | null;
   /** the answer version it wrote, when it wrote one */
   output: { versionIndex: number; chars: number } | null;
   state: RunState;
@@ -38,7 +38,7 @@ export interface RunRecord {
 export interface RunOutcome {
   state: RunState;
   output?: { versionIndex: number; chars: number } | null;
-  nativeBinding?: { runtime: string; sessionId: string | null } | null;
+  nativeBinding?: { runtime: string; sessionId: string | null; hostRunId?: string } | null;
   preparedAt: string;
   endedAt?: string | null;
 }

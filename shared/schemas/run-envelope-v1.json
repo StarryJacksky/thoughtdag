@@ -253,7 +253,7 @@
       "properties": {
         "maxInputTokens": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 0
         },
         "reservedOutputTokens": {
           "type": "integer",
@@ -270,6 +270,13 @@
         "maxCostUsd": {
           "type": "number",
           "minimum": 0
+        },
+        "inputLimitFrom": {
+          "enum": [
+            "model-window",
+            "person",
+            "unset"
+          ]
         }
       }
     },

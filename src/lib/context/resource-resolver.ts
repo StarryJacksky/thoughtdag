@@ -12,7 +12,7 @@ import type { ResolvedInput } from './contracts';
 import { digestOf, hashText } from './canonicalize';
 import { isMindMap, meaningOf } from './meaning';
 
-export type BlockReason = 'lost' | 'conflict' | 'not-saved' | 'selection-ambiguous' | 'selection-lost' | 'too-large' | 'copy-out-of-date' | 'unavailable' | 'policy' | 'inputs-too-large' | 'target-changed' | 'no-target';
+export type BlockReason = 'lost' | 'conflict' | 'not-saved' | 'selection-ambiguous' | 'selection-lost' | 'too-large' | 'copy-out-of-date' | 'unavailable' | 'policy' | 'inputs-too-large' | 'target-changed' | 'no-target' | 'over-budget';
 
 /** Why a run was not prepared: what it was wired to cannot be given as it is. */
 export class RunBlocked extends Error {

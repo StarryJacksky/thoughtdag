@@ -1,0 +1,74 @@
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/input-budget.test.tsx (12 tests | 12 failed) 7ms
+   ❯ [budget] where the limit comes from (5)
+     × [budget] a window known: the window, less what the answer needs 2ms
+     × [budget] not known, and nothing said: no limit, and it says so 0ms
+     × [budget] not known, and the person says: what they said 0ms
+     × [budget] a window too small to leave room for an answer is still a limit, not none 0ms
+     × [budget] what is said is kept for the next launch, and nonsense is no limit 0ms
+   ❯ [budget] a run over it (5)
+     × [budget] is not prepared, is not cut, and names what takes the room 0ms
+     × [budget] through the run path: nothing is sent, and the task says why 0ms
+     × [budget] an agent with a limit the person set is held to it, and is not started 0ms
+     × [budget] under it, a run goes, and its limit and where it came from are in what it was given 0ms
+     × [budget] no limit known: however much it is given, it goes whole, as it always did 0ms
+   ❯ [budget] on the task's panel (2)
+     × [budget] a known window is said, and there is nothing to set 0ms
+     × [budget] an unknown window says so, and what is typed is the limit for every model not known 0ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 12 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/input-budget.test.tsx > [budget] where the limit comes from > [budget] a window known: the window, less what the answer needs
+ FAIL  tests/unit/input-budget.test.tsx > [budget] where the limit comes from > [budget] not known, and nothing said: no limit, and it says so
+ FAIL  tests/unit/input-budget.test.tsx > [budget] where the limit comes from > [budget] not known, and the person says: what they said
+ FAIL  tests/unit/input-budget.test.tsx > [budget] where the limit comes from > [budget] a window too small to leave room for an answer is still a limit, not none
+ FAIL  tests/unit/input-budget.test.tsx > [budget] where the limit comes from > [budget] what is said is kept for the next launch, and nonsense is no limit
+ FAIL  tests/unit/input-budget.test.tsx > [budget] a run over it > [budget] is not prepared, is not cut, and names what takes the room
+ FAIL  tests/unit/input-budget.test.tsx > [budget] a run over it > [budget] through the run path: nothing is sent, and the task says why
+ FAIL  tests/unit/input-budget.test.tsx > [budget] a run over it > [budget] an agent with a limit the person set is held to it, and is not started
+ FAIL  tests/unit/input-budget.test.tsx > [budget] a run over it > [budget] under it, a run goes, and its limit and where it came from are in what it was given
+ FAIL  tests/unit/input-budget.test.tsx > [budget] a run over it > [budget] no limit known: however much it is given, it goes whole, as it always did
+ FAIL  tests/unit/input-budget.test.tsx > [budget] on the task's panel > [budget] a known window is said, and there is nothing to set
+ FAIL  tests/unit/input-budget.test.tsx > [budget] on the task's panel > [budget] an unknown window says so, and what is typed is the limit for every model not known
+TypeError: useUiStore.getState(...).setInputBudget is not a function
+ ❯ tests/unit/input-budget.test.tsx:48:25
+     46|   useProjects.setState({ projects: [{ id: 'c', name: 'c', createdAt: 0…
+     47|   useUiStore.setState({ toasts: [], memoryEnabled: false, recallEnable…
+     48|   useUiStore.getState().setInputBudget(null);
+       |                         ^
+     49|   setModelsCache(MODELS());
+     50|   await recheckAgents();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/24]⎯
+
+ FAIL  tests/unit/input-budget.test.tsx > [budget] where the limit comes from > [budget] a window known: the window, less what the answer needs
+ FAIL  tests/unit/input-budget.test.tsx > [budget] where the limit comes from > [budget] not known, and nothing said: no limit, and it says so
+ FAIL  tests/unit/input-budget.test.tsx > [budget] where the limit comes from > [budget] not known, and the person says: what they said
+ FAIL  tests/unit/input-budget.test.tsx > [budget] where the limit comes from > [budget] a window too small to leave room for an answer is still a limit, not none
+ FAIL  tests/unit/input-budget.test.tsx > [budget] where the limit comes from > [budget] what is said is kept for the next launch, and nonsense is no limit
+ FAIL  tests/unit/input-budget.test.tsx > [budget] a run over it > [budget] is not prepared, is not cut, and names what takes the room
+ FAIL  tests/unit/input-budget.test.tsx > [budget] a run over it > [budget] through the run path: nothing is sent, and the task says why
+ FAIL  tests/unit/input-budget.test.tsx > [budget] a run over it > [budget] an agent with a limit the person set is held to it, and is not started
+ FAIL  tests/unit/input-budget.test.tsx > [budget] a run over it > [budget] under it, a run goes, and its limit and where it came from are in what it was given
+ FAIL  tests/unit/input-budget.test.tsx > [budget] a run over it > [budget] no limit known: however much it is given, it goes whole, as it always did
+ FAIL  tests/unit/input-budget.test.tsx > [budget] on the task's panel > [budget] a known window is said, and there is nothing to set
+ FAIL  tests/unit/input-budget.test.tsx > [budget] on the task's panel > [budget] an unknown window says so, and what is typed is the limit for every model not known
+TypeError: useUiStore.getState(...).setInputBudget is not a function
+ ❯ tests/unit/input-budget.test.tsx:59:25
+     57|   desktop.uninstall();
+     58|   vi.unstubAllGlobals();
+     59|   useUiStore.getState().setInputBudget(null);
+       |                         ^
+     60|   setModelsCache({ models: [], default: null });
+     61|   useStore.setState({ nodes: [], edges: [] });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/24]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  12 failed (12)
+   Start at  01:42:24
+   Duration  985ms (environment 48%, transform 37%, import 12%, setup 2%, tests 1%)
+

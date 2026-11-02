@@ -10,6 +10,8 @@ export interface ModelInfo {
   name: string;
   provider: string;
   vision: boolean;
+  /** the model's context window, in tokens, where the list says */
+  contextLength?: number;
   /** agent models: the effort levels this runtime accepts for the model, in its own words (read from the CLI) */
   efforts?: string[];
   /** the runtime's own default among them, when it says */

@@ -54,7 +54,10 @@ export interface ExclusionRecord {
 
 /** Limits the application enforces around a run: guards, not estimates. */
 export interface Budget {
+  /** 0: no limit is known (the model's window is not known, and the person has said none) */
   maxInputTokens: number;
+  /** where the limit comes from; absent on a run prepared before limits were held to */
+  inputLimitFrom?: 'model-window' | 'person' | 'unset';
   reservedOutputTokens: number;
   maxToolCalls: number;
   maxWallTimeSeconds: number;

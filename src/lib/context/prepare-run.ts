@@ -17,13 +17,14 @@
 import { attachmentsLeftOut, buildContext, type MessageSource } from '../../store/context-builder';
 import { partitionContext } from '../graph';
 import { graphSnapshotHash } from '../context-bundle';
-import { generateId } from '../../utils';
+import { countTokens, generateId } from '../../utils';
 import { useStore } from '../../store';
 import { useUiStore } from '../ui-store';
 import type { ContextMessage, ImageAttachment, ToolPrefs } from '../api';
 import type { ThoughtEdge, ThoughtNode } from '../../types';
 import { DEFAULT_RUN_GUARDS, RUN_SCHEMA_VERSION, type EnvelopeMessage, type ExclusionRecord, type ExecutionPolicy, type ResolvedInput, type RunEnvelope, type RuntimeSelection } from './contracts';
 import { RunBlocked, resolveRef, type ResolvedResource } from './resource-resolver';
+import { inputBudgetFor, RESERVED_OUTPUT_TOKENS } from './budget';
 import { bytesOfBase64, digestOf, hashBytes, hashText } from './canonicalize';
 
 export { RunBlocked } from './resource-resolver';
@@ -157,7 +158,7 @@ function policyOf(mode: PrepareRunRequest['mode'], runtime: RuntimeSelection, in
     tools: { allow, mcpServers: [] },
     network: agentNetwork || allow.includes('web_search') || allow.includes('scholar_search') ? 'on' : 'off',
     recall: recall ?? (ui.recallEnabled || ui.memoryEnabled ? 'auto' : 'off'),
-    budget: { maxInputTokens: 200_000, reservedOutputTokens: 8_192, ...DEFAULT_RUN_GUARDS },
+    budget: { ...inputBudgetFor(runtime.model), reservedOutputTokens: RESERVED_OUTPUT_TOKENS, ...DEFAULT_RUN_GUARDS },
   };
 }
 
@@ -296,6 +297,21 @@ export async function prepareRun(request: PrepareRunRequest): Promise<RunEnvelop
 
   const runtime = request.runtimeSelection;
   const policy = policyOf(request.mode, runtime, inputs, request.tools, request.recall);
+  // over the limit it is not sent and not cut: which of its parts to leave out is the person's to say
+  const limit = policy.budget.maxInputTokens;
+  if (limit > 0) {
+    const counted = messages.map((m) => ({ tokens: countTokens(m.content), nodeId: m.source.nodeId, attachment: m.source.part === 'attachment' ? m.source.attachmentId : undefined }));
+    const total = counted.reduce((sum, m) => sum + m.tokens, 0);
+    if (total > limit) {
+      const nameOf = (m: (typeof counted)[number]) => {
+        const n = useStore.getState().nodes.find((x) => x.id === m.nodeId);
+        const att = m.attachment ? n?.data.attachments?.find((a) => a.id === m.attachment) : undefined;
+        return att?.name ?? n?.data.resourceHint?.name ?? (n?.data.question || '').slice(0, 40) ?? '';
+      };
+      const largest = [...counted].sort((a, b) => b.tokens - a.tokens).slice(0, 3).map((m) => `${nameOf(m) || '…'} (${m.tokens.toLocaleString('en-US')})`);
+      throw new RunBlocked('over-budget', request.targetNodeId, null, `${total.toLocaleString('en-US')} / ${limit.toLocaleString('en-US')}; ${largest.join(', ')}`);
+    }
+  }
   const inputDigest = await digestOf({
     v: 1,
     messages: messages.map(({ role, content }) => ({ role, content })),

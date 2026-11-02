@@ -13,7 +13,6 @@ import { countTokens, activeSummary } from '../utils';
 import { toast, useUiStore } from '../lib/ui-store';
 import { getModelsOnce, reconcileModelId, describeModel } from '../lib/use-models';
 import { checkSend, createTarget, describeTarget, memoryOfTarget, RESEARCH_POLICY, selectionOf, templateFor, writesFiles } from '../lib/agents/target-model';
-import { contextLengthFor } from '../lib/runtime-providers';
 import { memoryContextBlock, judgeMemory } from '../lib/memory';
 import { fetchRecallItems, recallContextBlock } from '../lib/recall';
 import { fillCards } from '../lib/recall-cards';
@@ -562,19 +561,6 @@ export async function runNodeGeneration(
   if (!isCurrent()) return;
 
   try {
-    // Context budget: browser-configured models carry their probed window.
-    // When the wired context alone clearly exceeds it, fail fast with the
-    // reason (and no spend) instead of a guaranteed upstream 400. countTokens
-    // errs high on CJK, and an input hugging the window leaves no room for
-    // the answer anyway — so a plain >= is the honest cutoff.
-    const effectiveModel = requestedModel;
-    const windowLimit = effectiveModel ? contextLengthFor(effectiveModel) : undefined;
-    if (windowLimit) {
-      const est = countTokens(messages.map((m) => m.content).join('\n'));
-      if (est >= windowLimit) {
-        throw new Error(fmt(t('toast.contextOverWindow'), { est: est.toLocaleString(), model: effectiveModel!, limit: windowLimit.toLocaleString() }));
-      }
-    }
     // Stream frames arrive at 100+/s on the direct lane (DeepSeek flash
     // thinking most of all). Committing every frame re-renders the whole
     // canvas and locks the tab; buffer the latest text and commit at most

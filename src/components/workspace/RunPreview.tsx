@@ -8,6 +8,7 @@ import { isTask, runModeOf, setRunMode, type RunMode } from '../../lib/agents/ta
 import { actsAsAgent, AGENT_RUNTIMES, runtimeOf } from '../../lib/agents/agent-runtime';
 import { kindOf } from '../../lib/agents/target-model';
 import { previewRun } from '../../lib/context/prepare-run';
+import { inputBudgetFor } from '../../lib/context/budget';
 import { capabilitiesOf, verifyPolicy } from '../../lib/context/policy';
 import StaleSection from './StaleSection';
 
@@ -27,6 +28,8 @@ export default function RunPreview({ nodeId }: { nodeId: string }) {
   const nodes = useStore((s) => s.nodes);
   const edges = useStore((s) => s.edges);
   const selectedModel = useUiStore((s) => s.selectedModel);
+  const inputBudget = useUiStore((s) => s.inputBudget);
+  const setInputBudget = useUiStore((s) => s.setInputBudget);
   const [open, setOpen] = useState(false);
   // read only while it is open: building a context on every change of the canvas is not free
   const preview = useMemo(() => (open ? previewRun(nodeId, nodes, edges) : null), [open, nodeId, nodes, edges]);
@@ -34,6 +37,7 @@ export default function RunPreview({ nodeId }: { nodeId: string }) {
 
   const target = node.data.target;
   const mode = runModeOf(target);
+  const limit = inputBudgetFor(target?.model ?? node.data.model ?? selectedModel);
   const runtime = target ? target.runtime : runtimeOf(node.data.model ?? selectedModel ?? '');
   const agent = target ? kindOf(target) === 'agent' : actsAsAgent(node.data.model ?? selectedModel);
   // what the verdict will be when it is sent: the policy's shape is all the check reads of it
@@ -78,6 +82,14 @@ export default function RunPreview({ nodeId }: { nodeId: string }) {
         </div>
       </div>
       {line && <p className={`text-xs leading-relaxed ${verdict.ok ? 'text-ink-muted' : 'text-red-600'}`} data-run-notice={verdict.ok ? (verdict.notice ?? mode) : 'blocked'}>{line}</p>}
+      <div className="mt-1 flex items-center gap-1.5 text-2xs text-ink-faint" data-input-limit={limit.inputLimitFrom}>
+        <span>{limit.maxInputTokens ? fmt(t(limit.inputLimitFrom === 'person' ? 'run.preview.limitPerson' : 'run.preview.limitWindow'), { n: limit.maxInputTokens.toLocaleString('en-US') }) : t('run.preview.limitUnset')}</span>
+        {limit.inputLimitFrom !== 'model-window' && (
+          <input data-input-budget-field type="number" min={1} step={1000} placeholder={t('run.preview.limitPlaceholder')} title={t('run.preview.limitTitle')}
+            value={inputBudget ?? ''} onChange={(e) => setInputBudget(e.target.value ? Math.floor(Number(e.target.value)) : null)}
+            className="nodrag w-24 bg-transparent border border-line rounded px-1 py-0.5 text-2xs text-ink focus:outline-none focus:border-accent" />
+        )}
+      </div>
       <StaleSection nodeId={nodeId} />
       <button onClick={() => setOpen((o) => !o)} className="mt-1.5 flex items-center gap-1 text-2xs uppercase tracking-wide text-ink-faint hover:text-ink" data-run-preview-toggle aria-expanded={open}>
         <ChevronRight size={12} strokeWidth={1.75} className={`transition-transform ${open ? 'rotate-90' : ''}`} />

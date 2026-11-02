@@ -124,6 +124,9 @@ interface UiState {
   anysearchKey: string;
   setAnysearchKey: (key: string) => void;
   /** Ambient long-term memory: ON by default, one switch, visible writes. */
+  /** How much a run may be given, in tokens, on a model whose window is not known; null: no limit (persisted). */
+  inputBudget: number | null;
+  setInputBudget: (tokens: number | null) => void;
   memoryEnabled: boolean;
   setMemoryEnabled: (on: boolean) => void;
   memories: import('./memory').MemoryEntry[];
@@ -317,6 +320,12 @@ export const useUiStore = create<UiState>((set, get) => ({
     if (key) localStorage.setItem('thoughtdag.anysearchKey', key);
     else localStorage.removeItem('thoughtdag.anysearchKey');
     set({ anysearchKey: key });
+  },
+  inputBudget: (() => { const n = Number(localStorage.getItem('thoughtdag.inputBudget')); return Number.isInteger(n) && n > 0 ? n : null; })(),
+  setInputBudget: (tokens) => {
+    const value = Number.isInteger(tokens) && (tokens as number) > 0 ? (tokens as number) : null;
+    if (value) localStorage.setItem('thoughtdag.inputBudget', String(value)); else localStorage.removeItem('thoughtdag.inputBudget');
+    set({ inputBudget: value });
   },
   memoryEnabled: localStorage.getItem('thoughtdag.memoryEnabled') !== 'off',
   setMemoryEnabled: (on) => {

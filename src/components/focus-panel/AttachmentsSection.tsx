@@ -3,6 +3,8 @@ import { ChevronRight, FileText, Loader2, Paperclip, X, BookOpen } from 'lucide-
 import { useStore } from '../../store';
 import { useUiStore } from '../../lib/ui-store';
 import { processFile, FILE_INPUT_ACCEPT } from '../../lib/attachments';
+import SourceMenu from './SourceMenu';
+import { useProjects } from '../../store/projects';
 import { isNotebook } from '../../lib/notebook';
 import { useT, fmt } from '../../i18n';
 import { isViewerMode } from '../../lib/viewer';
@@ -32,6 +34,8 @@ export default function AttachmentsSection({
   const t = useT();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [choosingSource, setChoosingSource] = useState(false);
+  const activeProject = useProjects((s) => s.activeId);
   const inherited = getInheritedAttachments(nodeId);
   const excludeSet = new Set(excludedAttachmentIds);
 
@@ -80,8 +84,8 @@ export default function AttachmentsSection({
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
             onPaste={handlePaste}
-            onClick={() => fileInputRef.current?.click()}
-            className={`border-2 border-dashed rounded-xl px-4 py-3 text-center cursor-pointer transition-all ${
+            onClick={() => setChoosingSource((open) => !open)}
+            className={`relative border-2 border-dashed rounded-xl px-4 py-3 text-center cursor-pointer transition-all ${
               isDragging
                 ? 'border-accent bg-accent/5'
                 : 'border-line hover:border-accent/40 hover:bg-surface'
@@ -91,8 +95,10 @@ export default function AttachmentsSection({
               {isDragging ? t('attach.dropHere') : <><Paperclip size={14} strokeWidth={1.75} className="inline" /> {t('attach.upload')}</>}
             </p>
             <p className="text-2xs text-ink-faint/60 mt-0.5">{t('attach.types')}</p>
+            {choosingSource && <SourceMenu projectId={activeProject ?? ''} className="top-full left-0 mt-1 text-left" onLocal={() => fileInputRef.current?.click()} onClose={() => setChoosingSource(false)} />}
             <input
               ref={fileInputRef}
+              onClick={(e) => e.stopPropagation()}
               type="file"
               multiple
               accept={FILE_INPUT_ACCEPT}

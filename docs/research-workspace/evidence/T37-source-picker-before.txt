@@ -1,0 +1,75 @@
+
+ RUN  v5.0.3 <repo>
+
+ ❯ tests/unit/source-picker.test.tsx (6 tests | 6 failed) 3023ms
+   ❯ [T37] the sources (3)
+     × [T37] a file from this computer, ready; a Space, blocked, saying why 2ms
+     × [T37] a file of an open folder picked is a reference to it: nothing is copied, sent or read 0ms
+     × [T37] with a part of it selected, the reference says so 0ms
+   ❯ [T37] the menu (3)
+     × [T37] choosing a file from this computer goes the way it always went 1011ms
+     × [T37] a Space is shown with its reason, and choosing it does nothing 1003ms
+     × [T37] opening the menu changes nothing on the canvas 1005ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/unit/source-picker.test.tsx > [T37] the sources > [T37] a file from this computer, ready; a Space, blocked, saying why
+Error: not yet
+ ❯ listSourceRoots src/lib/workspace/source-picker.ts:1:75
+      1| export const listSourceRoots = async (_p: any): Promise<any[]> => { th…
+       |                                                                           ^
+      2| export const pickSources = async (_s: any): Promise<any[]> => { throw …
+      3|
+ ❯ tests/unit/source-picker.test.tsx:30:25
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  tests/unit/source-picker.test.tsx > [T37] the sources > [T37] a file of an open folder picked is a reference to it: nothing is copied, sent or read
+Error: not yet
+ ❯ pickSources src/lib/workspace/source-picker.ts:2:71
+      1| export const listSourceRoots = async (_p: any): Promise<any[]> => { th…
+      2| export const pickSources = async (_s: any): Promise<any[]> => { throw …
+       |                                                                       ^
+      3|
+ ❯ tests/unit/source-picker.test.tsx:39:25
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  tests/unit/source-picker.test.tsx > [T37] the sources > [T37] with a part of it selected, the reference says so
+Error: not yet
+ ❯ pickSources src/lib/workspace/source-picker.ts:2:71
+      1| export const listSourceRoots = async (_p: any): Promise<any[]> => { th…
+      2| export const pickSources = async (_s: any): Promise<any[]> => { throw …
+       |                                                                       ^
+      3|
+ ❯ tests/unit/source-picker.test.tsx:50:25
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  tests/unit/source-picker.test.tsx > [T37] the menu > [T37] choosing a file from this computer goes the way it always went
+ FAIL  tests/unit/source-picker.test.tsx > [T37] the menu > [T37] a Space is shown with its reason, and choosing it does nothing
+ FAIL  tests/unit/source-picker.test.tsx > [T37] the menu > [T37] opening the menu changes nothing on the canvas
+AssertionError: expected  to have a length of 2 but got +0
+
+- Expected
++ Received
+
+- 2
++ 0
+
+ ❯ tests/unit/source-picker.test.tsx:58:89
+     56|   async function menu(onLocal = vi.fn(), onClose = vi.fn()) {
+     57|     mounted = await mount(<SourceMenu projectId="c" onLocal={onLocal} …
+     58|     await vi.waitFor(() => expect(mounted!.container.querySelectorAll(…
+       |                                                                                         ^
+     59|     return { root: mounted.container, onLocal, onClose };
+     60|   }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  6 failed (6)
+   Start at  00:41:16
+   Duration  3.76s (tests 82%, transform 9%, environment 7%, import 2%)
+

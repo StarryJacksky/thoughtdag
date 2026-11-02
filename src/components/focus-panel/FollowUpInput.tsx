@@ -8,6 +8,8 @@ import { useUiStore } from '../../lib/ui-store';
 import { useSurfaces } from '../../lib/documents/surface-store';
 import { buildContext } from '../../store/context-builder';
 import { processFile, FILE_INPUT_ACCEPT } from '../../lib/attachments';
+import SourceMenu from './SourceMenu';
+import { useProjects } from '../../store/projects';
 import SearchToggles from '../ui/SearchToggles';
 import type { Attachment } from '../../types';
 import { countTokens } from '../../utils';
@@ -50,6 +52,8 @@ export default function FollowUpInput({
   const mention = useMentions(nodeId);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>([]);
+  const [choosingSource, setChoosingSource] = useState(false);
+  const activeProject = useProjects((s) => s.activeId);
   const continueRef = useRef<HTMLTextAreaElement>(null);
   const autoGrow = (el: HTMLTextAreaElement) => {
     el.style.height = 'auto';
@@ -229,13 +233,16 @@ export default function FollowUpInput({
         <input ref={fileRef} type="file" accept={FILE_INPUT_ACCEPT} multiple className="hidden"
           onChange={(e) => { if (e.target.files) void addFiles(e.target.files); e.target.value = ''; }} />
         <SearchToggles />
-        <button
-          onClick={() => fileRef.current?.click()}
-          title={t('followup.attach')}
-          className="text-ink-faint hover:text-accent transition-colors shrink-0 rounded-full w-8 h-8 flex items-center justify-center hover:bg-line"
-        >
-          <Paperclip size={16} strokeWidth={1.75} />
-        </button>
+        <span className="relative shrink-0">
+          <button
+            onClick={() => setChoosingSource((open) => !open)}
+            title={t('followup.attach')}
+            className="text-ink-faint hover:text-accent transition-colors rounded-full w-8 h-8 flex items-center justify-center hover:bg-line"
+          >
+            <Paperclip size={16} strokeWidth={1.75} />
+          </button>
+          {choosingSource && <SourceMenu projectId={activeProject ?? ''} className="bottom-full right-0 mb-1" onLocal={() => fileRef.current?.click()} onClose={() => setChoosingSource(false)} />}
+        </span>
         <button
           onClick={submit}
           disabled={!continueInput.trim() || !sendCheck.ok}

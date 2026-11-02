@@ -18,6 +18,17 @@ const NAMES = ['fresh', 'resume', 'forkAtCompletedTurn', 'observeState', 'cancel
 const READING_TOOLS = ['Read', 'Glob', 'Grep'];
 const CREDENTIALS = ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN', 'CLAUDE_CODE_OAUTH_TOKEN'];
 
+// What a process started from inside a Claude Code session has of that session: its id, its way of
+// talking to its host, its mode (`CLAUDE_CODE_SIMPLE` is `--bare`, which reads no login), its host's proxy.
+// A run is its own. How the person signs in, and where their config is, stay.
+const STAYS = new Set(['CLAUDE_CONFIG_DIR', 'CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_USE_VERTEX', 'CLAUDE_CODE_USE_FOUNDRY']);
+function withoutHostSession(env) {
+  if (!env.CLAUDECODE) return env;
+  const own = { ...env };
+  for (const name of Object.keys(own)) if ((/^CLAUDE/.test(name) && !STAYS.has(name)) || name === 'ANTHROPIC_BASE_URL') delete own[name];
+  return own;
+}
+
 const allUnknown = () => Object.fromEntries(NAMES.map((n) => [n, 'unknown']));
 const say = (binary, args, env) => new Promise((resolve) => {
   execFile(binary, args, { env, timeout: STEP_MS, maxBuffer: 1 << 20 }, (error, stdout) => resolve(error ? '' : String(stdout)));
@@ -72,7 +83,7 @@ async function probeClaude(binaryPath, { now = () => new Date().toISOString() } 
   try {
     const home = path.join(root, 'home');
     await fsp.mkdir(home);
-    const env = { ...process.env, HOME: home, CLAUDE_CONFIG_DIR: path.join(home, '.claude') };
+    const env = { ...withoutHostSession(process.env), HOME: home, CLAUDE_CONFIG_DIR: path.join(home, '.claude') };
     for (const name of CREDENTIALS) delete env[name];
     report.binaryVersion = await versionOf(binaryPath, env);
     if (!report.binaryVersion) return report;
@@ -95,4 +106,4 @@ async function probeClaude(binaryPath, { now = () => new Date().toISOString() } 
   }
 }
 
-module.exports = { probeClaude, versionOf, helpOf, flagsIn, READING_TOOLS };
+module.exports = { probeClaude, versionOf, helpOf, flagsIn, withoutHostSession, READING_TOOLS };

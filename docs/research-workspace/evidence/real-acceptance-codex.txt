@@ -1,0 +1,14 @@
+# Real acceptance of Codex through the application's adapter: scripts/accept-runtime.cjs, the person's account, synthetic content, 2026-11-02.
+{"runtime":"codex","version":"0.166.0-alpha.5.1","model":"gpt-6.1-sol","models":["gpt-6.1-sol","chatgpt-web/gpt-5.6-sol","chatgpt-web/gpt-5.6-pro","chatgpt-web/gpt-6-pro","gpt-6-astra","chatgpt-web/gpt-5.6-sol-instant","gpt-6.1-terra","gpt-6-sol","gpt-6-luna","gpt-5.6-sol","gpt-5.6-terra","gpt-5.6-luna"],"capabilities":{"fresh":"supported","resume":"supported","forkAtCompletedTurn":"supported","observeState":"supported","cancel":"supported","approvals":"supported","readOnlyRoots":"unsupported","networkRestriction":"supported","autoContextControl":"unknown"}}
+{"scenario":"fresh","ms":3431,"ended":"end","said":true,"error":null,"binding":{"hasNativeId":true,"turnStatus":"completed","hasLastCompleted":true},"sessionFileWritten":true,"streamed":true}
+{"scenario":"resume","ms":3388,"firstEnded":"end","ended":"end","remembered":true,"sameSession":true,"secondQuestionInRecord":true,"error":null}
+{"scenario":"fork","ms":5333,"secondEnded":"end","ended":"end","error":null,"keptFirst":true,"droppedSecond":true,"newThread":true,"unknownTurn":{"code":"fork-partial-turn","message":"that turn did not finish, or is not in this thread: a branch cannot start from it"}}
+{"scenario":"cancel","ms":4682,"ended":"aborted","error":null,"stoppedInMs":300,"turnStatus":"interrupted","calledFinished":false,"timedOut":false}
+{"scenario":"cancel-early","ms":0,"ended":"aborted","answered":false}
+{"scenario":"approvals","ms":13079,"asked":2,"kinds":["command needs approval"],"refused":{"ended":"end","decided":["rejected"],"wrote":false,"error":null},"allowed":{"ended":"end","decided":["allowed-once"],"wrote":true,"error":null}}
+{"scenario":"approval-twice","ms":6774,"answers":[true,false],"ended":"end","wrote":true}
+{"scenario":"image","ms":1639,"ended":"end","error":null,"sawRed":true}
+{"scenario":"materials","ms":5017,"ended":"end","read":true,"usedTool":true,"toolEnded":true,"error":null}
+{"scenario":"context-codex","ms":7684,"ended":"end","projectRuleReached":true}
+# the busy check, after the adapter let go of its thread and knew the real words:
+{"scenario":"busy","ms":9948,"otherAtWork":true,"otherStillAtWork":true,"otherEnded":"aborted","otherError":null,"ended":"error","answered":false,"error":{"code":"session-busy","message":"that session is busy elsewhere: thread <id> already has an active writer"}}

@@ -9,7 +9,7 @@
 //   { "reply": "...", "models": [...], "busyThreads": ["<thread id>"],
 //     "activeThreads": ["<thread id>"], "turns": { "<thread id>": [{ "id", "status" }] },
 //     "without": ["<method>"], "noLastTurnId": true, "noSchema": true,
-//     "delay": { "<method>": ms }, "hold": true,
+//     "delay": { "<method>": ms }, "hold": true, "heldByAnother": ["<thread id>"],
 //     "sandbox": { "read": "open"|"closed", "network": "open"|"closed" } }
 // What it refuses, and how, is what the real server was seen to do: a request
 // before the handshake, an unknown method, a fork at a turn in progress or at
@@ -104,6 +104,7 @@ async function handle(msg) {
     }
     case 'thread/resume': {
       if ((script.busyThreads ?? []).includes(p.threadId)) return refuse('thread is busy in another client');
+      if ((script.heldByAnother ?? []).includes(p.threadId)) return refuse(`thread ${p.threadId} already has an active writer`, -32600);
       threads.set(p.threadId, { cwd: p.cwd, turnId: null });
       return reply({ thread: threadOf(p.threadId) });
     }

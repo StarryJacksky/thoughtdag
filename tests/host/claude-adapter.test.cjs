@@ -215,6 +215,48 @@ test('[T16] research whose process comes up with more tools than it was given is
   assert.equal(events.at(-1).how, 'error');
 });
 
+const SESSION_OF_THE_HOST = {
+  CLAUDECODE: '1', CLAUDE_CODE_SIMPLE: '1', CLAUDE_CODE_SESSION_ID: 'the-host-session', CLAUDE_CODE_MESSAGING_SOCKET: '/synthetic/socket', CLAUDE_CODE_MESSAGING_TOKEN: 'synthetic',
+  CLAUDE_CODE_CHILD_SESSION: '1', CLAUDE_PID: '1', CLAUDE_EFFORT: 'high', ANTHROPIC_BASE_URL: 'http://127.0.0.1:1/host-proxy',
+};
+const withEnv = async (t, env) => { const saved = {}; for (const [k, v] of Object.entries(env)) { saved[k] = process.env[k]; if (v === undefined) delete process.env[k]; else process.env[k] = v; } t.after(() => { for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } }); };
+
+test('[T16] started from inside another Claude Code session, a run is its own: nothing of that session comes along', async (t) => {
+  await withEnv(t, { ...SESSION_OF_THE_HOST, CLAUDE_CODE_OAUTH_TOKEN: 'a-token-of-the-person', CLAUDE_CONFIG_DIR: path.join(fake.home, '.claude') });
+  const claude = fresh(t);
+  await go(claude, {});
+  const { env } = launched()[0];
+  for (const name of Object.keys(SESSION_OF_THE_HOST)) assert.equal(env.includes(name), false, name);
+  for (const name of ['CLAUDE_CODE_OAUTH_TOKEN', 'CLAUDE_CONFIG_DIR']) assert.equal(env.includes(name), true, `${name}: the way the person signs in stays`);
+});
+
+test('[T16] started from anywhere else, what the person set stays', async (t) => {
+  await withEnv(t, { CLAUDECODE: undefined, ANTHROPIC_BASE_URL: 'https://synthetic.example/their-gateway' });
+  const claude = fresh(t);
+  await go(claude, {});
+  assert.equal(launched()[0].env.includes('ANTHROPIC_BASE_URL'), true);
+});
+
+test('[T16] the probe, too, is not of the session it was started in', async (t) => {
+  await withEnv(t, SESSION_OF_THE_HOST);
+  fake.clear();
+  fake.script({});
+  await probeClaude(path.join(fake.bin, 'claude'));
+  const tried = fake.read('claude').find((r) => r.kind === 'argv' && r.argv.includes('--tools'));
+  for (const name of Object.keys(SESSION_OF_THE_HOST)) assert.equal(tried.env.includes(name), false, name);
+});
+
+test('[T16] the binary a desktop app brings with it is found, the newest of them, after whatever is on the path', async () => {
+  const { locate } = require('../../runtime/agents/where.cjs');
+  const { claudeAppDirs } = require('../../runtime/agents/claude.cjs');
+  const root = path.join(fake.root, 'app-home', 'Library', 'Application Support', 'Claude', 'claude-code');
+  const at = (version, hash) => path.join(root, version, hash, 'claude.app', 'Contents', 'MacOS');
+  for (const [v, h] of [['2.1.9', 'aaa'], ['2.1.10', 'bbb']]) { fs.mkdirSync(at(v, h), { recursive: true }); fs.writeFileSync(path.join(at(v, h), 'claude-only-in-app'), '#!/bin/sh\n'); fs.chmodSync(path.join(at(v, h), 'claude-only-in-app'), 0o755); }
+  const found = await locate('claude-only-in-app', claudeAppDirs(path.join(fake.root, 'app-home')));
+  assert.equal(found.path, path.join(at('2.1.10', 'bbb'), 'claude-only-in-app'));
+  assert.deepEqual(claudeAppDirs(path.join(fake.root, 'no-such-home')), []);
+});
+
 // ── the probe ──
 
 async function probe(script) {

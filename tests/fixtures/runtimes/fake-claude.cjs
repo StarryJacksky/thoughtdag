@@ -37,7 +37,7 @@ if (argv.includes('--help')) {
 const record = (entry) => { if (CAPTURE) fs.appendFileSync(CAPTURE, JSON.stringify({ runtime: 'claude', ...entry }) + '\n'); };
 const out = (obj, done) => process.stdout.write(JSON.stringify(obj) + '\n', done);
 
-record({ kind: 'argv', argv, cwd: process.cwd(), home: process.env.HOME });
+record({ kind: 'argv', argv, cwd: process.cwd(), home: process.env.HOME, env: Object.keys(process.env).filter((k) => /^(CLAUDE|ANTHROPIC)/.test(k)) });
 const unknown = (script.without ?? []).find((f) => argv.includes(f));
 if (unknown) { process.stderr.write(`error: unknown option '${unknown}'\n`); process.exit(1); }
 

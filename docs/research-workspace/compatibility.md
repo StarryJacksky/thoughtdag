@@ -13,7 +13,7 @@
 | 真实二进制，无账号 | `CODEX_HOME` 指向临时目录。读协议 schema，做握手，发未知方法，`thread/start`，`command/exec` 跑沙箱，`thread/fork` 的几种拒绝。没有登录，模型请求返回 401，没有用到任何额度，也没有读用户的 `~/.codex` |
 | 假服务器 | `tests/fixtures/runtimes/fake-codex.cjs`，它拒绝的方式照真实服务器写 |
 
-**真实运行没有做**：新建并得到回答、取消进行中的回答、审批、外部客户端占用、恢复后输入一致。这些要用用户的账号，会耗额度、在历史里留下测试会话，等用户同意。
+**真实运行（2026-11-02，用户同意，用用户的账号，见 1.7）**：新建、续接、分叉、取消、审批、外部客户端占用、图片、工具读文件都跑过了。记录在 `evidence/real-acceptance-codex.txt`。
 
 ### 1.2 在真实二进制上看到的
 
@@ -77,6 +77,32 @@ node scripts/probe-runtime.cjs codex <path-to-codex>
 - **Claude Code 的同类问题（L01、L03 的 Claude 部分）**：归 T16。
 - **`legacy` 审批方法**（`applyPatchApproval`、`execCommandApproval`）：回错误，等于拒绝。真实版本是否还会发，没有验证。
 
+### 1.7 真实验收结果
+
+`scripts/accept-runtime.cjs`，合成内容，一次性测试目录，模型 `gpt-5.6-luna`（新建、续接是 `gpt-6.1-sol`）。
+
+| 项 | 结果 |
+| --- | --- |
+| 新建 | 流式回答；回答正确；会话文件写入；`binding` 记了已完成的轮次 |
+| 续接 | 同一线程；记得前面的内容；问题写进原生记录 |
+| 分叉 | `lastTurnId` 真实生效：保留第一轮、没有第二轮、新线程。轮次不存在时拒绝，什么也不发 |
+| 取消 | 回答开始后停止：结束为 `aborted`，轮次 `interrupted`，不算完成。开始前停止：提示词没有发出 |
+| 审批 | 拒绝：文件没写。允许：文件写了。重复回答只算第一次 |
+| 图片 | 模型认出了颜色 |
+| 工具 | 读到工作目录里的文件，工具开始、结束事件都有 |
+| 外部占用 | 另一个客户端在同一线程上跑时，这边报 `session-busy`，不抢占、不新开线程；对方不受影响 |
+| 项目说明文件 | `AGENTS.md` 会进入回合，所以研究模式要拦它。这正是 `autoContextControl` 未知的原因 |
+
+**真实验收查出来并修了的。**
+
+- 占用的真实报错是 `thread <id> already has an active writer`，原来没认出来。
+- **服务器进程活着就一直占着写过的线程**，`thread/unsubscribe` 也不释放，只有进程退出才放。原来闲置 10 分钟才退出，这期间用户在 Codex 应用里接不上这个线程。现在没有运行时约 20 秒后退出（`TD_AGENT_RELEASE_MS` 可改），下次运行再启动。代价是每次多约 1 秒启动。
+- `codex`、`claude` 不在 PATH 上，TDAG 在这台机器上原来找不到应用自带的程序。现在 PATH 上没有时，会找 ChatGPT 应用和 Claude 桌面应用自带的。
+
+**反过来的影响：** Codex 应用自己打开着某个线程时，TDAG 续接它会报 `session-busy`。这是对的，不抢占，但用户会看到。没有验证 Codex 应用实际占用线程的时长。
+
+**没验证的。** 崩溃重连、磁盘日志延迟、权限模式 `auto` 和 `allow`、Windows。
+
 ## 2. 对计划的调整
 
 计划写的测试文件是 `tests/integration/codex-adapter.test.ts`。实际放在 `tests/host/codex-adapter.test.cjs`：它测的是 Node 模块，和其他宿主测试同一个运行器。
@@ -92,7 +118,7 @@ node scripts/probe-runtime.cjs codex <path-to-codex>
 | 真实二进制，无账号 | `--bare` 不读登录和钥匙串，`HOME`、`CLAUDE_CONFIG_DIR` 指向临时目录，不给任何凭据。读帮助，发起到第一次请求为止（回答 `Not logged in`），看各种失败的样子 |
 | 假 CLI | `tests/fixtures/runtimes/fake-claude.cjs`，失败的样子照真实 CLI 写 |
 
-**真实运行没有做**：文本、图像、审批、取消、日志回流。这些要用用户的账号，等用户同意。
+**真实运行没有做，等用户登录**：文本、图像、审批、取消、日志回流。用户 2026-11-02 同意了真实验收，但这台机器的独立 CLI 没有登录（`auth status` 是 `loggedIn: false`）。桌面应用的登录是它自己托管的，通过环境变量交给它启动的子进程。这次验收不借用这个通道：那是当前会话的登录，而且会干扰会话本身。
 
 ### 3.2 在真实二进制上看到的
 
@@ -105,6 +131,8 @@ node scripts/probe-runtime.cjs codex <path-to-codex>
 | `--tools Read,Glob,Grep` | `init` 的 `tools` 只有 `Read`（`--bare` 下） | 研究模式核对 `init.tools`，多了别的工具就停 |
 
 会话被其他客户端占用时真实的报错文案没有见过。判断用的是 `already in use`、`is busy`、`locked`，以及假 CLI 的写法，认不出时按普通错误结束，同样不开新会话。
+
+从 Claude Code 会话内部启动时，子进程原来会继承 `CLAUDE_CODE_SIMPLE`（等于 `--bare`，不读登录）、会话 id、消息通道和宿主代理。现在 `CLAUDECODE` 存在时，这些都去掉，只留 `CLAUDE_CONFIG_DIR`、`CLAUDE_CODE_OAUTH_TOKEN` 和云服务商开关（`withoutHostSession`）。不在会话里启动时，用户自己设的不动。
 
 ### 3.3 能力探测
 

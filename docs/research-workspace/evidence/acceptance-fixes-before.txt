@@ -1,0 +1,497 @@
+TAP version 13
+# Subtest: [T16] a new session carries nothing of an old one: no resume, no fork, even when asked at a turn with no session
+ok 1 - [T16] a new session carries nothing of an old one: no resume, no fork, even when asked at a turn with no session
+  ---
+  duration_ms: 241.039084
+  type: 'test'
+  ...
+# Subtest: [T16] going on names the session, and does not branch it
+ok 2 - [T16] going on names the session, and does not branch it
+  ---
+  duration_ms: 84.612709
+  type: 'test'
+  ...
+# Subtest: [T16] a branch is asked for as what it is, and says it keeps all of the history it came from
+ok 3 - [T16] a branch is asked for as what it is, and says it keeps all of the history it came from
+  ---
+  duration_ms: 84.131041
+  type: 'test'
+  ...
+# Subtest: [T16] a branch at a turn cannot be had: it is refused, and not turned into a copy of the whole history
+ok 4 - [T16] a branch at a turn cannot be had: it is refused, and not turned into a copy of the whole history
+  ---
+  duration_ms: 1.003375
+  type: 'test'
+  ...
+# Subtest: [T16] a flag this version does not list is not sent
+ok 5 - [T16] a flag this version does not list is not sent
+  ---
+  duration_ms: 87.073
+  type: 'test'
+  ...
+# Subtest: [T16] a level this version does not list is not sent
+ok 6 - [T16] a level this version does not list is not sent
+  ---
+  duration_ms: 88.598583
+  type: 'test'
+  ...
+# Subtest: [T16] a version without what a run cannot do without is not started
+ok 7 - [T16] a version without what a run cannot do without is not started
+  ---
+  duration_ms: 43.649333
+  type: 'test'
+  ...
+# Subtest: [T16] with no help to read, only what a run cannot do without is sent
+ok 8 - [T16] with no help to read, only what a run cannot do without is sent
+  ---
+  duration_ms: 122.035959
+  type: 'test'
+  ...
+# Subtest: [T16] a path and a prompt that a shell would mangle arrive as they are
+ok 9 - [T16] a path and a prompt that a shell would mangle arrive as they are
+  ---
+  duration_ms: 86.1255
+  type: 'test'
+  ...
+# Subtest: [T16] an image is given as data, beside the words
+ok 10 - [T16] an image is given as data, beside the words
+  ---
+  duration_ms: 90.447
+  type: 'test'
+  ...
+# Subtest: [T16] a turn that failed is a failure, whatever its subtype says: what it said is not kept as an answer
+ok 11 - [T16] a turn that failed is a failure, whatever its subtype says: what it said is not kept as an answer
+  ---
+  duration_ms: 86.684667
+  type: 'test'
+  ...
+# Subtest: [T16] a session that is not there is said as that, and no new one is started instead
+ok 12 - [T16] a session that is not there is said as that, and no new one is started instead
+  ---
+  duration_ms: 86.669166
+  type: 'test'
+  ...
+# Subtest: [T16] a session in use elsewhere is said as that, and no new one is started instead
+ok 13 - [T16] a session in use elsewhere is said as that, and no new one is started instead
+  ---
+  duration_ms: 88.487291
+  type: 'test'
+  ...
+# Subtest: [T16] a run that finished answers with its session and its last entry
+ok 14 - [T16] a run that finished answers with its session and its last entry
+  ---
+  duration_ms: 86.7575
+  type: 'test'
+  ...
+# Subtest: [T16][L01] stopped before the process has started: it never starts, and the prompt is never sent
+ok 15 - [T16][L01] stopped before the process has started: it never starts, and the prompt is never sent
+  ---
+  duration_ms: 0.757875
+  type: 'test'
+  ...
+# Subtest: [T16] stopped while it works: the process ends, and the run says stopped, with no turn called finished
+ok 16 - [T16] stopped while it works: the process ends, and the run says stopped, with no turn called finished
+  ---
+  duration_ms: 88.288958
+  type: 'test'
+  ...
+# Subtest: [T16] research on a version not known to keep to its inputs is not run at all
+ok 17 - [T16] research on a version not known to keep to its inputs is not run at all
+  ---
+  duration_ms: 175.515958
+  type: 'test'
+  ...
+# Subtest: [T16] research goes on in no session, whatever it was given
+ok 18 - [T16] research goes on in no session, whatever it was given
+  ---
+  duration_ms: 43.774584
+  type: 'test'
+  ...
+# Subtest: [T16] research on a version known to keep to its inputs gets reading tools only, no settings of the person's, and nobody to ask
+ok 19 - [T16] research on a version known to keep to its inputs gets reading tools only, no settings of the person's, and nobody to ask
+  ---
+  duration_ms: 127.474833
+  type: 'test'
+  ...
+# Subtest: [T16] research whose process comes up with more tools than it was given is stopped at once, and said
+ok 20 - [T16] research whose process comes up with more tools than it was given is stopped at once, and said
+  ---
+  duration_ms: 131.443125
+  type: 'test'
+  ...
+# Subtest: [T16] started from inside another Claude Code session, a run is its own: nothing of that session comes along
+not ok 21 - [T16] started from inside another Claude Code session, a run is its own: nothing of that session comes along
+  ---
+  duration_ms: 87.650166
+  type: 'test'
+  location: '<repo>/tests/host/claude-adapter.test.cjs:224:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    CLAUDECODE
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/claude-adapter.test.cjs:229:63)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T16] started from anywhere else, what the person set stays
+ok 22 - [T16] started from anywhere else, what the person set stays
+  ---
+  duration_ms: 86.936542
+  type: 'test'
+  ...
+# Subtest: [T16] the probe, too, is not of the session it was started in
+not ok 23 - [T16] the probe, too, is not of the session it was started in
+  ---
+  duration_ms: 129.737458
+  type: 'test'
+  location: '<repo>/tests/host/claude-adapter.test.cjs:240:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    CLAUDECODE
+    
+    true !== false
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: false
+  actual: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/claude-adapter.test.cjs:246:63)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T16] the binary a desktop app brings with it is found, the newest of them, after whatever is on the path
+not ok 24 - [T16] the binary a desktop app brings with it is found, the newest of them, after whatever is on the path
+  ---
+  duration_ms: 1.05625
+  type: 'test'
+  location: '<repo>/tests/host/claude-adapter.test.cjs:249:1'
+  failureType: 'testCodeFailure'
+  error: 'claudeAppDirs is not a function'
+  code: 'ERR_TEST_FAILURE'
+  name: 'TypeError'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/claude-adapter.test.cjs:255:52)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T16] the probe reports what this version can do, and its version
+ok 25 - [T16] the probe reports what this version can do, and its version
+  ---
+  duration_ms: 132.542541
+  type: 'test'
+  ...
+# Subtest: [T16] a version that comes up with more tools than it was given is not called offline
+ok 26 - [T16] a version that comes up with more tools than it was given is not called offline
+  ---
+  duration_ms: 138.908375
+  type: 'test'
+  ...
+# Subtest: [T16] what a version does not list is unsupported
+ok 27 - [T16] what a version does not list is unsupported
+  ---
+  duration_ms: 135.587125
+  type: 'test'
+  ...
+# Subtest: [T16] no help to read: nothing is claimed, and a version is still given
+ok 28 - [T16] no help to read: nothing is claimed, and a version is still given
+  ---
+  duration_ms: 84.209791
+  type: 'test'
+  ...
+# Subtest: [T16] a binary that cannot be run: every capability unknown, no version, and no throw
+ok 29 - [T16] a binary that cannot be run: every capability unknown, no version, and no throw
+  ---
+  duration_ms: 0.783792
+  type: 'test'
+  ...
+# Subtest: [T16] the probe keeps away from the person's login and history: a home of its own, the mode that reads no login, and it leaves nothing behind
+ok 30 - [T16] the probe keeps away from the person's login and history: a home of its own, the mode that reads no login, and it leaves nothing behind
+  ---
+  duration_ms: 131.570333
+  type: 'test'
+  ...
+# Subtest: [T16] a runtime keeps its report while its version stands, and asks again when the version changes
+ok 31 - [T16] a runtime keeps its report while its version stands, and asks again when the version changes
+  ---
+  duration_ms: 372.719542
+  type: 'test'
+  ...
+# Subtest: [T16] a runtime that is not installed reports nothing
+ok 32 - [T16] a runtime that is not installed reports nothing
+  ---
+  duration_ms: 0.246042
+  type: 'test'
+  ...
+# Subtest: [T15] the handshake comes first, once, and only then anything else
+ok 33 - [T15] the handshake comes first, once, and only then anything else
+  ---
+  duration_ms: 275.111084
+  type: 'test'
+  ...
+# Subtest: [T15][L03] two asking at once while the server starts: one server, one handshake
+ok 34 - [T15][L03] two asking at once while the server starts: one server, one handshake
+  ---
+  duration_ms: 95.359834
+  type: 'test'
+  ...
+# Subtest: [T15][L03] a server that went away is started again, and the old one's exit does not take the new one with it
+ok 35 - [T15][L03] a server that went away is started again, and the old one's exit does not take the new one with it
+  ---
+  duration_ms: 82.870625
+  type: 'test'
+  ...
+# Subtest: [T15] the thread is told apart from its session: the run answers with the thread's id and the turn that really ran
+ok 36 - [T15] the thread is told apart from its session: the run answers with the thread's id and the turn that really ran
+  ---
+  duration_ms: 43.137917
+  type: 'test'
+  ...
+# Subtest: [T15] resume names the thread, and the next turn goes on it
+ok 37 - [T15] resume names the thread, and the next turn goes on it
+  ---
+  duration_ms: 44.444167
+  type: 'test'
+  ...
+# Subtest: [T15] a turn that did not finish is not called completed: the binding keeps the one before it
+ok 38 - [T15] a turn that did not finish is not called completed: the binding keeps the one before it
+  ---
+  duration_ms: 76.248083
+  type: 'test'
+  ...
+# Subtest: [T15] a fork carries its boundary: the turn it goes through, not the whole thread
+ok 39 - [T15] a fork carries its boundary: the turn it goes through, not the whole thread
+  ---
+  duration_ms: 223.274208
+  type: 'test'
+  ...
+# Subtest: [T15] a boundary found on a later page of turns is found
+ok 40 - [T15] a boundary found on a later page of turns is found
+  ---
+  duration_ms: 218.6205
+  type: 'test'
+  ...
+# Subtest: [T15] a fork at a turn in progress is refused, and nothing is sent in its place
+ok 41 - [T15] a fork at a turn in progress is refused, and nothing is sent in its place
+  ---
+  duration_ms: 216.162375
+  type: 'test'
+  ...
+# Subtest: [T15] a fork at a turn interrupted is refused, and nothing is sent in its place
+ok 42 - [T15] a fork at a turn interrupted is refused, and nothing is sent in its place
+  ---
+  duration_ms: 219.885709
+  type: 'test'
+  ...
+# Subtest: [T15] a fork at a turn failed is refused, and nothing is sent in its place
+ok 43 - [T15] a fork at a turn failed is refused, and nothing is sent in its place
+  ---
+  duration_ms: 215.560042
+  type: 'test'
+  ...
+# Subtest: [T15] a fork at a turn the thread does not have is refused
+ok 44 - [T15] a fork at a turn the thread does not have is refused
+  ---
+  duration_ms: 218.640875
+  type: 'test'
+  ...
+# Subtest: [T15] a version whose fork has no boundary is not asked to fork: the whole history would come along
+ok 45 - [T15] a version whose fork has no boundary is not asked to fork: the whole history would come along
+  ---
+  duration_ms: 217.69675
+  type: 'test'
+  ...
+# Subtest: [T15] a fork whose turns cannot be looked at is refused: it is not known to be whole
+ok 46 - [T15] a fork whose turns cannot be looked at is refused: it is not known to be whole
+  ---
+  duration_ms: 225.158291
+  type: 'test'
+  ...
+# Subtest: [T15] a method the server does not know ends the run with that said: no other way in is tried
+ok 47 - [T15] a method the server does not know ends the run with that said: no other way in is tried
+  ---
+  duration_ms: 45.297375
+  type: 'test'
+  ...
+# Subtest: [T15] a thread at work in this server is not resumed, and no new thread is started instead
+ok 48 - [T15] a thread at work in this server is not resumed, and no new thread is started instead
+  ---
+  duration_ms: 47.231833
+  type: 'test'
+  ...
+# Subtest: [T15] the server saying a thread is busy elsewhere is said as that, and no new thread is started instead
+ok 49 - [T15] the server saying a thread is busy elsewhere is said as that, and no new thread is started instead
+  ---
+  duration_ms: 46.795958
+  type: 'test'
+  ...
+# Subtest: [T15] another client holding the thread, in the words the real server uses, is said as busy, and no new thread is started instead
+not ok 50 - [T15] another client holding the thread, in the words the real server uses, is said as busy, and no new thread is started instead
+  ---
+  duration_ms: 45.239416
+  type: 'test'
+  location: '<repo>/tests/host/codex-adapter.test.cjs:183:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - 'session-busy'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'session-busy'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/codex-adapter.test.cjs:186:10)
+    process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T15] a run over lets go of its thread: the server, which holds it for as long as it lives, goes soon after, and the next run starts another
+not ok 51 - [T15] a run over lets go of its thread: the server, which holds it for as long as it lives, goes soon after, and the next run starts another
+  ---
+  duration_ms: 195.380625
+  type: 'test'
+  location: '<repo>/tests/host/codex-adapter.test.cjs:190:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    1 !== 2
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 2
+  actual: 1
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/codex-adapter.test.cjs:198:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [T15] the server does not go while another run is at work on it
+ok 52 - [T15] the server does not go while another run is at work on it
+  ---
+  duration_ms: 206.978083
+  type: 'test'
+  ...
+# Subtest: [T15][L01] stopped while the thread is being started: the prompt is never sent
+ok 53 - [T15][L01] stopped while the thread is being started: the prompt is never sent
+  ---
+  duration_ms: 162.514708
+  type: 'test'
+  ...
+# Subtest: [T15][L01] stopped before the server has even answered: the prompt is never sent
+ok 54 - [T15][L01] stopped before the server has even answered: the prompt is never sent
+  ---
+  duration_ms: 163.19175
+  type: 'test'
+  ...
+# Subtest: [T15][L01] stopped while the turn is being started: it is interrupted the moment its id is known
+ok 55 - [T15][L01] stopped while the turn is being started: it is interrupted the moment its id is known
+  ---
+  duration_ms: 176.070041
+  type: 'test'
+  ...
+# Subtest: [T15] research on a version not known to keep to its inputs is not run at all
+ok 56 - [T15] research on a version not known to keep to its inputs is not run at all
+  ---
+  duration_ms: 223.935667
+  type: 'test'
+  ...
+# Subtest: [T15] research on a version known to keep to its inputs asks for no writing, no network and no approvals
+ok 57 - [T15] research on a version known to keep to its inputs asks for no writing, no network and no approvals
+  ---
+  duration_ms: 85.651375
+  type: 'test'
+  ...
+# Subtest: [T15] research goes on in no session, whatever it was given
+ok 58 - [T15] research goes on in no session, whatever it was given
+  ---
+  duration_ms: 84.119
+  type: 'test'
+  ...
+# Subtest: [T15] the probe reports what this version can do, and its version
+ok 59 - [T15] the probe reports what this version can do, and its version
+  ---
+  duration_ms: 123.470291
+  type: 'test'
+  ...
+# Subtest: [T15] a sandbox that lets a file outside be read is not called read-only to its roots
+ok 60 - [T15] a sandbox that lets a file outside be read is not called read-only to its roots
+  ---
+  duration_ms: 125.126208
+  type: 'test'
+  ...
+# Subtest: [T15] a sandbox that lets the network through is not called offline
+ok 61 - [T15] a sandbox that lets the network through is not called offline
+  ---
+  duration_ms: 129.498666
+  type: 'test'
+  ...
+# Subtest: [T15] what a version does not list is unsupported, and a fork with no boundary is no fork at a turn
+ok 62 - [T15] what a version does not list is unsupported, and a fork with no boundary is no fork at a turn
+  ---
+  duration_ms: 83.541125
+  type: 'test'
+  ...
+# Subtest: [T15] a version with no schema to read: nothing is claimed
+ok 63 - [T15] a version with no schema to read: nothing is claimed
+  ---
+  duration_ms: 127.72125
+  type: 'test'
+  ...
+# Subtest: [T15] a binary that cannot be run: every capability unknown, no version, and no throw
+ok 64 - [T15] a binary that cannot be run: every capability unknown, no version, and no throw
+  ---
+  duration_ms: 1.376625
+  type: 'test'
+  ...
+# Subtest: [T15] the probe keeps away from the person's login and history: every process it starts has a home of its own, and it leaves none behind
+ok 65 - [T15] the probe keeps away from the person's login and history: every process it starts has a home of its own, and it leaves none behind
+  ---
+  duration_ms: 135.673875
+  type: 'test'
+  ...
+# Subtest: [T15] a runtime keeps its report while its version stands, and asks again when the version changes
+ok 66 - [T15] a runtime keeps its report while its version stands, and asks again when the version changes
+  ---
+  duration_ms: 382.549958
+  type: 'test'
+  ...
+# Subtest: [T15] a runtime that is not installed reports nothing
+ok 67 - [T15] a runtime that is not installed reports nothing
+  ---
+  duration_ms: 0.302958
+  type: 'test'
+  ...
+# Subtest: [T15] the host refuses research on what the report does not support
+ok 68 - [T15] the host refuses research on what the report does not support
+  ---
+  duration_ms: 0.250125
+  type: 'test'
+  ...
+1..68
+# tests 68
+# suites 0
+# pass 63
+# fail 5
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5024.2275

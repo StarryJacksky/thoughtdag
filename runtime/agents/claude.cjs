@@ -14,16 +14,25 @@ const fs = require('node:fs');
 const os = require('node:os');
 const { randomUUID } = require('node:crypto');
 const { snapshotDir, diffSnapshots } = require('./fs-diff.cjs');
-const { probeClaude, versionOf, helpOf, flagsIn, READING_TOOLS } = require('./claude-capabilities.cjs');
+const { probeClaude, versionOf, helpOf, flagsIn, withoutHostSession, READING_TOOLS } = require('./claude-capabilities.cjs');
 
 const fsp = fs.promises;
 const { locate, childEnv: envWith } = require('./where.cjs');
-const EXTRA_HOMES = [path.join(os.homedir(), '.claude', 'local')];   // the CLI's own install location, on top of the usual ones
+/** Where the desktop app keeps the CLI it brings with it: <version>/<build>/claude.app/Contents/MacOS, newest version first. */
+function claudeAppDirs(home = os.homedir()) {
+  const root = path.join(home, 'Library', 'Application Support', 'Claude', 'claude-code');
+  const parts = (v) => v.split('.').map((n) => parseInt(n, 10) || 0);
+  const newer = (a, b) => { const [x, y] = [parts(a), parts(b)]; for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return (y[i] ?? 0) - (x[i] ?? 0); return 0; };
+  try {
+    return fs.readdirSync(root).sort(newer).flatMap((version) => fs.readdirSync(path.join(root, version)).map((build) => path.join(root, version, build, 'claude.app', 'Contents', 'MacOS')));
+  } catch { return []; }
+}
+const EXTRA_HOMES = [path.join(os.homedir(), '.claude', 'local'), ...claudeAppDirs()];   // the CLI's own install location, then the desktop app's, on top of the usual ones
 
 /** The claude binary and the directories walked to find it (see where.cjs). */
 let located = null;
 const findClaude = () => (located ??= locate('claude', EXTRA_HOMES));
-const childEnv = () => envWith(EXTRA_HOMES);
+const childEnv = () => withoutHostSession(envWith(EXTRA_HOMES));
 
 /** Claude Code has no model list; its aliases resolve to the newest model
  *  of each family inside the CLI, so they never go stale. The CLI's own
@@ -432,4 +441,4 @@ function createClaudeRuntime({ log, find = findClaude, probe = probeClaude } = {
 
 function write(proc, obj) { try { proc.stdin.write(JSON.stringify(obj) + '\n'); return true; } catch { return false; } }
 
-module.exports = { createClaudeRuntime, findClaude };
+module.exports = { createClaudeRuntime, findClaude, claudeAppDirs };

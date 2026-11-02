@@ -19,7 +19,8 @@ const { probeCodex, versionOf } = require('./codex-capabilities.cjs');
 const fsp = fs.promises;
 const RESPONSE_MS = 30 * 1000;
 const { locate, childEnv: envWith } = require('./where.cjs');
-const EXTRA_HOMES = [path.join(os.homedir(), '.codex', 'bin')];
+// the desktop app brings its own CLI, after whatever is on the path
+const EXTRA_HOMES = [path.join(os.homedir(), '.codex', 'bin'), '/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin'];
 
 /** The codex binary and the directories walked to find it (see where.cjs). */
 let located = null;
@@ -49,7 +50,7 @@ class RunRefused extends Error {
   constructor(code, message) { super(message); this.code = code; }
 }
 const TURN_PAGE = 100;
-const BUSY = /\b(busy|in use|locked|another client)\b/i;
+const BUSY = /\b(busy|in use|locked|another client|active writer)\b/i;
 const UNKNOWN_METHOD = /unknown (variant|method)/i;
 /** What the server's refusal of a step means for the run. */
 function refusalOf(method, e) {
@@ -99,6 +100,22 @@ function createCodexRuntime({ log, find = findCodex, probe = probeCodex } = {}) 
     proc = null; ready = null;
   }, 30 * 1000);
   retire.unref?.();
+
+  // A server holds every thread it has written to for as long as it lives (`thread/unsubscribe` does not let go),
+  // and no other client can go on in one while it does: "already has an active writer". So once no run is at work
+  // it goes soon, for the person to take the thread up in their own client; the next run starts another.
+  const RELEASE_MS = Number(process.env.TD_AGENT_RELEASE_MS) || 20 * 1000;
+  let releaseTimer = null;
+  function releaseSoon() {
+    clearTimeout(releaseTimer);
+    releaseTimer = setTimeout(() => {
+      if (runs.size || pending.size) return;
+      const child = proc;
+      proc = null; ready = null;
+      try { child?.kill(); } catch { /* gone */ }
+    }, RELEASE_MS);
+    releaseTimer.unref?.();
+  }
 
   const die = (reason) => {
     for (const p of pending.values()) p({ error: { message: reason } });
@@ -385,6 +402,7 @@ function createCodexRuntime({ log, find = findCodex, probe = probeCodex } = {}) 
       const cwd = String(req.cwd || '');
       if (!cwd || !path.isAbsolute(cwd)) throw new Error('run needs an absolute cwd');
       await fsp.mkdir(cwd, { recursive: true });
+      clearTimeout(releaseTimer);
       const runId = randomUUID();
       const emit = (event) => { try { onEvent({ runId, event }); } catch { /* renderer gone */ } };
       const state = { runId, threadId: null, turnId: null, turnStatus: null, stopped: false, text: '', final: null, waiting: false, emit, end: null, done: null,
@@ -455,6 +473,7 @@ function createCodexRuntime({ log, find = findCodex, probe = probeCodex } = {}) 
           clearInterval(watchdog);
           if (state.threadId) byThread.delete(state.threadId);
           runs.delete(runId);
+          releaseSoon();
         }
       })();
       return runId;
@@ -485,7 +504,7 @@ function createCodexRuntime({ log, find = findCodex, probe = probeCodex } = {}) 
       return true;
     },
 
-    shutdown() { clearInterval(retire); const child = proc; proc = null; ready = null; try { child?.kill(); } catch { /* gone */ } for (const p of pending.values()) p({ error: { message: 'codex was stopped' } }); pending.clear(); },
+    shutdown() { clearInterval(retire); clearTimeout(releaseTimer); const child = proc; proc = null; ready = null; try { child?.kill(); } catch { /* gone */ } for (const p of pending.values()) p({ error: { message: 'codex was stopped' } }); pending.clear(); },
   };
 }
 

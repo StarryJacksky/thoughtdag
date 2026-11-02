@@ -180,6 +180,41 @@ test('[T15] the server saying a thread is busy elsewhere is said as that, and no
   assert.deepEqual(running(), ['thread/resume']);
 });
 
+test('[T15] another client holding the thread, in the words the real server uses, is said as busy, and no new thread is started instead', async (t) => {
+  const codex = fresh(t, { heldByAnother: [THREAD] });
+  const events = await runToEnd(codex, { runtime: 'codex', cwd: fake.project, prompt: 'go on', sessionPath: FILE, model: MODEL });
+  assert.equal(errorOf(events).code, 'session-busy');
+  assert.deepEqual(running(), ['thread/resume']);
+});
+
+test('[T15] a run over lets go of its thread: the server, which holds it for as long as it lives, goes soon after, and the next run starts another', async (t) => {
+  process.env.TD_AGENT_RELEASE_MS = '40';
+  t.after(() => { delete process.env.TD_AGENT_RELEASE_MS; });
+  const codex = fresh(t);
+  await runToEnd(codex, { runtime: 'codex', cwd: fake.project, prompt: 'hello', model: MODEL });
+  await pause(150);
+  const events = await runToEnd(codex, { runtime: 'codex', cwd: fake.project, prompt: 'again', model: MODEL });
+  assert.equal(events.at(-1).how, 'end');
+  assert.equal(servers().length, 2);
+});
+
+test('[T15] the server does not go while another run is at work on it', async (t) => {
+  process.env.TD_AGENT_RELEASE_MS = '40';
+  t.after(() => { delete process.env.TD_AGENT_RELEASE_MS; });
+  const codex = fresh(t, { hold: true });
+  const long = await under(codex, { prompt: 'long' });
+  await until(() => methods().includes('turn/start'));
+  fake.script({});
+  const quick = await under(codex, { prompt: 'second' });
+  await pause(150);
+  assert.equal(servers().length, 1);
+  assert.equal(long.events.some((e) => e.type === 'run_end'), false);
+  codex.abort(long.runId);
+  codex.abort(quick.runId);
+  await long.end;
+  await quick.end;
+});
+
 test('[T15][L01] stopped while the thread is being started: the prompt is never sent', async (t) => {
   const codex = fresh(t, { delay: { 'thread/start': 120 } });
   const run = await under(codex, { prompt: 'PROMPT_NOT_TO_BE_SENT' });

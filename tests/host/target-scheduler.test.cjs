@@ -80,7 +80,7 @@ test('[T28] runs that write in one folder go one at a time; other folders, and r
   const s = setup({ maxActiveRuns: 5 });
   await ask(s, 'w1', { cwd: '/synthetic/shared', target: { targetId: 't1', writes: true } });
   await ask(s, 'w2', { cwd: '/synthetic/shared', target: { targetId: 't2', writes: true } });
-  await ask(s, 'r1', { cwd: '/synthetic/shared', target: { targetId: 't3', writes: false } });
+  await ask(s, 'r1', { cwd: '/synthetic/shared', mode: 'research', target: { targetId: 't3', writes: false } });
   await ask(s, 'w3', { cwd: '/synthetic/other', target: { targetId: 't4', writes: true } });
   await pause();
   assert.deepEqual(s.promptsStarted(), ['w1', 'r1', 'w3']);

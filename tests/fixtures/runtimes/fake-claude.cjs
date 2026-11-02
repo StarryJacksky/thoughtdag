@@ -63,13 +63,20 @@ function handle(msg) {
     process.stderr.write(`Error: Session ID ${resumed} is already in use.\n`);
     process.exit(1);
   }
-  const text = script.failure ?? script.reply ?? 'synthetic claude answer';
+  const text = script.streamThenFail ?? script.failure ?? script.reply ?? 'synthetic claude answer';
   out({ type: 'system', subtype: 'init', session_id: sessionId, tools, permissionMode: 'default' });
   if (script.hold) return; // nothing more until it is stopped
   out({ type: 'stream_event', event: { type: 'content_block_delta', delta: { type: 'text_delta', text } } });
   out({ type: 'assistant', uuid: 'assistant-entry-1', message: { model: 'claude-synthetic-1', content: [{ type: 'text', text }] } });
-  // a turn that failed still says "success": the real CLI marks it with is_error, and exits 1
-  if (script.failure) { out({ type: 'result', subtype: 'success', is_error: true, result: text }, () => process.exit(1)); return; }
+  // a turn that failed still says "success": the real CLI marks it with is_error, and exits 1 (other exits are tried too)
+  if (script.failure || script.failureNoText || script.streamThenFail) {
+    const code = script.failureExit ?? 1;
+    out({ type: 'result', subtype: script.failureNoText ? 'error_during_execution' : 'success', is_error: true, ...(script.failure ? { result: script.failure } : {}) }, () => {
+      if (script.lateStderr) { process.stderr.write(`${script.lateStderr}\n`, () => process.exit(code)); return; }
+      process.exit(code);
+    });
+    return;
+  }
   out({ type: 'result', subtype: 'success', result: text }, () => process.exit(0));
 }
 

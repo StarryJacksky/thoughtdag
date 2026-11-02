@@ -375,16 +375,12 @@ function createClaudeRuntime({ log, find = findClaude, probe = probeClaude } = {
                 // a turn that failed may still say "success": `is_error` is what says so, and what it said is not an answer
                 const failed = !!m.is_error || (!!m.subtype && m.subtype !== 'success');
                 if (failed) {
+                  // it has failed, whatever the process does next; the reason may still be on its way on stderr, and is said before the end
                   state.text = '';
                   state.final = null;
                   state.turnStatus = 'failed';
-                  // the reason of a session not found comes on stderr, a moment after
-                  setTimeout(() => {
-                    const said = (typeof m.result === 'string' && m.result) || state.heard.trim() || String(m.subtype ?? 'the turn failed');
-                    const why = codeOf(said);
-                    mark({ type: 'run_error', message: said.slice(-400), ...(why ? { code: why } : {}) });
-                    done('error');
-                  }, m.result ? 0 : 50);
+                  state.failure = { said: typeof m.result === 'string' ? m.result : '', subtype: m.subtype };
+                  done(state.aborted ? 'aborted' : 'error');
                   break;
                 }
                 state.final = typeof m.result === 'string' ? m.result : null;
@@ -406,6 +402,11 @@ function createClaudeRuntime({ log, find = findClaude, probe = probeClaude } = {
           // let the CLI finish writing its transcript: it exits on its own
           // after the result; a kill is only the fallback
           await new Promise((resolve) => { if (proc.exitCode !== null || proc.signalCode) return resolve(); const t = setTimeout(() => { try { proc.kill(); } catch { /* gone */ } resolve(); }, 8000); proc.once('exit', () => { clearTimeout(t); resolve(); }); });
+          if (state.failure && how === 'error') {
+            const said = state.failure.said || state.heard.trim() || String(state.failure.subtype ?? 'the turn failed');
+            const why = codeOf(said);
+            mark({ type: 'run_error', message: said.slice(-400), ...(why ? { code: why } : {}) });
+          }
           // what a later run may go on from: the entry of a turn that really finished
           if (state.sessionId) mark({ type: 'binding', threadId: null, nativeSessionId: state.sessionId, inheritsHistory, turnStatus: state.turnStatus ?? (how === 'aborted' ? 'interrupted' : how === 'end' ? 'completed' : 'failed'), turnId: state.lastEntry, lastCompletedTurnId: (state.turnStatus === 'completed' || (!state.turnStatus && how === 'end')) ? state.lastEntry : null });
           if (state.sessionId) {

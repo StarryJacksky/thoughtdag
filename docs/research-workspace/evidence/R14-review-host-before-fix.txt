@@ -1,0 +1,221 @@
+TAP version 13
+# Subtest: [R14-01] a run at work that says it only reads is a writer: what it says does not make it research
+not ok 1 - [R14-01] a run at work that says it only reads is a writer: what it says does not make it research
+  ---
+  duration_ms: 7.553083
+  type: 'test'
+  location: '<repo>/tests/host/review-round14.test.cjs:30:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+        'writer',
+    +   'claims-reading'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'writer'
+  actual:
+    0: 'writer'
+    1: 'claims-reading'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round14.test.cjs:35:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: [R14-01] control: a run in research goes beside a writer
+ok 2 - [R14-01] control: a run in research goes beside a writer
+  ---
+  duration_ms: 6.029209
+  type: 'test'
+  ...
+# Subtest: [R14-01] a run in research that says it writes is a writer: the claim to write is believed
+ok 3 - [R14-01] a run in research that says it writes is a writer: the claim to write is believed
+  ---
+  duration_ms: 6.574292
+  type: 'test'
+  ...
+# Subtest: [R14-02] A taken up again after B took the name, other content: B keeps its name, its identity and its bytes, and A is made anew
+not ok 4 - [R14-02] A taken up again after B took the name, other content: B keeps its name, its identity and its bytes, and A is made anew
+  ---
+  duration_ms: 84.51725
+  type: 'test'
+  location: '<repo>/tests/host/review-round14.test.cjs:76:3'
+  failureType: 'testCodeFailure'
+  error: 'A does not claim the name'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'notes/fresh.md'
+  actual: 'notes/fresh.md'
+  operator: 'notStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round14.test.cjs:83:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R14-02] the same after a restart, other content: what the crash left does not take B either
+not ok 5 - [R14-02] the same after a restart, other content: what the crash left does not take B either
+  ---
+  duration_ms: 68.173625
+  type: 'test'
+  location: '<repo>/tests/host/review-round14.test.cjs:92:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    'missing' !== 'ready'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'ready'
+  actual: 'missing'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round14.test.cjs:98:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R14-02] A taken up again after B took the name, the same content: B keeps its name, its identity and its bytes, and A is made anew
+not ok 6 - [R14-02] A taken up again after B took the name, the same content: B keeps its name, its identity and its bytes, and A is made anew
+  ---
+  duration_ms: 68.573208
+  type: 'test'
+  location: '<repo>/tests/host/review-round14.test.cjs:76:3'
+  failureType: 'testCodeFailure'
+  error: 'A does not claim the name'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'notes/fresh.md'
+  actual: 'notes/fresh.md'
+  operator: 'notStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round14.test.cjs:83:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R14-02] the same after a restart, the same content: what the crash left does not take B either
+not ok 7 - [R14-02] the same after a restart, the same content: what the crash left does not take B either
+  ---
+  duration_ms: 67.129916
+  type: 'test'
+  location: '<repo>/tests/host/review-round14.test.cjs:92:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    
+    'missing' !== 'ready'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'ready'
+  actual: 'missing'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round14.test.cjs:98:12)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R14-02] control: another program put a file at the name, and nothing is registered for it: A takes it, with what it holds
+ok 8 - [R14-02] control: another program put a file at the name, and nothing is registered for it: A takes it, with what it holds
+  ---
+  duration_ms: 48.881167
+  type: 'test'
+  ...
+# Subtest: [R14-02] control: A's file still there: A is finished, with the identity it noted
+ok 9 - [R14-02] control: A's file still there: A is finished, with the identity it noted
+  ---
+  duration_ms: 51.223667
+  type: 'test'
+  ...
+# Subtest: [R14-05] a failed result and then a clean exit: failed, with the error before the end
+ok 10 - [R14-05] a failed result and then a clean exit: failed, with the error before the end
+  ---
+  duration_ms: 342.76075
+  type: 'test'
+  ...
+# Subtest: [R14-05] a failed result with no words and a clean exit at once: failed, and what is said is said
+not ok 11 - [R14-05] a failed result with no words and a clean exit at once: failed, and what is said is said
+  ---
+  duration_ms: 83.861
+  type: 'test'
+  location: '<repo>/tests/host/review-round14.test.cjs:145:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+    +   'end:end'
+    -   'error',
+    -   'end:error'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'error'
+    1: 'end:error'
+  actual:
+    0: 'end:end'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round14.test.cjs:148:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R14-05] words streamed before the failure are not an answer
+not ok 12 - [R14-05] words streamed before the failure are not an answer
+  ---
+  duration_ms: 86.751875
+  type: 'test'
+  location: '<repo>/tests/host/review-round14.test.cjs:151:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+    +   'end:end'
+    -   'error',
+    -   'end:error'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'error'
+    1: 'end:error'
+  actual:
+    0: 'end:end'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<repo>/tests/host/review-round14.test.cjs:154:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: [R14-05] the reason that comes on stderr after the result is still said
+ok 13 - [R14-05] the reason that comes on stderr after the result is still said
+  ---
+  duration_ms: 82.9585
+  type: 'test'
+  ...
+# Subtest: [R14-05] stopped as it fails: stopped, and no error is said
+ok 14 - [R14-05] stopped as it fails: stopped, and no error is said
+  ---
+  duration_ms: 91.612
+  type: 'test'
+  ...
+1..14
+# tests 14
+# suites 0
+# pass 7
+# fail 7
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1159.821917

@@ -346,6 +346,13 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
     const revision = hashOf(there.bytes);
     const observed = observedOf(there.stat);
     const record = await atPath(relativePath, async () => {
+      // the file at the name since made by another creation is that one's: its own record says it is this very file
+      const mine = intent?.fileId ? await registry.get(intent.fileId) : null;
+      if (!mine && !(attempt && sameFile(there.stat, attempt))) {
+        const live = await registry.findByPath(relativePath);
+        const holder = live ? await registry.entry(live.fileId) : null;
+        if (holder && sameFile(holder.observed, observed)) return null;
+      }
       // a journal of an older version names no identity: one it stored for this very file stands, and any other is not its own
       let fileId = intent?.fileId;
       if (!fileId) {
@@ -358,6 +365,7 @@ function createFileOps({ grant, registry, journal, trash = null, io = fs.promise
       const given = await registry.create({ ...(fileId ? { fileId } : {}), relativePath, mediaType: mediaTypeOf(relativePath), origin, observed, revision, ...(importedFrom ? { importedFrom } : {}) });
       return given.relativePath === relativePath && given.revision !== revision ? registry.update(given.fileId, { revision }, observed) : given;
     });
+    if (!record) return null;
     await journal.append({ opId, kind: 'create', phase: 'done', fileId: record.fileId });
     return record;
   }

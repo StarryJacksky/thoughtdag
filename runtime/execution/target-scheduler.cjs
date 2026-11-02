@@ -45,8 +45,8 @@ function createTargetScheduler({ runtimeFor, onEvent, maxActiveRuns = Number(pro
     targetId: req.target?.targetId ?? null,
     session: `${req.runtime ?? ''}:${sessionOf(req.sessionPath) ?? ''}`,
     hasSession: !!sessionOf(req.sessionPath),
-    // what does not say it only reads counts as writing
-    writesIn: req.target?.writes === false ? null : req.cwd,
+    // only research reads and nothing else: whatever else says so, or says nothing, counts as writing
+    writesIn: req.target?.writes === false && req.mode === 'research' ? null : req.cwd,
   });
   const inTheWay = (a, b) => (a.targetId !== null && a.targetId === b.targetId)
     || (a.hasSession && b.hasSession && a.session === b.session)
